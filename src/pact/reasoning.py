@@ -53,6 +53,12 @@ class TestLLMProvider:
             return self._verdict(task.input)
         raise ValueError(f"unsupported task type: {task.type}")
 
+    _REFUSAL_PHRASES = [
+        "every single day no rest",
+        "no rest ever",
+        "no days off ever",
+    ]
+
     def _draft(self, input: dict) -> dict:
         prompt = str(input.get("prompt", "")).strip()
         if not prompt:
@@ -67,6 +73,20 @@ class TestLLMProvider:
                 "recommended_stake_cents": 0,
                 "rubric": {},
             }
+        lower = prompt.lower()
+        for phrase in self._REFUSAL_PHRASES:
+            if phrase in lower:
+                return {
+                    "refused": True,
+                    "reason": "Prompt describes an unrealistic or harmful commitment; refusing.",
+                    "title": "",
+                    "goal": "",
+                    "timezone": "America/Los_Angeles",
+                    "deadline_iso": "",
+                    "target_count": 0,
+                    "recommended_stake_cents": 0,
+                    "rubric": {},
+                }
         rubric = {
             "modality": "photo",
             "require_token": True,
