@@ -73,12 +73,12 @@ def test_reconcile_settles_ghosted_pact_to_failed_donation():
     assert len(settled) == 1
     saved = repo.get_pact("pact_ghost")
     assert saved.status == PactStatus.donated
-    assert saved.stake_state == StakeState.committed
+    assert saved.stake_state == StakeState.executed
     assert saved.spend_request_id == "test_sr_pact_ghost_500"
 
     verdict = repo.get_verdict("pact_ghost")
     assert verdict is not None
-    assert verdict.status == PactStatus.donated
+    assert verdict.status == PactStatus.failed
     assert verdict.valid_proof_count == 0
     assert verdict.target_count == 2
     assert verdict.payment_action == PaymentAction.donation_executed
