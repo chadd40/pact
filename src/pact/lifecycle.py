@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from pact.models import Pact, PactStatus
+from pact.models import Pact, PactStatus, StakeState
 
 
 class TransitionError(Exception):
@@ -216,3 +216,28 @@ def submit_proof(
         judge_reason=result["reason"],
         judge_checklist=result["checklist"],
     )
+
+
+# ─── Task 14: freeze + cancel ─────────────────────────────────────────────────
+
+
+def spend_freeze(pact: Pact, clock: Clock) -> Pact:
+    if pact.freezes_used >= pact.freezes_allowed:
+        raise TransitionError(
+            f"no freezes left: used {pact.freezes_used} of {pact.freezes_allowed}"
+        )
+    pact.deadline_at = pact.deadline_at + timedelta(hours=pact.freeze_extension_hours)
+    pact.freezes_used += 1
+    return pact
+
+
+def cancel(pact: Pact, clock: Clock, settings: Settings) -> Pact:
+    now = clock.now()
+    cooling_off_end = pact.started_at + timedelta(minutes=settings.cooling_off_minutes)
+    if now <= cooling_off_end:
+        pact = transition(pact, PactStatus.canceled_release)
+        pact.stake_state = StakeState.released
+        return pact
+    pact = transition(pact, PactStatus.canceled_forfeit)
+    pact = transition(pact, PactStatus.donation_pending)
+    return pact
