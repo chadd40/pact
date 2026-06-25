@@ -17,7 +17,26 @@ Pact is a **self-binding commitment agent**. You tell Hermes, in natural languag
 ### Golden demo
 > "Work out 5 times this week or $20 goes to charity." Each session is proven with a photo (or a non-photo log), judged by Hermes against a rubric agreed during drafting. Demoed in ~3 minutes via a simulated clock.
 
-A "5× this week" goal is **one pact** with a single end-of-week deadline and a criterion of **5 distinct dated proofs** — not five separate pacts.
+A "5× this week" goal is **one pact** with a single end-of-week deadline and a criterion of **5 distinct dated proofs** — not five separate pacts. The workout is the *demo*; the product itself is general-purpose (see 1A).
+
+---
+
+## 1A. Product Decisions — Interview Round (2026-06-24)
+
+| # | Decision | Choice | Build impact |
+|---|---|---|---|
+| 1 | Goal scope | **General-purpose from day one** — any goal; the rubric/judge is goal-agnostic. Workout is the demo, not the limit. | Judge reasons over an arbitrary frozen rubric; deterministic digital checkers (url/git/tests) are optional helpers, not the core. |
+| 2 | Proof source | **Manual submission**, with a **connector seam left in but unwired** (Strava/Health/GitHub/Calendar later). | `proof_source` abstraction exists; no integrations built yet. |
+| 3 | Win reward | **Streak + history** across pacts. | New Owner/Profile entity + a history view. |
+| 4 | Witnessing | **Private self-binding** (you + agent only). | No social/partner features in MVP. |
+| 5 | Grace | **Limited built-in freezes** — e.g. one freeze per pact. | `freezes_allowed/used`; freeze semantics in the lifecycle (§5). |
+| 6 | Rubric say | **Agent proposes; user softens within a rigor floor.** | Rubric carries a `rigor_floor` the user can't drop below. |
+| 7 | Stake | **Agent recommends a calibrated stake; user decides** (within caps). | Draft emits `recommended_stake_cents`. |
+| 8 | Engagement | **Recurring relationship + streaks.** | Owner profile, renew flow, cross-pact history. |
+| 9 | Business | **Free flagship Hermes skill** (no monetization in MVP). | No fee logic; positioning only. |
+| 10 | Fairness | **Strict agent verdict + one narrow dispute window** (submit extra proof → agent re-runs once → final). Real money still moves only when the user approves the Link charge. | Replaces the earlier "default-favor-user / hold-and-ask" resolution (§5, §9). |
+
+**Scope note:** decisions 1, 3, 5, 8 expand the build beyond the original spine. The demo can still be a single pact; streaks/history/freezes/renew are real features but several can be partially stubbed for the demo (see §14).
 
 ---
 
@@ -25,6 +44,9 @@ A "5× this week" goal is **one pact** with a single end-of-week deadline and a 
 
 ### In scope (weekend build)
 - NL intake → AI-drafted pact → confirm contract + pick charity → active coaching → proof submission + agent judging → deadline verdict → charge-on-fail donation → evidence/verdict packet.
+- **General-purpose goals** judged against a frozen, goal-agnostic rubric (workout is the demo vertical, not a limit).
+- **Streaks + cross-pact history** via a persistent Owner profile; **limited freezes** per pact (§5).
+- **Manual proof** submission with an **unwired `proof_source` connector seam** reserved for later (§6).
 - Two surfaces over one engine: **web UI** and **`/pact` Hermes skill**, sharing stable pact IDs.
 - Reasoning done by a **Hermes agent (the brain)** — yours or the user's, using its own model; backend is deterministic machinery + a **reasoning-task broker** with a `test_llm` hybrid fallback (§3).
 - **Modality capability negotiation:** image proof requires a vision-capable agent; Pact refuses/repropose at draft time if none is available (§3, §6).
@@ -36,9 +58,10 @@ A "5× this week" goal is **one pact** with a single end-of-week deadline and a 
 
 ### Out of scope (explicit non-goals)
 - No escrow / custody / holding of funds (impossible on the Link rail; also money-transmission risk).
-- No multi-user accounts or auth — single implicit owner (the host Link wallet is global, §8).
-- No habit marketplace, social network, recurring subscriptions.
-- No partial-credit payouts — verdict is all-or-nothing for v1 (§5).
+- No login/auth — single implicit owner with a persistent profile for streak/history (the host Link wallet is global, §8). Multi-tenant auth is future work.
+- No habit marketplace, social network, accountability partners, or recurring **billing/subscriptions** (a recurring *relationship*/streaks is in scope; recurring *payments* are not).
+- No proof-source integrations wired in MVP (the seam exists, unused).
+- No partial-credit payouts — verdict is all-or-nothing for v1; a **freeze** pardons a checkpoint, it does not pro-rate the stake (§5).
 - No native mobile app.
 - No anti-charity / adversarial donation destinations.
 
@@ -81,10 +104,11 @@ Web UI ── enqueue reasoning task ──►  Pact API (FastAPI) = determinist
 Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for env/deps, `httpx` for tests, Playwright for the real-donation coda, `imagehash`+`Pillow` for pHash (install in a venv — system Python is PEP-668 locked). Simple server-rendered HTML/JS or a light SPA — kept minimal.
 
 ### Web screens
+0. **Home / My Pacts** — current streak, "you've kept 4 of your last 5," history list, **New pact**, one-tap **renew** a finished pact (decisions #3, #8).
 1. **Create** — one NL textbox ("what, by when, what's at stake"), examples, **Generate pact**.
-2. **Confirm** — generated terms, frozen rubric, deadline, stake, **charity picker (10)**, safety/legal disclosures + consent checkboxes, **Start pact** (no money moves here).
-3. **Active** — headline, time/pace remaining, proof count (e.g. 2/5 across distinct days), coaching thread (bidirectional), submit-proof (with nonce token), per-proof judgments, "Advance day" (demo).
-4. **Verdict / Evidence packet** — verdict banner (SUCCEEDED $0 moved / FAILED $20 → charity), 5-row proof table (date · thumbnail · pass/fail · judge reason), coaching log, payment receipt/ref, stable per-pact URL.
+2. **Confirm** — generated terms, frozen rubric (knobs softenable only down to the rigor floor), deadline, **agent-recommended stake (editable, within caps)**, **charity picker (10)**, freeze allowance, safety/legal disclosures + consent checkboxes, **Start pact** (no money moves here).
+3. **Active** — headline, time/pace remaining, proof count (e.g. 2/5 across distinct days), coaching thread (bidirectional), submit-proof (with nonce token), per-proof judgments, **use-a-freeze** control, "Advance day" (demo).
+4. **Verdict / Evidence packet** — verdict banner (SUCCEEDED $0 moved / FAILED $20 → charity), 5-row proof table (date · thumbnail · pass/fail · judge reason), freezes used, coaching log, **dispute affordance (single window)**, payment receipt/ref, stable per-pact URL.
 
 ---
 
@@ -102,10 +126,14 @@ Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for
   "deadline_at": "2026-06-28T23:59:59-07:00",  // explicit UTC-derived instant
   "target_count": 5,
   "distinct_days": true,
-  "stake_amount_cents": 2000,                  // frozen, <= 50000, capped per safety
+  "recommended_stake_cents": 2000,             // agent's calibrated suggestion (decision #7)
+  "stake_amount_cents": 2000,                  // user's confirmed choice; frozen, <= 50000, capped per safety
   "currency": "usd",
   "charity_id": "world_central_kitchen",       // frozen
   "charity_url": "https://wck.org/donate",     // frozen, allowlisted
+  "proof_source": "manual",                    // seam: manual | <future connector ids> (decision #2; only "manual" implemented)
+  "freezes_allowed": 1,                         // decision #5
+  "freezes_used": 0,
   "rubric": { /* frozen JSON, see §6 */ },
   "status": "draft|active|evaluating|succeeded|failed|needs_review|canceled_release|canceled_forfeit|donation_pending|donated|donation_failed|donation_declined",
   "stake_state": "none|committed|executing|executed|released|declined|error",  // "committed" = amount frozen + consented; NOT a real authorization/hold (Link can't hold). Real spend only at deadline-on-fail.
@@ -124,7 +152,12 @@ Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for
   "reject_if": ["stock/watermark", "pure UI screenshot", "missing token"],
   "min_distinct_days": 5,
   "count_target": 5,
-  "rest_if_injured_counts": true              // safety clause baked in
+  "rest_if_injured_counts": true,             // safety clause baked in
+  "rigor_floor": {                            // decision #6: agent proposes; user may soften ABOVE this, never below
+    "require_token": true,
+    "min_distinct_days": 4,
+    "non_negotiable": ["require_token", "server_time_is_truth", "no_duplicates"]
+  }
 }
 ```
 
@@ -168,10 +201,23 @@ Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for
 }
 ```
 
+### Owner / Profile (streaks & history — decisions #3, #8)
+```jsonc
+{
+  "owner": "colehaddad40@gmail.com",   // implicit single user; no auth
+  "pact_ids": ["pact_a1b2c3"],
+  "current_streak": 3,                  // consecutive kept pacts
+  "best_streak": 5,
+  "kept": 4, "failed": 1,               // lifetime tallies -> "you've kept 4 of your last 5"
+  "history": [ { "pact_id": "pact_a1b2c3", "title": "...", "outcome": "succeeded|failed", "ended_at": "..." } ]
+}
+```
+
 ### Verdict (packet)
 ```jsonc
 {
   "pact_id": "pact_a1b2c3", "status": "succeeded|failed|needs_review",
+  "freezes_used": 0,
   "valid_proof_count": 4, "target_count": 5,
   "summary": "4 of 5 distinct-day proofs by deadline. Pact failed.",
   "proof_ids": [...], "coaching_log_ids": [...],
@@ -188,9 +234,9 @@ Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for
 ```
 draft ──confirm+start──► active ──deadline reached──► evaluating
                            │                              │
-                  cancel before first proof window        ├─ valid >= target ─► succeeded   (stake_state: released; NO link-cli calls)
-                           │                              ├─ ambiguous decisive ─► needs_review (NEVER auto-donates)
-                  ► canceled_release (no donation)        └─ honest shortfall ─► failed ─► donation_pending
+                  cancel during cooling-off window        ├─ valid (+freeze) >= target ─► succeeded   (stake_state: released; NO link-cli calls)
+                           │                              ├─ tool/network error ─► needs_review (resolves on recovery; not a user fail)
+                  ► canceled_release (no donation)        └─ shortfall ─► failed ─►[dispute: +proof, re-run once]─► donation_pending
                            │                                                                   │
                   cancel after underway                                            user approves│decline / fail
                            │                                                                   ▼
@@ -200,7 +246,8 @@ draft ──confirm+start──► active ──deadline reached──► evalua
 ### Rules
 - **All-or-nothing v1:** `valid_proof_count >= target_count` → `succeeded`, else `failed`. Partial progress (3/5) is shown in copy but the money is binary against the single frozen amount. Contract states "partial credit not supported."
 - **Cancel semantics** (consented to on Screen 2): cancel within a short **cooling-off window** after start (before the first scheduled check-in fires) → `canceled_release` (no donation). Cancel **after** that → `canceled_forfeit` (donation fires). Backing out of a started commitment is exactly what the stake guards against. (Great demo beat: "you can't wriggle out once it's live.")
-- **needs_review never moves money.** Default-safe: at deadline count only *clearly valid* proofs; if removing ambiguous ones still meets the target → succeed; if it still fails regardless → honest fail; otherwise hold and ask the user for a re-submit / one-tap human confirm before any donation. There is a bounded window + a swept timeout so `needs_review` always reaches a terminal state.
+- **Strict verdict + one dispute window (decision #10).** The agent renders the verdict strictly against the frozen rubric. A `failed` verdict opens **one bounded dispute window** (deadline + grace; time-compressed in demo) in which the user may submit extra/late proof; the agent **re-runs the verdict once**; the result is then **final** — no further appeals. `needs_review` is reserved for genuine **tool/network/outage errors** (proof couldn't be checked), *not* user failure; it resolves on recovery without consuming the dispute window and never auto-donates. Real money still moves only when the user approves the Link charge (charge-on-fail) — that approval is the irreversibility gate, not a re-litigation. A swept timeout forces every pact to a terminal state.
+- **Freezes (decision #5).** A pact grants `freezes_allowed` (default 1). Spending a freeze **pardons one required checkpoint** — the effective target drops by one for that pact (e.g. 4/5 + 1 freeze = met). Freezes never pro-rate the stake (all-or-nothing preserved) and are recorded in the packet ("met with 1 freeze used"). A freeze may be spent any time before the deadline, never after the verdict. *[Confirm exact rule: pardon-a-checkpoint (assumed) vs. pause-the-clock/extend-deadline.]*
 - **Single clock:** all lifecycle code reads an injected `now()`. Never call `datetime.now()` directly. The demo "Advance day" endpoint and the real scheduler share this clock.
 - **Ghosting is the default failure path:** no proofs by deadline → `failed` → donation, with zero user interaction required to *reach the verdict*.
 - **Durability:** pacts persist to SQLite. On startup, a reconciliation sweep settles any `active` pact past its deadline. A ticker polls for due pacts (no in-memory per-pact timers). Verify by killing/restarting the server mid-pact.
@@ -217,7 +264,11 @@ The novel, defensible core. Four layers, the first three deterministic and run *
 3. **Perceptual-hash dedup.** Compute pHash for each proof; reject/flag if Hamming distance to any prior accepted proof is ≤ ~6 (catches reuse, crops, recompresses). Borderline → `needs_review`, not auto-reject.
 4. **Frozen-rubric judge — done by the Hermes agent (the brain).** At confirm, the agent emits a **frozen JSON rubric** stored on the pact. Each proof becomes a `judge_proof` reasoning task carrying that exact rubric + the `required_capability` (vision for photos); it is resolved by a capable Hermes agent (inline on the skill path, or via the broker on the website path; `test_llm` fallback in hybrid mode), at **temperature 0**, returning a structured checklist (token / content / not-dup → pass/fail + reason). Same rubric in → same verdict out regardless of which agent runs it; the rubric and per-proof checklist go verbatim into the packet for auditability. If no capable resolver is available, the proof is held (not failed) and the user is told to use a supported modality.
 
-**Honesty:** AI image-detection and identity proof are unsolved in a weekend. The UI states plainly it's best-effort, not forensic. A human-in-the-loop confirm gates any real (non-`test_link`) donation so a contested verdict never irreversibly moves money.
+**Rubric negotiation, floor, and generality (decisions #1, #6).** The rubric is goal-agnostic: for *any* goal the agent proposes `must_show` / `reject_if` / counts that make it objectively checkable. The agent owns a **rigor floor** (`require_token`, server-time-is-truth, no-duplicates, a minimum distinct-day count); during drafting the user may *soften* knobs above the floor but cannot drop below it. Vague or un-checkable goals are reformed or refused before a pact exists.
+
+**Proof source (decision #2).** v1 accepts **manual** submissions only. `proof_source` is an abstraction with a single implemented value (`manual`); connector ingestion (Strava / Apple Health / GitHub / Calendar) is a reserved seam, intentionally **not** built.
+
+**Honesty:** AI image-detection and identity proof are unsolved in a weekend; the UI states plainly it's best-effort, not forensic. The verdict is **strict and final after the single dispute window** (§5); real money still moves only when the user **approves the Link charge** (charge-on-fail), so no donation executes without an explicit human action.
 
 ---
 
@@ -253,10 +304,10 @@ Coaching is half the pitch and must appear in the deliverable — not generic ch
 ## 9. Safety, Privacy, Legal
 
 - **Intake safety gate** (classifier in the drafting prompt, *before* a pact exists): hard-refuse weight-loss-rate goals, calorie/fasting/purge goals, "every single day, no rest" exercise goals, and goals naming injury/pain. Cap frequency (≤6 sessions/week, mandatory rest day), cap duration, and bake a **"rest if injured still counts as compliant"** clause into every fitness rubric. Show the refusal reason. Also screen self-punishment / self-harm / restrictive-eating language and coercive/third-party stakes → refuse with a supportive message + crisis-resource line; enforce that the pact subject == the staking user.
-- **Irreversibility guard:** `needs_review` never moves money; a mandatory hold window (time-compressed in demo) sits between a `failed` verdict and execution for a late proof / dispute; a human **"confirm donation"** click is required before any non-`test_link` charge. The agent never auto-executes the real card.
+- **Irreversibility guard (aligned with decision #10):** the **single dispute window** (§5) is the only hold between a `failed` verdict and execution — one re-run on extra proof, then final. `needs_review` (tool/network error only) never moves money. The user's **Link charge approval** is the human gate; the agent never auto-executes the real card.
 - **Photo PII:** strip EXIF/GPS on upload; store a low-res thumbnail + verdict + pHash; delete the raw image after judging (max 7-day TTL); per-pact non-identifiable filenames; a one-line consent checkbox at submission; offer a **non-photo proof option** (text log / wearable screenshot) so no one is forced to share body photos.
 - **Donation locking:** hardcoded 10-charity domain allowlist; the executor refuses any off-allowlist navigation/payment; spend amount is exactly the frozen stake (never user-typed at pay time); low **max stake $5–$20** for the demo.
-- **Legal framing** (copy on Screen 2 + packet): "Pact is a voluntary self-commitment tool, not an escrow, bank, or money transmitter. We never hold your money — funds move directly from your Link card to your chosen charity only if you choose to honor a failed pact. Not financial or tax advice." Plus an **18+ / affordability acknowledgement** checkbox at start.
+- **Legal framing** (copy on Screen 2 + packet): "Pact is a voluntary self-commitment tool, not an escrow, bank, or money transmitter. We never hold your money — funds move directly from your Link card to your chosen charity only if you choose to honor a failed pact. Pact is free; no fee is taken on stakes. Not financial or tax advice." Plus an **18+ / affordability acknowledgement** checkbox at start.
 
 ---
 
@@ -285,6 +336,10 @@ POST /api/pacts/{id}/settle      run verdict now (also invoked by scheduler/reco
 POST /api/pacts/{id}/cancel      -> canceled_release | canceled_forfeit per timing
 POST /api/pacts/{id}/confirm-donation   human gate before a real (non-test) charge
 GET  /api/pacts/{id}/packet      evidence & verdict packet
+POST /api/pacts/{id}/freeze      spend a freeze (pardon a checkpoint); pre-deadline only (decision #5)
+POST /api/pacts/{id}/dispute     submit extra proof into the single dispute window -> re-run verdict once -> final (decision #10)
+POST /api/pacts/{id}/renew       clone terms into a fresh pact (recurring; decision #8)
+GET  /api/profile?owner=         streak, history, kept/total (decisions #3, #8)
 
 # Reasoning-task broker (the brain seam)
 POST /api/pacts/{id}/reasoning-tasks    enqueue a task {type, required_capability, input} (used by the website)
@@ -310,6 +365,10 @@ Runs inside a Hermes agent and does its reasoning **inline** with that agent's m
 /pact coach <id> <message>       -> respond INLINE into the thread
 /pact check <id>                 -> early settle (judge any pending proofs)
 /pact verdict <id>               -> settle + GET /packet
+/pact freeze <id>                -> spend a freeze (pardon a checkpoint), pre-deadline only
+/pact dispute <id>               -> submit extra proof into the single dispute window (re-run once, then final)
+/pact renew <id>                 -> start a fresh pact from a finished one
+/pact me                         -> your streak + history ("kept N of last M")
 /pact serve [--owner]            -> worker mode: poll the broker and resolve pending WEBSITE reasoning tasks this agent is capable of, so the site is "live intelligent" via your Hermes agent
 ```
 Prints `pact_id` + its web URL in every response so the user can hop between surfaces.
@@ -324,10 +383,10 @@ Reuse the PRD list (Against Malaria Foundation, World Central Kitchen, St. Jude,
 
 ## 14. Build Plan (spine never at risk)
 
-- **Day 1 — spine:** engine + lifecycle state machine + reasoning-task records resolved by `test_llm` + `test_link` provider + SQLite + draft→confirm→start→proof-token→submit→anti-cheat(token+server-day+pHash)→frozen-rubric judge→settle→all-or-nothing verdict→`test_link` donation + packet + tests (incl. "no spend-request on success", idempotency, restart reconciliation).
-- **Day 2 — demo-able:** 4 web screens + `/demo/seed`/`advance-day`/`reset` + injectable clock + full coach (touchpoints, pace math, nag-governor, bidirectional thread, coaching log) + safety intake gate + PII handling + legal copy.
+- **Day 1 — spine:** engine + lifecycle state machine + reasoning-task records resolved by `test_llm` + `test_link` provider + SQLite + draft→confirm→start→proof-token→submit→anti-cheat(token+server-day+pHash)→frozen-rubric judge→settle→all-or-nothing verdict→`test_link` donation + packet + tests (incl. "no spend-request on success", idempotency, restart reconciliation). Build the **goal-agnostic** rubric/judge (don't hardcode fitness; workout is just the demo), the **strict-verdict + single dispute window**, **freezes**, the rubric **rigor-floor**, and the **agent-recommended stake** in draft/confirm — these are core lifecycle/draft logic, not add-ons.
+- **Day 2 — demo-able:** 5 web screens (incl. **Home / streak-history**) + Owner profile (streak/history) + freeze control + renew + `/demo/seed`/`advance-day`/`reset` + injectable clock + full coach (touchpoints, pace math, nag-governor, bidirectional thread, coaching log) + safety intake gate + PII handling + legal copy.
 - **Day 3 — Hermes-native + real rails:** the reasoning-task broker + `/pact serve` worker so a real Hermes agent is the brain (skill reasons inline; website tasks claimed by a connected capable agent; `test_llm` stays the hybrid fallback); modality capability negotiation; email channel; scheduler/reconciler ticker.
-- **Stretch:** real Link virtual-card → one real charity page via Playwright (guarded coda) + recorded fallback; digital proof checkers (url/git/file/tests) for non-fitness pacts.
+- **Stretch:** real Link virtual-card → one real charity page via Playwright (guarded coda) + recorded fallback; deterministic digital proof checkers (url/git/file/tests) as helpers; **proof-source connectors** (the seam already exists, just unused).
 
 ---
 
@@ -341,6 +400,11 @@ Reuse the PRD list (Against Malaria Foundation, World Central Kitchen, St. Jude,
 - Web + `/pact` skill operate on the same pact id; the skill never judges.
 - Full golden path (WIN and FAIL) demonstrable in under 3 minutes with `test_link`/`test_llm`; one real proof submitted live for authenticity.
 - Real-card donation coda works against one rehearsed charity, with a recorded fallback.
+- A pact for **any** goal (not just fitness) drafts a valid frozen rubric or is refused; the user can soften the rubric only **down to the agent's rigor floor**, never below.
+- The agent **recommends a stake**; the user can change it within caps.
+- A **freeze** pardons exactly one checkpoint, is recorded in the packet, and never pro-rates the stake (verdict stays all-or-nothing).
+- A `failed` verdict gets **exactly one dispute window** (extra proof → one re-run) then is final; `needs_review` (tool/network error) never donates.
+- **Streak/history** persists across pacts via the Owner profile; a finished pact can be **renewed** in one step.
 
 ---
 
