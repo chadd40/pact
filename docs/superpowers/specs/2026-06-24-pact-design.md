@@ -26,6 +26,8 @@ A "5× this week" goal is **one pact** with a single end-of-week deadline and a 
 ### In scope (weekend build)
 - NL intake → AI-drafted pact → confirm contract + pick charity → active coaching → proof submission + agent judging → deadline verdict → charge-on-fail donation → evidence/verdict packet.
 - Two surfaces over one engine: **web UI** and **`/pact` Hermes skill**, sharing stable pact IDs.
+- Reasoning done by a **Hermes agent (the brain)** — yours or the user's, using its own model; backend is deterministic machinery + a **reasoning-task broker** with a `test_llm` hybrid fallback (§3).
+- **Modality capability negotiation:** image proof requires a vision-capable agent; Pact refuses/repropose at draft time if none is available (§3, §6).
 - Multimodal, agent-judged proof with real anti-cheat (§6).
 - Full coaching with an outbound channel (§7).
 - `test_link` deterministic payment by default; real Link virtual-card → charity page as a guarded, optional coda (§8).
@@ -44,21 +46,31 @@ A "5× this week" goal is **one pact** with a single end-of-week deadline and a 
 
 ## 3. Architecture
 
-### One brain, two mouths
-**All LLM reasoning (draft, judge-proof, coach, verdict) lives in the FastAPI backend** and calls the Anthropic API server-side. The web UI and the `/pact` skill are both **thin clients** of the same HTTP API. The skill never judges or mints state; it relays. This prevents split-brain verdicts where the two surfaces interpret the same rubric differently.
+### The Hermes agent is the brain
+**All LLM reasoning (draft, judge-proof, coach, verdict) is done by a Hermes agent** — yours as the dev, or the end user's — using **whatever model that agent is configured with**. The backend never calls a model directly. It is **deterministic machinery** (anti-cheat gates, payment, scheduling, persistence — none of which need an LLM) plus a **reasoning-task broker**.
+
+Two ways reasoning reaches an agent:
+- **`/pact` skill** runs *inside* a Hermes agent, so it performs reasoning **inline** with its own model and posts the structured result back to the backend. The skill IS the brain on this path.
+- **Website** isn't necessarily in a Hermes session, so it **enqueues a reasoning task**; a connected Hermes agent (the dev's or the user's, optionally in a `/pact serve` poll loop) **claims tasks matching its capabilities** and posts results. **Hybrid fallback:** if no capable agent claims within a short timeout, the backend resolves the task with the deterministic **`test_llm`** stub so the site still works standalone (recording-safe). Mode controlled by `PACT_REASONING_MODE` (default `hybrid`; can be set to `agent_only` to forbid the stub).
+
+There is no split-brain: a given task is resolved by exactly one resolver (one agent **or** the stub), results are persisted by pact id as the single source of truth, and judging uses the **frozen rubric at temperature 0** so the same proof yields the same verdict regardless of which agent runs it.
+
+**Modality capability negotiation:** every pact records its `proof_modality` and the `required_capability` it implies (photo → **vision**). A reasoning task carries that requirement; only an agent declaring the capability may claim it, and the `test_llm` fallback declares the capabilities it can stub. At **draft time** the acting agent declares its model's capabilities; if the goal needs image proof but no capable resolver is available, Pact **refuses that modality and proposes a supported one** (e.g. a wearable export or written log) instead of accepting proof it cannot judge.
 
 ```
-Web UI  ─┐
-         ├─►  Pact API (FastAPI)  ──►  LLMProvider (claude | test_llm)
-/pact   ─┘        │                ──►  PaymentProvider (link_cli | test_link)
- skill            │                ──►  ProofJudge / AntiCheat
-                  └──►  SQLite (single source of truth) + artifact store
-                  └──►  Clock (injectable) + Scheduler/reconciler
+/pact skill (inside a Hermes agent = THE BRAIN) ── reasons inline, posts results ─┐
+                                                                                  ▼
+Web UI ── enqueue reasoning task ──►  Pact API (FastAPI) = deterministic machinery + broker
+                                          │   ├─► AntiCheat (nonce · server-time · pHash)
+   a connected Hermes agent ── claim ─────┤   ├─► PaymentProvider (link_cli | test_link)
+   (yours/user's, by capability)          │   ├─► SQLite (single source of truth) + artifacts
+   test_llm stub ── hybrid fallback ──────┘   └─► Clock (injectable) + Scheduler/reconciler
+   (only if no capable agent connected)
 ```
 
 ### Components
 1. **Pact engine** — lifecycle state machine, transitions, API surface (§11).
-2. **LLMProvider** — interface with two impls: `test_llm` (deterministic canned outputs for demo/tests) and `claude` (Anthropic API, vision for photo judging). Selected by `PACT_LLM_MODE`.
+2. **Reasoning provider + task broker** — the brain seam. `hermes_agent` is the real resolver: the `/pact` skill executes tasks inline; website-created tasks are claimed via the broker by a connected agent (matched on `required_capability`). `test_llm` is a deterministic stub for demos/tests and the hybrid fallback. The **broker** is a queue of `draft | judge_proof | coach | verdict` tasks, each with a `required_capability`, `status` (pending/claimed/done/failed), input payload (incl. artifact path), result payload, `claimed_by`, and a short claim-timeout that triggers the fallback in `hybrid` mode. Skill-initiated reasoning still writes a task record for audit, but the skill applies its own result.
 3. **PaymentProvider** — interface with `test_link` (instant fake spend-request id + receipt, no network) and `link_cli` (shells real `link-cli` as a background job). Selected by `PACT_PAYMENT_MODE`. Identical result shape so the UI never branches.
 4. **ProofJudge + AntiCheat** — nonce verification, server-time distinct-day gate, perceptual-hash dedup, frozen-rubric VLM judging (§6).
 5. **Coach** — scheduled touchpoints, pace math, nag-governor, bidirectional thread (§7).
@@ -203,7 +215,7 @@ The novel, defensible core. Four layers, the first three deterministic and run *
 1. **Per-submission nonce token.** When the user taps "submit proof," the backend issues a short single-use token (e.g. `PACT-7Q`, ~10-min TTL) they must write on paper/phone and **capture in-frame**. The judge requires the exact current token visible. One move defeats old / stock / reused / borrowed / AI-pulled photos.
 2. **Server timestamp = day source of truth.** The proof's day is the backend `received_at` bucketed into the pact's timezone — **never** EXIF (strippable/absent) or user-typed dates. At most one valid proof counts per calendar day. Surfaced in the packet ("5 proofs across 5 distinct days: Mon/Tue/Thu/Fri/Sat"). This kills "dump 5 photos Sunday night."
 3. **Perceptual-hash dedup.** Compute pHash for each proof; reject/flag if Hamming distance to any prior accepted proof is ≤ ~6 (catches reuse, crops, recompresses). Borderline → `needs_review`, not auto-reject.
-4. **Frozen-rubric VLM judge.** At confirm, Hermes emits a **frozen JSON rubric** stored on the pact. Each proof is judged with that exact object, temperature 0, returning a structured checklist (token / content / not-dup → pass/fail + reason). Same rubric in → same verdict out; the rubric and per-proof checklist go verbatim into the packet for auditability.
+4. **Frozen-rubric judge — done by the Hermes agent (the brain).** At confirm, the agent emits a **frozen JSON rubric** stored on the pact. Each proof becomes a `judge_proof` reasoning task carrying that exact rubric + the `required_capability` (vision for photos); it is resolved by a capable Hermes agent (inline on the skill path, or via the broker on the website path; `test_llm` fallback in hybrid mode), at **temperature 0**, returning a structured checklist (token / content / not-dup → pass/fail + reason). Same rubric in → same verdict out regardless of which agent runs it; the rubric and per-proof checklist go verbatim into the packet for auditability. If no capable resolver is available, the proof is held (not failed) and the user is told to use a supported modality.
 
 **Honesty:** AI image-detection and identity proof are unsolved in a weekend. The UI states plainly it's best-effort, not forensic. A human-in-the-loop confirm gates any real (non-`test_link`) donation so a contested verdict never irreversibly moves money.
 
@@ -261,36 +273,46 @@ Coaching is half the pitch and must appear in the deliverable — not generic ch
 ## 11. API Surface
 
 ```
-POST /api/pacts/draft            { prompt } -> draft pact + frozen rubric + ambiguity/safety notes (or refusal)
+POST /api/pacts/draft            { prompt } -> enqueue `draft` reasoning task -> drafted pact + frozen rubric + ambiguity/safety notes (or refusal)
 POST /api/pacts                  { confirmed terms, charity_id, consents } -> pact (status=draft->active on start)
 POST /api/pacts/{id}/start       activates (no money moves)
 GET  /api/pacts/{id}             pact state, proofs, coaching thread, payment status
 GET  /api/pacts?owner=           list
 POST /api/pacts/{id}/proof-token issue a single-use nonce token for a new submission
-POST /api/pacts/{id}/proofs      submit proof (image/log) -> anti-cheat + judge -> evidence
-POST /api/pacts/{id}/coach       user reply into the coaching thread -> Hermes response
-POST /api/pacts/{id}/settle      run verdict now (also invoked by scheduler/reconciler)
+POST /api/pacts/{id}/proofs      submit proof -> deterministic anti-cheat (nonce/server-day/pHash) -> enqueue `judge_proof` task -> evidence
+POST /api/pacts/{id}/coach       user reply -> enqueue `coach` task -> agent response into the thread
+POST /api/pacts/{id}/settle      run verdict now (also invoked by scheduler/reconciler); may enqueue a `verdict` task for prose
 POST /api/pacts/{id}/cancel      -> canceled_release | canceled_forfeit per timing
 POST /api/pacts/{id}/confirm-donation   human gate before a real (non-test) charge
 GET  /api/pacts/{id}/packet      evidence & verdict packet
+
+# Reasoning-task broker (the brain seam)
+POST /api/pacts/{id}/reasoning-tasks    enqueue a task {type, required_capability, input} (used by the website)
+GET  /api/reasoning-tasks?capability=&status=pending   a connected Hermes agent polls for claimable tasks
+POST /api/reasoning-tasks/{tid}/claim   agent claims, declaring its model capabilities
+POST /api/reasoning-tasks/{tid}/result  agent posts structured result -> backend applies it (persist verdict, message, etc.)
+
 POST /demo/advance-day | /demo/reset | /demo/seed
 ```
 
-All LLM reasoning happens behind these endpoints. `link-cli` invocations run as background jobs.
+Reasoning happens in a Hermes agent, not the backend: draft/judge/coach/verdict endpoints **enqueue tasks** that the `/pact` skill resolves inline or a connected agent claims via the broker (hybrid `test_llm` fallback). Deterministic work (anti-cheat, state, payment, scheduling) runs in-process; `link-cli` invocations run as background jobs.
 
 ---
 
-## 12. `/pact` Skill (thin client)
+## 12. `/pact` Skill (the brain on the skill path)
+
+Runs inside a Hermes agent and does its reasoning **inline** with that agent's model, then posts results to the backend. It holds no authoritative *state* (SQLite does) but it **is** the reasoning resolver on this path.
 
 ```
-/pact create <natural language>     -> POST /draft, render terms, link to web confirm
-/pact status [<id>]                 -> GET, countdown + pace + next action
-/pact submit <id>                   -> issue token, accept proof, POST /proofs
-/pact coach <id> <message>          -> POST /coach
-/pact check <id>                    -> POST /settle (early proof check)
-/pact verdict <id>                  -> GET /packet
+/pact create <natural language>  -> reason a draft + frozen rubric INLINE (declare model capabilities; refuse/propose modality if incapable), POST result, link to web confirm
+/pact status [<id>]              -> GET, countdown + pace + next action
+/pact submit <id>                -> issue token, accept proof, run anti-cheat, JUDGE INLINE, POST evidence
+/pact coach <id> <message>       -> respond INLINE into the thread
+/pact check <id>                 -> early settle (judge any pending proofs)
+/pact verdict <id>               -> settle + GET /packet
+/pact serve [--owner]            -> worker mode: poll the broker and resolve pending WEBSITE reasoning tasks this agent is capable of, so the site is "live intelligent" via your Hermes agent
 ```
-The skill prints `pact_id` + its web URL in every response so the user can hop between surfaces. It holds no authoritative state.
+Prints `pact_id` + its web URL in every response so the user can hop between surfaces.
 
 ---
 
@@ -302,9 +324,9 @@ Reuse the PRD list (Against Malaria Foundation, World Central Kitchen, St. Jude,
 
 ## 14. Build Plan (spine never at risk)
 
-- **Day 1 — spine:** engine + lifecycle state machine + `test_llm`/`test_link` providers + SQLite + draft→confirm→start→proof-token→submit→anti-cheat(token+server-day+pHash)→frozen-rubric judge→settle→all-or-nothing verdict→`test_link` donation + packet + tests (incl. "no spend-request on success", idempotency, restart reconciliation).
+- **Day 1 — spine:** engine + lifecycle state machine + reasoning-task records resolved by `test_llm` + `test_link` provider + SQLite + draft→confirm→start→proof-token→submit→anti-cheat(token+server-day+pHash)→frozen-rubric judge→settle→all-or-nothing verdict→`test_link` donation + packet + tests (incl. "no spend-request on success", idempotency, restart reconciliation).
 - **Day 2 — demo-able:** 4 web screens + `/demo/seed`/`advance-day`/`reset` + injectable clock + full coach (touchpoints, pace math, nag-governor, bidirectional thread, coaching log) + safety intake gate + PII handling + legal copy.
-- **Day 3 — Hermes-native + real rails:** `/pact` skill parity over the API; swap in real `claude` vision judging; email channel; scheduler/reconciler ticker.
+- **Day 3 — Hermes-native + real rails:** the reasoning-task broker + `/pact serve` worker so a real Hermes agent is the brain (skill reasons inline; website tasks claimed by a connected capable agent; `test_llm` stays the hybrid fallback); modality capability negotiation; email channel; scheduler/reconciler ticker.
 - **Stretch:** real Link virtual-card → one real charity page via Playwright (guarded coda) + recorded fallback; digital proof checkers (url/git/file/tests) for non-fitness pacts.
 
 ---
@@ -329,3 +351,4 @@ Reuse the PRD list (Against Malaria Foundation, World Central Kitchen, St. Jude,
 3. `link-cli` auth token expiry before the demo — pre-authenticate and run `link-cli demo` backstage minutes before.
 4. Two-clock double-fire — mitigated by single injected clock + `executing` guard + unique spend-request constraint.
 5. Honest framing must be visible (commitment device, not forensic verification, not escrow) so judges' obvious probes land well.
+6. Reasoning-task broker capability matching — a non-capable agent (e.g. a text-only model) must never claim a vision `judge_proof` task; enforce capability matching server-side and **hold** rather than mis-judge. In `hybrid`, the `test_llm` fallback fires only after a real claim-timeout so a connected agent is always preferred.
