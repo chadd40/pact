@@ -3,8 +3,10 @@ from __future__ import annotations
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from pact.clock import Clock
+from pact.models import Proof, ProofStatus
 
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no ambiguous 0/O/1/I
 
@@ -44,3 +46,28 @@ class TokenStore:
             return False
         entry.used = True
         return True
+
+
+def day_bucket(received_at: datetime, tz: str) -> str:
+    """Bucket a server timestamp into a 'YYYY-MM-DD' calendar day in the pact timezone.
+
+    Server time is the source of truth (spec §6). The instant is converted into the
+    pact's timezone before the date is taken, so the same UTC instant can land on
+    different calendar days for different pact timezones.
+    """
+    local = received_at.astimezone(ZoneInfo(tz))
+    return local.strftime("%Y-%m-%d")
+
+
+def count_distinct_valid_days(proofs: list[Proof]) -> int:
+    """Count distinct day_bucket values among proofs that passed judging.
+
+    At most one valid proof counts per calendar day; failed/ambiguous proofs are
+    excluded. This enforces the distinct-day criterion for all-or-nothing verdicts.
+    """
+    valid_days = {
+        proof.day_bucket
+        for proof in proofs
+        if proof.status == ProofStatus.passed
+    }
+    return len(valid_days)
