@@ -13,7 +13,7 @@ class Repository:
 
     @classmethod
     def connect(cls, path: str) -> "Repository":
-        conn = sqlite3.connect(path)
+        conn = sqlite3.connect(path, check_same_thread=False)
         return cls(conn)
 
     def init_schema(self) -> None:
