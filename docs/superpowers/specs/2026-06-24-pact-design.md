@@ -29,7 +29,7 @@ A "5× this week" goal is **one pact** with a single end-of-week deadline and a 
 | 2 | Proof source | **Manual submission**, with a **connector seam left in but unwired** (Strava/Health/GitHub/Calendar later). | `proof_source` abstraction exists; no integrations built yet. |
 | 3 | Win reward | **Streak + history** across pacts. | New Owner/Profile entity + a history view. |
 | 4 | Witnessing | **Private self-binding** (you + agent only). | No social/partner features in MVP. |
-| 5 | Grace | **Limited built-in freezes** — e.g. one freeze per pact. | `freezes_allowed/used`; freeze semantics in the lifecycle (§5). |
+| 5 | Grace | **Limited built-in freezes** — one per pact; a freeze **extends the deadline** by one period (doesn't lower the target). | `freezes_allowed/used`, `freeze_extension_hours`; moves `deadline_at` via the injected clock (§5). |
 | 6 | Rubric say | **Agent proposes; user softens within a rigor floor.** | Rubric carries a `rigor_floor` the user can't drop below. |
 | 7 | Stake | **Agent recommends a calibrated stake; user decides** (within caps). | Draft emits `recommended_stake_cents`. |
 | 8 | Engagement | **Recurring relationship + streaks.** | Owner profile, renew flow, cross-pact history. |
@@ -61,7 +61,7 @@ A "5× this week" goal is **one pact** with a single end-of-week deadline and a 
 - No login/auth — single implicit owner with a persistent profile for streak/history (the host Link wallet is global, §8). Multi-tenant auth is future work.
 - No habit marketplace, social network, accountability partners, or recurring **billing/subscriptions** (a recurring *relationship*/streaks is in scope; recurring *payments* are not).
 - No proof-source integrations wired in MVP (the seam exists, unused).
-- No partial-credit payouts — verdict is all-or-nothing for v1; a **freeze** pardons a checkpoint, it does not pro-rate the stake (§5).
+- No partial-credit payouts — verdict is all-or-nothing for v1; a **freeze** extends the deadline, it does not pro-rate the stake (§5).
 - No native mobile app.
 - No anti-charity / adversarial donation destinations.
 
@@ -132,8 +132,9 @@ Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for
   "charity_id": "world_central_kitchen",       // frozen
   "charity_url": "https://wck.org/donate",     // frozen, allowlisted
   "proof_source": "manual",                    // seam: manual | <future connector ids> (decision #2; only "manual" implemented)
-  "freezes_allowed": 1,                         // decision #5
+  "freezes_allowed": 1,                         // decision #5 — each freeze extends the deadline
   "freezes_used": 0,
+  "freeze_extension_hours": 24,                 // how far one freeze moves deadline_at
   "rubric": { /* frozen JSON, see §6 */ },
   "status": "draft|active|evaluating|succeeded|failed|needs_review|canceled_release|canceled_forfeit|donation_pending|donated|donation_failed|donation_declined",
   "stake_state": "none|committed|executing|executed|released|declined|error",  // "committed" = amount frozen + consented; NOT a real authorization/hold (Link can't hold). Real spend only at deadline-on-fail.
@@ -234,7 +235,7 @@ Python 3.11+, FastAPI, Pydantic v2, SQLite (via `sqlite3` or SQLModel), `uv` for
 ```
 draft ──confirm+start──► active ──deadline reached──► evaluating
                            │                              │
-                  cancel during cooling-off window        ├─ valid (+freeze) >= target ─► succeeded   (stake_state: released; NO link-cli calls)
+                  cancel during cooling-off window        ├─ valid >= target ─► succeeded   (stake_state: released; NO link-cli calls)
                            │                              ├─ tool/network error ─► needs_review (resolves on recovery; not a user fail)
                   ► canceled_release (no donation)        └─ shortfall ─► failed ─►[dispute: +proof, re-run once]─► donation_pending
                            │                                                                   │
@@ -247,7 +248,7 @@ draft ──confirm+start──► active ──deadline reached──► evalua
 - **All-or-nothing v1:** `valid_proof_count >= target_count` → `succeeded`, else `failed`. Partial progress (3/5) is shown in copy but the money is binary against the single frozen amount. Contract states "partial credit not supported."
 - **Cancel semantics** (consented to on Screen 2): cancel within a short **cooling-off window** after start (before the first scheduled check-in fires) → `canceled_release` (no donation). Cancel **after** that → `canceled_forfeit` (donation fires). Backing out of a started commitment is exactly what the stake guards against. (Great demo beat: "you can't wriggle out once it's live.")
 - **Strict verdict + one dispute window (decision #10).** The agent renders the verdict strictly against the frozen rubric. A `failed` verdict opens **one bounded dispute window** (deadline + grace; time-compressed in demo) in which the user may submit extra/late proof; the agent **re-runs the verdict once**; the result is then **final** — no further appeals. `needs_review` is reserved for genuine **tool/network/outage errors** (proof couldn't be checked), *not* user failure; it resolves on recovery without consuming the dispute window and never auto-donates. Real money still moves only when the user approves the Link charge (charge-on-fail) — that approval is the irreversibility gate, not a re-litigation. A swept timeout forces every pact to a terminal state.
-- **Freezes (decision #5).** A pact grants `freezes_allowed` (default 1). Spending a freeze **pardons one required checkpoint** — the effective target drops by one for that pact (e.g. 4/5 + 1 freeze = met). Freezes never pro-rate the stake (all-or-nothing preserved) and are recorded in the packet ("met with 1 freeze used"). A freeze may be spent any time before the deadline, never after the verdict. *[Confirm exact rule: pardon-a-checkpoint (assumed) vs. pause-the-clock/extend-deadline.]*
+- **Freezes (decision #5).** A pact grants `freezes_allowed` (default 1). Spending a freeze **extends the deadline by one period** (`freeze_extension_hours`, default 24h) — it does **not** lower the target, so you still owe everything; it just buys humane time. Works for every goal type (multi-checkpoint *and* single-deliverable). Freezes never pro-rate the stake (all-or-nothing preserved), are recorded in the packet ("1 freeze used; deadline +24h"), and may be spent only before the current deadline, never after the verdict. The extension moves `deadline_at` via the same injected clock, so the demo's "Advance day" and the scheduler stay consistent.
 - **Single clock:** all lifecycle code reads an injected `now()`. Never call `datetime.now()` directly. The demo "Advance day" endpoint and the real scheduler share this clock.
 - **Ghosting is the default failure path:** no proofs by deadline → `failed` → donation, with zero user interaction required to *reach the verdict*.
 - **Durability:** pacts persist to SQLite. On startup, a reconciliation sweep settles any `active` pact past its deadline. A ticker polls for due pacts (no in-memory per-pact timers). Verify by killing/restarting the server mid-pact.
@@ -336,7 +337,7 @@ POST /api/pacts/{id}/settle      run verdict now (also invoked by scheduler/reco
 POST /api/pacts/{id}/cancel      -> canceled_release | canceled_forfeit per timing
 POST /api/pacts/{id}/confirm-donation   human gate before a real (non-test) charge
 GET  /api/pacts/{id}/packet      evidence & verdict packet
-POST /api/pacts/{id}/freeze      spend a freeze (pardon a checkpoint); pre-deadline only (decision #5)
+POST /api/pacts/{id}/freeze      spend a freeze (extend the deadline by one period); pre-deadline only (decision #5)
 POST /api/pacts/{id}/dispute     submit extra proof into the single dispute window -> re-run verdict once -> final (decision #10)
 POST /api/pacts/{id}/renew       clone terms into a fresh pact (recurring; decision #8)
 GET  /api/profile?owner=         streak, history, kept/total (decisions #3, #8)
@@ -365,7 +366,7 @@ Runs inside a Hermes agent and does its reasoning **inline** with that agent's m
 /pact coach <id> <message>       -> respond INLINE into the thread
 /pact check <id>                 -> early settle (judge any pending proofs)
 /pact verdict <id>               -> settle + GET /packet
-/pact freeze <id>                -> spend a freeze (pardon a checkpoint), pre-deadline only
+/pact freeze <id>                -> spend a freeze (extend the deadline by one period), pre-deadline only
 /pact dispute <id>               -> submit extra proof into the single dispute window (re-run once, then final)
 /pact renew <id>                 -> start a fresh pact from a finished one
 /pact me                         -> your streak + history ("kept N of last M")
@@ -402,7 +403,7 @@ Reuse the PRD list (Against Malaria Foundation, World Central Kitchen, St. Jude,
 - Real-card donation coda works against one rehearsed charity, with a recorded fallback.
 - A pact for **any** goal (not just fitness) drafts a valid frozen rubric or is refused; the user can soften the rubric only **down to the agent's rigor floor**, never below.
 - The agent **recommends a stake**; the user can change it within caps.
-- A **freeze** pardons exactly one checkpoint, is recorded in the packet, and never pro-rates the stake (verdict stays all-or-nothing).
+- A **freeze** extends the deadline by one period (never lowers the target), is recorded in the packet, and never pro-rates the stake (verdict stays all-or-nothing).
 - A `failed` verdict gets **exactly one dispute window** (extra proof → one re-run) then is final; `needs_review` (tool/network error) never donates.
 - **Streak/history** persists across pacts via the Owner profile; a finished pact can be **renewed** in one step.
 
