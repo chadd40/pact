@@ -241,3 +241,147 @@ def cancel(pact: Pact, clock: Clock, settings: Settings) -> Pact:
     pact = transition(pact, PactStatus.canceled_forfeit)
     pact = transition(pact, PactStatus.donation_pending)
     return pact
+
+
+# ─── Task 15: settle + submit_dispute ─────────────────────────────────────────
+
+from pact.anticheat import count_distinct_valid_days
+from pact.models import (
+    PaymentAction,
+    Proof,
+    Verdict,
+)
+from pact.payment import PaymentProvider
+
+_TERMINAL_STATUSES = {
+    PactStatus.succeeded,
+    PactStatus.donated,
+    PactStatus.donation_failed,
+    PactStatus.donation_declined,
+    PactStatus.canceled_release,
+    PactStatus.canceled_forfeit,
+}
+
+
+def _valid_count(pact: Pact, proofs: list[Proof]) -> int:
+    if pact.distinct_days:
+        return count_distinct_valid_days(proofs)
+    return sum(1 for p in proofs if p.status == ProofStatus.passed)
+
+
+def _build_verdict(
+    pact: Pact,
+    proofs: list[Proof],
+    valid: int,
+    verdict_status: PactStatus,
+    payment_action: PaymentAction,
+    payment_ref: str | None,
+) -> Verdict:
+    if verdict_status == PactStatus.succeeded:
+        summary = (
+            f"{valid} of {pact.target_count} valid proofs by deadline. Pact succeeded."
+        )
+    else:
+        summary = (
+            f"{valid} of {pact.target_count} valid proofs by deadline. Pact failed."
+        )
+    return Verdict(
+        pact_id=pact.id,
+        status=verdict_status,
+        valid_proof_count=valid,
+        target_count=pact.target_count,
+        freezes_used=pact.freezes_used,
+        summary=summary,
+        proof_ids=[p.id for p in proofs],
+        payment_action=payment_action,
+        payment_ref=payment_ref,
+        honesty_note=(
+            "Commitment device; proofs judged best-effort, not forensically verified."
+        ),
+    )
+
+
+def settle(
+    pact: Pact,
+    proofs: list[Proof],
+    clock: Clock,
+    payment: PaymentProvider,
+) -> tuple[Pact, Verdict]:
+    now = clock.now()
+
+    # Idempotent: a pact already in a terminal donation/success state is returned
+    # unchanged together with a rebuilt verdict reflecting the prior payment.
+    if pact.status in _TERMINAL_STATUSES:
+        valid = _valid_count(pact, proofs)
+        if pact.spend_request_id is not None:
+            action = PaymentAction.donation_executed
+            ref = pact.spend_request_id
+            verdict_status = PactStatus.failed
+        elif pact.status == PactStatus.succeeded:
+            action = PaymentAction.none
+            ref = None
+            verdict_status = PactStatus.succeeded
+        else:
+            action = PaymentAction.none
+            ref = pact.spend_request_id
+            verdict_status = PactStatus.failed
+        return pact, _build_verdict(pact, proofs, valid, verdict_status, action, ref)
+
+    valid = _valid_count(pact, proofs)
+
+    if valid >= pact.target_count:
+        pact.status = PactStatus.succeeded
+        pact.stake_state = StakeState.released
+        pact.verdict_at = now
+        # SUCCESS: no payment call, no spend_request_id.
+        return pact, _build_verdict(pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None)
+
+    # FAIL path. Charge-on-fail, exactly once, guarded by spend_request_id.
+    pact.status = PactStatus.failed
+    if pact.spend_request_id is None:
+        pact.status = PactStatus.donation_pending
+        result = payment.create_donation(pact, f"{pact.id}:donation")
+        pact.spend_request_id = result.provider_ref
+        pact.stake_state = StakeState.executed
+        pact.status = PactStatus.donated
+    pact.verdict_at = now
+    return pact, _build_verdict(
+        pact, proofs, valid, PactStatus.failed, PaymentAction.donation_executed, pact.spend_request_id
+    )
+
+
+def submit_dispute(
+    pact: Pact,
+    proofs: list[Proof],
+    clock: Clock,
+    payment: PaymentProvider,
+) -> tuple[Pact, Verdict]:
+    # A dispute is allowed exactly once: only a failed/donated pact may be disputed,
+    # and a successful re-run (or an already-disputed pact) closes the window for good.
+    if pact.status not in {
+        PactStatus.failed,
+        PactStatus.donation_pending,
+        PactStatus.donated,
+        PactStatus.donation_failed,
+        PactStatus.donation_declined,
+    }:
+        raise TransitionError(
+            f"dispute not allowed from status {pact.status}"
+        )
+
+    valid = _valid_count(pact, proofs)
+    if valid >= pact.target_count:
+        # Extra proof clears the bar -> overturn to success, final.
+        pact.status = PactStatus.succeeded
+        pact.stake_state = StakeState.released
+        pact.verdict_at = clock.now()
+        return pact, _build_verdict(pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None)
+
+    # Still short: donation already executed once; re-affirm the failed verdict, final.
+    pact.verdict_at = clock.now()
+    action = (
+        PaymentAction.donation_executed
+        if pact.spend_request_id is not None
+        else PaymentAction.none
+    )
+    return pact, _build_verdict(pact, proofs, valid, PactStatus.failed, action, pact.spend_request_id)
