@@ -342,6 +342,7 @@ def settle(
         pact.status = PactStatus.donation_pending
         result = payment.create_donation(pact, f"{pact.id}:donation")
         pact.spend_request_id = result.provider_ref
+        pact.stake_state = StakeState.executed
         pact.status = PactStatus.donated
     pact.verdict_at = now
     return pact, _build_verdict(
@@ -408,11 +409,6 @@ def reconcile_on_startup(
     for pact in repo.due_active_pacts(now):
         proofs = repo.list_proofs(pact.id)
         updated, verdict = settle(pact, proofs, clock, payment)
-        # Normalize verdict status to match the pact's final lifecycle state so
-        # that persisted verdicts reflect the terminal status (e.g. "donated"
-        # rather than the intermediate "failed" that settle uses internally).
-        if verdict.status != updated.status:
-            verdict = verdict.model_copy(update={"status": updated.status})
         repo.update_pact(updated)
         repo.save_verdict(verdict)
         settled.append(updated)
