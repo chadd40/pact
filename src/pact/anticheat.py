@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import imagehash
+from PIL import Image
+
 from pact.clock import Clock
 from pact.models import Proof, ProofStatus
 
@@ -71,3 +74,15 @@ def count_distinct_valid_days(proofs: list[Proof]) -> int:
         if proof.status == ProofStatus.passed
     }
     return len(valid_days)
+
+
+def phash_hex(image_path: str) -> str:
+    return str(imagehash.phash(Image.open(image_path)))
+
+
+def find_duplicate(phash: str, existing: list[str], threshold: int = 6) -> int | None:
+    target = imagehash.hex_to_hash(phash)
+    for i, h in enumerate(existing):
+        if (target - imagehash.hex_to_hash(h)) <= threshold:
+            return i
+    return None
