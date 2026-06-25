@@ -342,7 +342,6 @@ def settle(
         pact.status = PactStatus.donation_pending
         result = payment.create_donation(pact, f"{pact.id}:donation")
         pact.spend_request_id = result.provider_ref
-        pact.stake_state = StakeState.executed
         pact.status = PactStatus.donated
     pact.verdict_at = now
     return pact, _build_verdict(
@@ -385,3 +384,36 @@ def submit_dispute(
         else PaymentAction.none
     )
     return pact, _build_verdict(pact, proofs, valid, PactStatus.failed, action, pact.spend_request_id)
+
+
+# ─── Task 16: startup reconciliation ──────────────────────────────────────────
+
+from pact.repository import Repository
+
+
+def reconcile_on_startup(
+    repo: Repository,
+    clock: Clock,
+    payment: PaymentProvider,
+) -> list[Pact]:
+    """Settle every active pact whose deadline has passed.
+
+    Spec §5: a startup/ticker sweep drives the ghosting failure path —
+    no proofs by deadline -> failed -> donation, with zero user interaction.
+    Relies on `settle` being idempotent, so a restart mid-pact (a second
+    sweep) re-settles nothing and moves no additional money.
+    """
+    now = clock.now()
+    settled: list[Pact] = []
+    for pact in repo.due_active_pacts(now):
+        proofs = repo.list_proofs(pact.id)
+        updated, verdict = settle(pact, proofs, clock, payment)
+        # Normalize verdict status to match the pact's final lifecycle state so
+        # that persisted verdicts reflect the terminal status (e.g. "donated"
+        # rather than the intermediate "failed" that settle uses internally).
+        if verdict.status != updated.status:
+            verdict = verdict.model_copy(update={"status": updated.status})
+        repo.update_pact(updated)
+        repo.save_verdict(verdict)
+        settled.append(updated)
+    return settled
