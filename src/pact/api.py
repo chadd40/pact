@@ -210,7 +210,7 @@ def create_app(
     def settle_pact(pact_id: str):
         pact = _require(pact_id)
         proofs_list = repo.list_proofs(pact_id)
-        pact, verdict = settle(pact, proofs_list, clock, payment)
+        pact, verdict = settle(pact, proofs_list, clock, payment, settings)
         repo.update_pact(pact)
         repo.save_verdict(verdict)
         _record_terminal(pact)
@@ -311,7 +311,7 @@ def create_app(
                 status_code=409,
                 detail="advance-day requires demo clock mode (FixedClock)",
             )
-        return demo_advance_day(repo, clock, payment)
+        return demo_advance_day(repo, clock, payment, settings)
 
     @app.post("/demo/reset")
     def demo_reset_endpoint():
