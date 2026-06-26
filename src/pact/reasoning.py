@@ -240,3 +240,49 @@ class TestLLMProvider:
         outcome = "Pact succeeded." if valid >= target else "Pact failed."
         summary = f"{valid} of {target} valid distinct-day proofs by deadline. {outcome}"
         return {"summary": summary}
+
+
+class BrokerReasoningProvider:
+    """Hybrid provider: return an already-posted broker result if a worker
+    finished the equivalent enqueued task, else fall back to ``fallback``.
+
+    Equivalence is by deterministic task id: two tasks with the same
+    (type, pact_id, sorted(input), required_capability, clock.now()) map to the
+    same id via ``make_reasoning_task``. ``timeout_polls`` is the number of
+    synchronous repo lookups to perform before giving up and falling back;
+    ``0`` (the default in tests) means "no agent connected -> immediate
+    fallback". No sleeping/network — each poll is one ``repo.get_task`` read.
+    """
+
+    def __init__(
+        self,
+        repo,
+        clock,
+        fallback: "ReasoningProvider",
+        timeout_polls: int = 0,
+    ) -> None:
+        self.repo = repo
+        self.clock = clock
+        self.fallback = fallback
+        self.timeout_polls = timeout_polls
+
+    def capabilities(self) -> set[str]:
+        return self.fallback.capabilities()
+
+    def resolve(self, task: ReasoningTask) -> dict:
+        equivalent = make_reasoning_task(
+            task.type,
+            task.pact_id,
+            task.input,
+            self.clock,
+            task.required_capability,
+        )
+        for _ in range(self.timeout_polls):
+            stored = self.repo.get_task(equivalent.id)
+            if (
+                stored is not None
+                and stored.status == TaskStatus.done
+                and stored.result is not None
+            ):
+                return stored.result
+        return self.fallback.resolve(task)
