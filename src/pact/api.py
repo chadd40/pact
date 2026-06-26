@@ -19,6 +19,7 @@ from pact.lifecycle import (
     close_dispute_window,
     confirm_and_start,
     draft_pact,
+    execute_forfeit_donation,
     new_pact_id,
     settle,
     spend_freeze,
@@ -203,6 +204,11 @@ def create_app(
             pact = cancel(pact, clock, settings)
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=409, detail=str(exc))
+        # A post-cooling-off forfeit parks in donation_pending; execute the
+        # deferred donation here (idempotent, charge-once) so the stake actually
+        # moves. An in-cooling-off cancel (canceled_release) is a no-op below.
+        if pact.status == PactStatus.donation_pending:
+            pact = execute_forfeit_donation(pact, clock, payment)
         repo.update_pact(pact)
         _record_terminal(pact)
         return pact.model_dump(mode="json")
@@ -262,7 +268,8 @@ def create_app(
     @app.post("/api/pacts/{pact_id}/coach")
     def post_coach(pact_id: str, body: CoachIn):
         pact = _require(pact_id)
-        inbound, outbound = user_reply(pact, body.message, provider, clock)
+        proofs_list = repo.list_proofs(pact_id)
+        inbound, outbound = user_reply(pact, body.message, proofs_list, provider, clock)
         repo.save_coaching_message(inbound)
         repo.save_coaching_message(outbound)
         return {

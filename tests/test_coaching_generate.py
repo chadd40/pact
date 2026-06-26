@@ -113,7 +113,7 @@ def test_user_reply_returns_inbound_then_outbound() -> None:
     pact = _pact(clock)
     provider = TestLLMProvider()
 
-    inbound, outbound = user_reply(pact, "I will do two sessions tomorrow", provider, clock)
+    inbound, outbound = user_reply(pact, "I will do two sessions tomorrow", [], provider, clock)
 
     assert isinstance(inbound, CoachingMessage)
     assert isinstance(outbound, CoachingMessage)
