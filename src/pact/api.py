@@ -194,6 +194,16 @@ def create_app(
         repo.update_pact(pact)
         return proof.model_dump(mode="json")
 
+    @app.get("/api/pacts/{pact_id}/proofs")
+    def list_proofs_endpoint(pact_id: str):
+        # Server-truth proof list for the UI: 404 if the pact is unknown, else the
+        # pact's proofs ordered by received_at (the repo returns them unordered).
+        _require(pact_id)
+        proofs_list = sorted(
+            repo.list_proofs(pact_id), key=lambda p: p.received_at
+        )
+        return [p.model_dump(mode="json") for p in proofs_list]
+
     @app.post("/api/pacts/{pact_id}/proofs/image")
     async def proofs_image(
         pact_id: str,
