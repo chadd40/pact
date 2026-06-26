@@ -11,6 +11,9 @@ dependencies = [
     "imagehash",
 ]
 
+[project.scripts]
+pact = "pact.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest",

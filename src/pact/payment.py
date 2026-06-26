@@ -1,6 +1,6 @@
 import subprocess
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pact.config import Settings
 from pact.models import Pact
@@ -14,6 +14,7 @@ class PaymentResult:
     payload: dict
 
 
+@runtime_checkable
 class PaymentProvider(Protocol):
     def create_donation(self, pact: Pact, idempotency_key: str) -> PaymentResult:
         ...

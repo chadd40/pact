@@ -78,6 +78,18 @@ class Repository:
             CREATE INDEX IF NOT EXISTS idx_coaching_delivered ON coaching_messages(delivered_at);
             """
         )
+        # Migration: add delivered_at column to coaching_messages if it was created
+        # without it (pre-Day-3 schema). ALTER TABLE ADD COLUMN is a no-op-safe
+        # SQLite operation when the column already exists on modern versions, but
+        # older SQLite raises OperationalError, so we guard explicitly.
+        existing_cols = {
+            row[1]
+            for row in self.conn.execute("PRAGMA table_info(coaching_messages)")
+        }
+        if "delivered_at" not in existing_cols:
+            self.conn.execute(
+                "ALTER TABLE coaching_messages ADD COLUMN delivered_at TEXT"
+            )
         self.conn.commit()
 
     # --- Pact ---
