@@ -202,7 +202,19 @@ def submit_proof(
         },
         clock,
     )
-    result = provider.resolve(task)
+    try:
+        result = provider.resolve(task)
+        proof_status = ProofStatus(result["status"])
+        judge_reason = result["reason"]
+        judge_checklist = result["checklist"]
+    except Exception:
+        # Money-safety: if the resolver is unavailable/errors, do NOT crash the
+        # request and do NOT silently pass/fail. Park the proof as ambiguous so a
+        # later re-judge can resolve it; settle() treats decisive ambiguity as
+        # needs_review and never donates off an unjudged proof.
+        proof_status = ProofStatus.ambiguous
+        judge_reason = "judging unavailable (resolver error)"
+        judge_checklist = {}
 
     return Proof(
         id=new_pact_id(pact.id + token + now.isoformat()).replace("pact_", "proof_"),
@@ -215,9 +227,9 @@ def submit_proof(
         phash=phash,
         dup_of=dup_of,
         artifact_path=image_path,
-        status=ProofStatus(result["status"]),
-        judge_reason=result["reason"],
-        judge_checklist=result["checklist"],
+        status=proof_status,
+        judge_reason=judge_reason,
+        judge_checklist=judge_checklist,
     )
 
 
@@ -340,6 +352,28 @@ def settle(
         # SUCCESS: no payment call, no spend_request_id, no dispute window.
         return pact, _build_verdict(
             pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None
+        )
+
+    # needs_review: the verdict is FAIL, but unjudged (ambiguous) proofs on days
+    # not already counted could lift `valid` to target if they re-judge to passed.
+    # valid_passed < target <= valid_passed + ambiguous_distinct_days. Park the
+    # pact: NO donation, NO dispute window, stake stays committed. A later settle
+    # (after the ambiguous proofs are re-judged) flows through normally because
+    # needs_review is not terminal and not handled here.
+    passed_days = {p.day_bucket for p in proofs if p.status == ProofStatus.passed}
+    ambiguous_distinct_days = len(
+        {
+            p.day_bucket
+            for p in proofs
+            if p.status == ProofStatus.ambiguous and p.day_bucket not in passed_days
+        }
+    )
+    if valid < pact.target_count <= valid + ambiguous_distinct_days:
+        pact.status = PactStatus.needs_review
+        pact.verdict_at = now
+        # No payment, no spend_request_id, no dispute_window_closes_at.
+        return pact, _build_verdict(
+            pact, proofs, valid, PactStatus.needs_review, PaymentAction.none, None
         )
 
     # FAIL path: DEFER the donation. Open a pre-donation dispute window; the stake
