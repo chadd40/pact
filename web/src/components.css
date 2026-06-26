@@ -339,6 +339,23 @@
   margin-top: 3px;
 }
 
+/* §9 plain-terms legal copy — quiet, factual, in the contract's small print voice. */
+.legal-copy {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: 620px;
+}
+
+/* stake out-of-range warning */
+.stake-warn {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--stake-red);
+  margin-top: 8px;
+}
+
 .honesty-line {
   font-family: var(--font-display);
   font-style: italic;
@@ -348,6 +365,30 @@
   margin: 28px auto 6px;
   max-width: 560px;
   line-height: 1.5;
+}
+
+/* Required consent — gates the seal. Reads like the signature checkbox on a form. */
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  max-width: 560px;
+  margin: 18px auto 0;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  cursor: pointer;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.consent-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--stake-red);
+  cursor: pointer;
 }
 .sign-row {
   display: flex;
@@ -500,6 +541,124 @@
   border-radius: var(--radius);
   padding: 18px;
   margin-top: 18px;
+}
+
+/* modality tabs — photo (real proof) vs log (text fallback) */
+.proof-modes {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 4px;
+  padding-bottom: 12px;
+}
+.proof-tab {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+.proof-tab:hover {
+  border-color: var(--ink-muted);
+  color: var(--ink);
+}
+.proof-tab.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+/* hidden native file input — triggered by the labelled button */
+.proof-file {
+  display: none;
+}
+
+/* filed-proofs log (server-truth) */
+.proof-log {
+  margin-top: 18px;
+}
+.ledger-row.compact {
+  grid-template-columns: 116px 78px 1fr;
+  gap: 12px;
+  padding: 11px 4px;
+}
+.ledger-row.compact .ledger-date {
+  font-size: 12px;
+}
+.ledger-row.compact .ledger-reason {
+  font-size: 13px;
+}
+
+/* cooling-off / forfeit cancel disclosure */
+.cancel-panel {
+  border: 1px solid var(--stake-red);
+  background: rgba(124, 45, 45, 0.05);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-top: 14px;
+}
+
+/* coach "check in" button — runs a scheduler sweep */
+.checkin-btn {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 5px 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.14s ease;
+}
+.checkin-btn:hover:not(:disabled) {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.checkin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* proactive nudges surfaced from the outbox */
+.nudge-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+.nudge {
+  border: 1px solid var(--sealed-gold);
+  background: rgba(166, 121, 46, 0.07);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.nudge-dismiss {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sealed-gold);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.nudge-dismiss:hover {
+  text-decoration: underline;
 }
 .nonce {
   font-family: var(--font-mono);
