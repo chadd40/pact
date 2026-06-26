@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime
+
+from pact.models import Pact, PactStatus, Proof, ReasoningTask, Verdict
+
+
+class Repository:
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self.conn = conn
+        self.conn.row_factory = sqlite3.Row
+
+    @classmethod
+    def connect(cls, path: str) -> "Repository":
+        conn = sqlite3.connect(path, check_same_thread=False)
+        return cls(conn)
+
+    def init_schema(self) -> None:
+        self.conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS pacts (
+                id TEXT PRIMARY KEY,
+                owner TEXT NOT NULL,
+                status TEXT NOT NULL,
+                deadline_at TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_pacts_owner ON pacts(owner);
+            CREATE INDEX IF NOT EXISTS idx_pacts_status ON pacts(status);
+            CREATE INDEX IF NOT EXISTS idx_pacts_deadline ON pacts(deadline_at);
+
+            CREATE TABLE IF NOT EXISTS proofs (
+                id TEXT PRIMARY KEY,
+                pact_id TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_proofs_pact ON proofs(pact_id);
+
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                pact_id TEXT,
+                status TEXT NOT NULL,
+                required_capability TEXT,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_tasks_capability ON tasks(required_capability);
+
+            CREATE TABLE IF NOT EXISTS verdicts (
+                pact_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            """
+        )
+        self.conn.commit()
+
+    # --- Pact ---
+
+    def save_pact(self, pact: Pact) -> None:
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO pacts (id, owner, status, deadline_at, data)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                pact.id,
+                pact.owner,
+                pact.status.value,
+                pact.deadline_at.isoformat(),
+                pact.model_dump_json(),
+            ),
+        )
+        self.conn.commit()
+
+    def get_pact(self, pact_id: str) -> Pact | None:
+        row = self.conn.execute(
+            "SELECT data FROM pacts WHERE id = ?", (pact_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return Pact.model_validate_json(row["data"])
+
+    def update_pact(self, pact: Pact) -> None:
+        self.save_pact(pact)
+
+    def list_pacts(self, owner: str | None = None) -> list[Pact]:
+        if owner is None:
+            rows = self.conn.execute("SELECT data FROM pacts").fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT data FROM pacts WHERE owner = ?", (owner,)
+            ).fetchall()
+        return [Pact.model_validate_json(r["data"]) for r in rows]
+
+    def due_active_pacts(self, now: datetime) -> list[Pact]:
+        rows = self.conn.execute(
+            "SELECT data FROM pacts WHERE status = ? AND deadline_at <= ?",
+            (PactStatus.active.value, now.isoformat()),
+        ).fetchall()
+        return [Pact.model_validate_json(r["data"]) for r in rows]
+
+    # --- Proof ---
+
+    def save_proof(self, proof: Proof) -> None:
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO proofs (id, pact_id, data)
+            VALUES (?, ?, ?)
+            """,
+            (proof.id, proof.pact_id, proof.model_dump_json()),
+        )
+        self.conn.commit()
+
+    def list_proofs(self, pact_id: str) -> list[Proof]:
+        rows = self.conn.execute(
+            "SELECT data FROM proofs WHERE pact_id = ?", (pact_id,)
+        ).fetchall()
+        return [Proof.model_validate_json(r["data"]) for r in rows]
+
+    # --- ReasoningTask ---
+
+    def save_task(self, task: ReasoningTask) -> None:
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO tasks (id, pact_id, status, required_capability, data)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                task.id,
+                task.pact_id,
+                task.status.value,
+                task.required_capability,
+                task.model_dump_json(),
+            ),
+        )
+        self.conn.commit()
+
+    def get_task(self, task_id: str) -> ReasoningTask | None:
+        row = self.conn.execute(
+            "SELECT data FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return ReasoningTask.model_validate_json(row["data"])
+
+    def pending_tasks(self, capability: str | None = None) -> list[ReasoningTask]:
+        from pact.models import TaskStatus
+
+        if capability is None:
+            rows = self.conn.execute(
+                "SELECT data FROM tasks WHERE status = ?",
+                (TaskStatus.pending.value,),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT data FROM tasks WHERE status = ? AND required_capability = ?",
+                (TaskStatus.pending.value, capability),
+            ).fetchall()
+        return [ReasoningTask.model_validate_json(r["data"]) for r in rows]
+
+    def update_task(self, task: ReasoningTask) -> None:
+        self.save_task(task)
+
+    # --- Verdict ---
+
+    def save_verdict(self, verdict: Verdict) -> None:
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO verdicts (pact_id, status, data)
+            VALUES (?, ?, ?)
+            """,
+            (verdict.pact_id, verdict.status.value, verdict.model_dump_json()),
+        )
+        self.conn.commit()
+
+    def get_verdict(self, pact_id: str) -> Verdict | None:
+        row = self.conn.execute(
+            "SELECT data FROM verdicts WHERE pact_id = ?", (pact_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return Verdict.model_validate_json(row["data"])
