@@ -25,7 +25,7 @@ def _repo() -> Repository:
     return repo
 
 
-def test_advance_day_settles_live_pact_to_failed_donation():
+def test_advance_day_settles_live_pact_to_failed_then_donates_after_grace():
     settings = _settings()
     clock = FixedClock(_seed_instant(settings))
     repo = _repo()
@@ -38,45 +38,66 @@ def test_advance_day_settles_live_pact_to_failed_donation():
     live = repo.get_pact(live_id)
     assert live.status == PactStatus.active
 
-    # Advance well past the LIVE deadline (~4 days out) with no further proofs.
-    out = None
-    for _ in range(6):  # 6 * 24h = 6 days > 4-day deadline
-        out = advance_day(repo, clock, payment, hours=24)
+    # Advance to just past the LIVE deadline (~4 days out) but only by 12h
+    # so we land after the deadline but before the 24h grace window closes.
+    # The seed instant is 09:00 UTC; the deadline is seed_instant + 4 days.
+    # Advance 4 days + 12h puts us 12h past the deadline but 12h before grace.
+    for _ in range(4):
+        advance_day(repo, clock, payment, settings, hours=24)
+    advance_day(repo, clock, payment, settings, hours=12)
 
-    # advance_day reports the current instant and the ids it settled this call.
-    assert out["now"] == clock.now().isoformat()
-
-    settled = repo.get_pact(live_id)
-    assert settled.status == PactStatus.donated
-    assert settled.stake_state == StakeState.executed
-    assert settled.spend_request_id == f"test_sr_{live_id}_{settled.stake_amount_cents}"
+    # Deferred-donation contract: deadline crossed -> failed + open dispute window,
+    # but NO money moved yet (grace window still open).
+    failed = repo.get_pact(live_id)
+    assert failed.status == PactStatus.failed
+    assert failed.dispute_window_closes_at is not None
+    assert failed.spend_request_id is None
+    assert failed.stake_state == StakeState.committed
 
     verdict = repo.get_verdict(live_id)
     assert verdict is not None
     assert verdict.status == PactStatus.failed
     assert verdict.valid_proof_count < verdict.target_count
+    assert verdict.payment_action == "none"
 
-    # The id appears in some advance_day call's settled list across the sweeps.
-    # (We re-run once more: nothing new should settle now that LIVE is terminal.)
-    after = advance_day(repo, clock, payment, hours=24)
+    # Now advance past the grace window so the dispute window closes -> donation executes.
+    advance_day(repo, clock, payment, settings, hours=24)
+
+    donated = repo.get_pact(live_id)
+    assert donated.status == PactStatus.donated
+    assert donated.stake_state == StakeState.executed
+    assert donated.spend_request_id == f"test_sr_{live_id}_{donated.stake_amount_cents}"
+
+    final_verdict = repo.get_verdict(live_id)
+    assert final_verdict.payment_action == "donation_executed"
+    assert final_verdict.payment_ref == f"test_sr_{live_id}_{donated.stake_amount_cents}"
+
+    # Idempotent: nothing new settles or donates once LIVE is terminal.
+    after = advance_day(repo, clock, payment, settings, hours=24)
     assert live_id not in after["settled"]
+    assert live_id not in after["donated"]
+    assert repo.get_pact(live_id).spend_request_id == f"test_sr_{live_id}_{donated.stake_amount_cents}"
 
 
-def test_advance_day_settled_list_contains_crossed_pact():
+def test_advance_day_settled_and_donated_lists_report_the_crossed_pact():
     settings = _settings()
     clock = FixedClock(_seed_instant(settings))
     repo = _repo()
     payment = TestLinkProvider()
 
-    ids = seed(repo, clock, payment_or_settings=settings) if False else seed(repo, clock, settings)
+    ids = seed(repo, clock, settings)
     live_id = ids["live"]
 
-    seen_live = False
-    for _ in range(6):
-        out = advance_day(repo, clock, payment, hours=24)
+    seen_settled = False
+    seen_donated = False
+    for _ in range(8):  # cross the deadline AND the grace window over the sweeps
+        out = advance_day(repo, clock, payment, settings, hours=24)
         if live_id in out["settled"]:
-            seen_live = True
-    assert seen_live, "LIVE pact should appear in some advance_day settled list once its deadline passes"
+            seen_settled = True
+        if live_id in out["donated"]:
+            seen_donated = True
+    assert seen_settled, "LIVE pact should appear in some advance_day 'settled' list once its deadline passes"
+    assert seen_donated, "LIVE pact should appear in some advance_day 'donated' list once its grace window closes"
 
 
 def test_reset_restores_seeded_pacts_and_clock_instant():
@@ -88,8 +109,8 @@ def test_reset_restores_seeded_pacts_and_clock_instant():
     seed(repo, clock, settings)
 
     # Mutate state: advance the clock and settle the LIVE pact away from its seeded form.
-    for _ in range(6):
-        advance_day(repo, clock, payment, hours=24)
+    for _ in range(8):
+        advance_day(repo, clock, payment, settings, hours=24)
     assert clock.now() != _seed_instant(settings)
 
     ids = reset(repo, clock, settings)
@@ -119,4 +140,4 @@ def test_advance_day_with_real_clock_refuses():
     seed(repo, FixedClock(_seed_instant(settings)), settings)
 
     with pytest.raises(ValueError):
-        advance_day(repo, RealClock(), payment, hours=24)
+        advance_day(repo, RealClock(), payment, settings, hours=24)

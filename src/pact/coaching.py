@@ -156,6 +156,7 @@ def generate_coach_message(
 def user_reply(
     pact: Pact,
     text: str,
+    proofs: list[Proof],
     provider: ReasoningProvider,
     clock: Clock,
 ) -> tuple[CoachingMessage, CoachingMessage]:
@@ -163,7 +164,8 @@ def user_reply(
 
     Returns (inbound, outbound) as a tuple of CoachingMessages. The inbound
     carries the user's text verbatim; the outbound is a conversational coach
-    response generated via the reasoning provider.
+    response generated via the reasoning provider, grounded in the pact's real
+    pace (distinct valid days proven so far) rather than a fixed zero.
     """
     now = clock.now()
 
@@ -179,14 +181,14 @@ def user_reply(
         sent_at=now,
     )
 
-    # Outbound: coach response (no proofs passed in for reply context; pace
-    # state from the active conversation rather than a fresh nudge).
+    # Outbound: coach response grounded in the real distinct-valid-day count.
+    valid = count_distinct_valid_days(proofs)
     days_left = _days_left(pact, clock)
     task = make_reasoning_task(
         TaskType.coach,
         pact.id,
         {
-            "valid": 0,
+            "valid": valid,
             "target": pact.target_count,
             "days_left": days_left,
             "charity": pact.charity_id,
@@ -202,7 +204,7 @@ def user_reply(
         direction="outbound",
         trigger="reply",
         pact_state_snapshot={
-            "valid": 0,
+            "valid": valid,
             "target": pact.target_count,
             "days_left": days_left,
         },

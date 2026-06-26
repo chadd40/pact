@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from pact.clock import FixedClock
-from pact.lifecycle import settle, submit_dispute
+from pact.config import load_settings
+from pact.lifecycle import settle, submit_dispute, close_dispute_window
 from pact.models import (
     PactStatus,
     StakeState,
@@ -85,11 +86,12 @@ def _passing_proofs(n: int, base: datetime) -> list[Proof]:
 
 def test_success_makes_zero_payment_calls_and_releases_stake():
     clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
     pact = _pact(clock, target=3)
     proofs = _passing_proofs(3, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
     payment = SpyPaymentProvider()
 
-    new_pact, verdict = settle(pact, proofs, clock, payment)
+    new_pact, verdict = settle(pact, proofs, clock, payment, settings)
 
     assert new_pact.status == PactStatus.succeeded
     assert new_pact.stake_state == StakeState.released
@@ -103,35 +105,53 @@ def test_success_makes_zero_payment_calls_and_releases_stake():
     assert new_pact.verdict_at == clock.now()
 
 
-def test_failure_executes_donation_exactly_once():
+def test_failure_defers_donation_then_executes_once_after_window():
     clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
     pact = _pact(clock, target=3)
     proofs = _passing_proofs(2, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
     payment = SpyPaymentProvider()
 
-    new_pact, verdict = settle(pact, proofs, clock, payment)
+    failed, verdict = settle(pact, proofs, clock, payment, settings)
 
-    assert new_pact.status == PactStatus.donated
-    assert payment.calls == 1
-    assert payment.last_idempotency_key == "pact_abc123:donation"
-    assert new_pact.spend_request_id == f"test_sr_pact_abc123_{pact.stake_amount_cents}"
+    # settle no longer donates: window opens, stake stays committed.
+    assert failed.status == PactStatus.failed
+    assert payment.calls == 0
+    assert failed.spend_request_id is None
+    assert failed.stake_state == StakeState.committed
     assert verdict.status == PactStatus.failed
     assert verdict.valid_proof_count == 2
-    assert verdict.payment_action == PaymentAction.donation_executed
-    assert verdict.payment_ref == new_pact.spend_request_id
+    assert verdict.payment_action == PaymentAction.none
+    assert verdict.payment_ref is None
+
+    # After the window closes, the donation fires exactly once.
+    clock.advance(hours=settings.dispute_grace_hours + 1)
+    donated, dverdict = close_dispute_window(failed, proofs, clock, payment, settings)
+
+    assert donated.status == PactStatus.donated
+    assert payment.calls == 1
+    assert payment.last_idempotency_key == "pact_abc123:donation"
+    assert donated.spend_request_id == f"test_sr_pact_abc123_{pact.stake_amount_cents}"
+    assert dverdict.payment_action == PaymentAction.donation_executed
+    assert dverdict.payment_ref == donated.spend_request_id
 
 
-def test_settle_is_idempotent_no_second_donation():
+def test_close_window_is_idempotent_no_second_donation():
     clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
     pact = _pact(clock, target=3)
     proofs = _passing_proofs(1, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
     payment = SpyPaymentProvider()
 
-    p1, v1 = settle(pact, proofs, clock, payment)
+    failed, _ = settle(pact, proofs, clock, payment, settings)
+    assert payment.calls == 0
+
+    clock.advance(hours=settings.dispute_grace_hours + 1)
+    p1, v1 = close_dispute_window(failed, proofs, clock, payment, settings)
     assert payment.calls == 1
     first_ref = p1.spend_request_id
 
-    p2, v2 = settle(p1, proofs, clock, payment)
+    p2, v2 = close_dispute_window(p1, proofs, clock, payment, settings)
 
     assert payment.calls == 1  # NO second donation
     assert p2.status == PactStatus.donated
@@ -140,26 +160,30 @@ def test_settle_is_idempotent_no_second_donation():
     assert v2.status == PactStatus.failed
 
 
-def test_dispute_reruns_settle_exactly_once_then_final():
+def test_dispute_overturns_within_window_then_final():
     clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
     pact = _pact(clock, target=3)
     base = datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc)
     proofs = _passing_proofs(2, base)
     payment = SpyPaymentProvider()
 
-    failed_pact, failed_verdict = settle(pact, proofs, clock, payment)
-    assert failed_pact.status == PactStatus.donated
-    assert payment.calls == 1
+    failed, failed_verdict = settle(pact, proofs, clock, payment, settings)
+    assert failed.status == PactStatus.failed
+    assert payment.calls == 0  # nothing moved yet
 
-    # Dispute supplies a third valid distinct-day proof -> success on re-run.
+    # Dispute supplies a third valid distinct-day proof within the open window.
     extra = _proof(99, "2026-06-25", ProofStatus.passed,
                    datetime(2026, 6, 25, 12, 0, tzinfo=timezone.utc))
     disputed = proofs + [extra]
 
-    dp1, dv1 = submit_dispute(failed_pact, disputed, clock, payment)
+    dp1, dv1 = submit_dispute(failed, disputed, clock, payment)
     assert dp1.status == PactStatus.succeeded
+    assert dp1.stake_state == StakeState.released
+    assert dp1.dispute_window_closes_at is None
     assert dv1.status == PactStatus.succeeded
     assert dv1.valid_proof_count == 3
+    assert payment.calls == 0  # overturned to success: never donates
 
     # Second dispute is rejected: the window is single-use, result already final.
     with pytest.raises(Exception):

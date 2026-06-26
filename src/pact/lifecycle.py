@@ -309,6 +309,7 @@ def settle(
     proofs: list[Proof],
     clock: Clock,
     payment: PaymentProvider,
+    settings: Settings,
 ) -> tuple[Pact, Verdict]:
     now = clock.now()
 
@@ -336,21 +337,101 @@ def settle(
         pact.status = PactStatus.succeeded
         pact.stake_state = StakeState.released
         pact.verdict_at = now
-        # SUCCESS: no payment call, no spend_request_id.
-        return pact, _build_verdict(pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None)
+        # SUCCESS: no payment call, no spend_request_id, no dispute window.
+        return pact, _build_verdict(
+            pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None
+        )
 
-    # FAIL path. Charge-on-fail, exactly once, guarded by spend_request_id.
+    # FAIL path: DEFER the donation. Open a pre-donation dispute window; the stake
+    # stays committed and no money moves until close_dispute_window fires after the
+    # window closes. Idempotent re-settle on an already-failed pact only refreshes
+    # the window-close horizon if it was never set.
     pact.status = PactStatus.failed
-    if pact.spend_request_id is None:
+    if pact.dispute_window_closes_at is None:
+        pact.dispute_window_closes_at = now + timedelta(hours=settings.dispute_grace_hours)
+    pact.verdict_at = now
+    return pact, _build_verdict(
+        pact, proofs, valid, PactStatus.failed, PaymentAction.none, None
+    )
+
+
+def close_dispute_window(
+    pact: Pact,
+    proofs: list[Proof],
+    clock: Clock,
+    payment: PaymentProvider,
+    settings: Settings,
+) -> tuple[Pact, Verdict]:
+    """Execute the deferred donation once the dispute window has closed.
+
+    Money moves here, not in settle. Guarded by spend_request_id so a second
+    close (e.g. a restart re-sweep) moves no additional money. A pact that was
+    overturned to success inside the window never reaches the donation branch.
+    """
+    now = clock.now()
+    valid = _valid_count(pact, proofs)
+
+    # Already donated: idempotent rebuild, no second donation.
+    if pact.spend_request_id is not None:
+        return pact, _build_verdict(
+            pact, proofs, valid, PactStatus.failed,
+            PaymentAction.donation_executed, pact.spend_request_id,
+        )
+
+    # Only a still-failing pact past its closed window with no prior donation and a
+    # genuine shortfall executes the deferred donation.
+    window = pact.dispute_window_closes_at
+    if (
+        pact.status == PactStatus.failed
+        and window is not None
+        and now >= window
+        and valid < pact.target_count
+    ):
         pact.status = PactStatus.donation_pending
         result = payment.create_donation(pact, f"{pact.id}:donation")
         pact.spend_request_id = result.provider_ref
         pact.stake_state = StakeState.executed
         pact.status = PactStatus.donated
-    pact.verdict_at = now
-    return pact, _build_verdict(
-        pact, proofs, valid, PactStatus.failed, PaymentAction.donation_executed, pact.spend_request_id
+        pact.verdict_at = now
+        return pact, _build_verdict(
+            pact, proofs, valid, PactStatus.failed,
+            PaymentAction.donation_executed, pact.spend_request_id,
+        )
+
+    # Window still open (or pact no longer failing / already terminal): no-op.
+    verdict_status = (
+        PactStatus.succeeded if pact.status == PactStatus.succeeded else PactStatus.failed
     )
+    return pact, _build_verdict(pact, proofs, valid, verdict_status, PaymentAction.none, None)
+
+
+def execute_forfeit_donation(
+    pact: Pact,
+    clock: Clock,
+    payment: PaymentProvider,
+) -> Pact:
+    """Move the stake for a forfeited cancel (status donation_pending).
+
+    `cancel` parks a post-cooling-off forfeit in `donation_pending` without
+    moving any money (mirrors the deferred dispute-window posture). This helper
+    executes that pending donation exactly once: it creates the donation, records
+    the spend-request id, marks the stake executed, and transitions to `donated`.
+
+    Idempotent on `spend_request_id`: once the donation has fired, a second call
+    is a no-op and moves no further money. Anything not in `donation_pending`
+    (e.g. a release, or an already-`donated` pact) is returned unchanged.
+    """
+    if pact.status != PactStatus.donation_pending:
+        return pact
+    if pact.spend_request_id is not None:
+        return pact
+
+    result = payment.create_donation(pact, f"{pact.id}:donation")
+    pact.spend_request_id = result.provider_ref
+    pact.stake_state = StakeState.executed
+    pact = transition(pact, PactStatus.donated)
+    pact.verdict_at = clock.now()
+    return pact
 
 
 def submit_dispute(
@@ -374,9 +455,11 @@ def submit_dispute(
 
     valid = _valid_count(pact, proofs)
     if valid >= pact.target_count:
-        # Extra proof clears the bar -> overturn to success, final.
+        # Extra proof clears the bar within the open window -> overturn to success,
+        # final. No donation; close the window so a later sweep never donates.
         pact.status = PactStatus.succeeded
         pact.stake_state = StakeState.released
+        pact.dispute_window_closes_at = None
         pact.verdict_at = clock.now()
         return pact, _build_verdict(pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None)
 
@@ -399,20 +482,40 @@ def reconcile_on_startup(
     repo: Repository,
     clock: Clock,
     payment: PaymentProvider,
+    settings: Settings,
 ) -> list[Pact]:
-    """Settle every active pact whose deadline has passed.
+    """Settle every due active pact, then execute any deferred donations whose
+    dispute window has now closed.
 
     Spec §5: a startup/ticker sweep drives the ghosting failure path —
-    no proofs by deadline -> failed -> donation, with zero user interaction.
-    Relies on `settle` being idempotent, so a restart mid-pact (a second
+    no proofs by deadline -> failed (window opens) -> after the window closes,
+    donation, with zero user interaction. Relies on `settle` and
+    `close_dispute_window` being idempotent, so a restart mid-pact (a second
     sweep) re-settles nothing and moves no additional money.
     """
     now = clock.now()
-    settled: list[Pact] = []
+    touched: list[Pact] = []
+
+    # Stage 1: deadline sweep — settle due active pacts (success releases; fail opens window).
     for pact in repo.due_active_pacts(now):
         proofs = repo.list_proofs(pact.id)
-        updated, verdict = settle(pact, proofs, clock, payment)
+        updated, verdict = settle(pact, proofs, clock, payment, settings)
         repo.update_pact(updated)
         repo.save_verdict(verdict)
-        settled.append(updated)
-    return settled
+        touched.append(updated)
+
+    # Stage 2: grace sweep — close any failed pact whose dispute window has elapsed.
+    for pact in repo.list_pacts():
+        if (
+            pact.status == PactStatus.failed
+            and pact.spend_request_id is None
+            and pact.dispute_window_closes_at is not None
+            and now >= pact.dispute_window_closes_at
+        ):
+            proofs = repo.list_proofs(pact.id)
+            closed, verdict = close_dispute_window(pact, proofs, clock, payment, settings)
+            repo.update_pact(closed)
+            repo.save_verdict(verdict)
+            touched.append(closed)
+
+    return touched

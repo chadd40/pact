@@ -62,15 +62,25 @@ def test_reconcile_settles_ghosted_pact_to_failed_donation():
     start = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
     clock = FixedClock(start)
     repo = _repo()
+    settings = Settings()
     deadline = start + timedelta(days=3)
     pact = _active_pact("pact_ghost", start, deadline)
     repo.save_pact(pact)
 
-    # Deadline passes with zero proofs submitted.
+    # Deadline passes with zero proofs submitted -> failed, window opens, NO donation.
     clock.advance(days=4)
-    settled = reconcile_on_startup(repo, clock, TestLinkProvider())
+    first = reconcile_on_startup(repo, clock, TestLinkProvider(), settings)
+    assert len(first) == 1
+    opened = repo.get_pact("pact_ghost")
+    assert opened.status == PactStatus.failed
+    assert opened.spend_request_id is None
+    assert opened.stake_state == StakeState.committed
+    assert opened.dispute_window_closes_at is not None
 
-    assert len(settled) == 1
+    # After the dispute window closes, the deferred donation fires exactly once.
+    clock.advance(hours=settings.dispute_grace_hours + 1)
+    reconcile_on_startup(repo, clock, TestLinkProvider(), settings)
+
     saved = repo.get_pact("pact_ghost")
     assert saved.status == PactStatus.donated
     assert saved.stake_state == StakeState.executed
@@ -89,6 +99,7 @@ def test_reconcile_leaves_terminal_pacts_untouched_and_is_idempotent():
     start = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
     clock = FixedClock(start)
     repo = _repo()
+    settings = Settings()
     payment = TestLinkProvider()
 
     # An already-succeeded terminal pact must never be reopened.
@@ -106,19 +117,24 @@ def test_reconcile_leaves_terminal_pacts_untouched_and_is_idempotent():
     ghost = _active_pact("pact_ghost2", start, start - timedelta(hours=1))
     repo.save_pact(ghost)
 
-    first = reconcile_on_startup(repo, clock, payment)
+    first = reconcile_on_startup(repo, clock, payment, settings)
     assert {p.id for p in first} == {"pact_ghost2"}
 
     assert repo.get_pact("pact_done").status == PactStatus.succeeded
     assert repo.get_pact("pact_done").stake_state == StakeState.released
     assert repo.get_pact("pact_future").status == PactStatus.active
+    # Donation deferred: ghost is failed with an open window, no money moved yet.
+    assert repo.get_pact("pact_ghost2").status == PactStatus.failed
+    assert repo.get_pact("pact_ghost2").spend_request_id is None
+
+    # Advance past the window: the deferred donation executes exactly once.
+    clock.advance(hours=settings.dispute_grace_hours + 1)
+    reconcile_on_startup(repo, clock, payment, settings)
     assert repo.get_pact("pact_ghost2").status == PactStatus.donated
+    ref_after = repo.get_pact("pact_ghost2").spend_request_id
+    assert ref_after == "test_sr_pact_ghost2_500"
 
-    ref_after_first = repo.get_pact("pact_ghost2").spend_request_id
-    assert ref_after_first == "test_sr_pact_ghost2_500"
-
-    # Restart safety: a second sweep settles nothing new and moves no money.
-    second = reconcile_on_startup(repo, clock, payment)
-    assert second == []
-    assert repo.get_pact("pact_ghost2").spend_request_id == ref_after_first
-    assert repo.get_verdict("pact_ghost2").payment_ref == ref_after_first
+    # Restart safety: a further sweep moves no additional money.
+    reconcile_on_startup(repo, clock, payment, settings)
+    assert repo.get_pact("pact_ghost2").spend_request_id == ref_after
+    assert repo.get_verdict("pact_ghost2").payment_ref == ref_after
