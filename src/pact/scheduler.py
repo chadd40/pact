@@ -6,7 +6,6 @@ from pact.coaching import generate_coach_message, should_nudge
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, settle
 from pact.models import PactStatus, Profile
-from pact.notify import NotificationProvider
 from pact.payment import PaymentProvider
 from pact.profile import record_outcome
 from pact.repository import Repository
@@ -30,7 +29,6 @@ def tick(
     repo: Repository,
     clock: Clock,
     payment: PaymentProvider,
-    notifier: NotificationProvider,
     settings: Settings,
 ) -> dict:
     """One scheduler sweep. Three idempotent passes, in order.
@@ -41,9 +39,11 @@ def tick(
        close_dispute_window executes the deferred donation exactly once and we
        fold the failure into the owner Profile (record_outcome is idempotent).
     3. Nudge: for every still-active pact where should_nudge fires, generate +
-       persist a CoachingMessage and notify the owner. The nag-governor (one
-       outbound per calendar day, suppress if a proof landed today) makes this
-       at-most-once per pact per day, so a second tick the same day is a no-op.
+       persist a CoachingMessage (delivered_at=None) into the outbox. The Hermes
+       agent relays the nudge through its own channel and marks it delivered via
+       POST /api/coach/{id}/delivered. The nag-governor (one outbound per calendar
+       day, suppress if a proof landed today) makes this at-most-once per pact per
+       day, so a second tick the same day is a no-op.
 
     Returns a summary dict: {"now", "settled", "donated", "nudged"}.
     Idempotent: re-running at the same instant settles nothing new, donates
@@ -99,11 +99,6 @@ def tick(
             pact, proofs, trigger, provider, clock, charity_name
         )
         repo.save_coaching_message(msg)
-        notifier.send(
-            to=pact.owner,
-            subject=f"Pact check-in: {pact.title}",
-            body=msg.body,
-        )
         nudged_ids.append(pact.id)
 
     return {

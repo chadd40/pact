@@ -4,8 +4,9 @@ A worker repeatedly claims pending tasks it is capable of handling, resolves
 them with its ReasoningProvider, and posts the result back through the broker.
 
 SAFETY: this only resolves reasoning tasks (draft/judge/coach/verdict). It never
-moves money or sends email — those live behind the scheduler / payment / notify
-modules. The `pact serve` CLI hook simply loops `serve` against a live API repo.
+moves money or delivers coaching nudges — those live behind the scheduler and
+payment modules. The `pact serve` CLI hook simply loops `serve` against a live
+API repo.
 """
 
 from __future__ import annotations
