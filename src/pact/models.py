@@ -175,3 +175,4 @@ class CoachingMessage(BaseModel):
     channel: str = "web"
     body: str
     sent_at: datetime
+    delivered_at: datetime | None = None
