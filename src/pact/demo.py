@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pact.anticheat import day_bucket
 from pact.clock import Clock, FixedClock
 from pact.config import Settings
-from pact.lifecycle import reconcile_on_startup, settle
+from pact.lifecycle import close_dispute_window, reconcile_on_startup, settle
 from pact.models import (
     Modality,
     Pact,
@@ -109,7 +109,7 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
         _passed_proof("pact-win", i, now - timedelta(days=5 - i, hours=3))
         for i in range(5)
     ]
-    win, win_verdict = settle(win, win_proofs, clock, payment)
+    win, win_verdict = settle(win, win_proofs, clock, payment, settings)
     repo.save_pact(win)
     for proof in win_proofs:
         repo.save_proof(proof)
@@ -127,7 +127,16 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
         _passed_proof("pact-fail", i, now - timedelta(days=5 - i, hours=3))
         for i in range(4)
     ]
-    fail, fail_verdict = settle(fail, fail_proofs, clock, payment)
+    fail, fail_verdict = settle(fail, fail_proofs, clock, payment, settings)
+    # The seeded FAIL pact's deadline is already in the past; close its dispute
+    # window immediately so the demo shows a fully-resolved donated pact. Use a
+    # clock advanced past the grace horizon ONLY for this deterministic close.
+    fail_close_clock = FixedClock(
+        now + timedelta(hours=settings.dispute_grace_hours + 1)
+    )
+    fail, fail_verdict = close_dispute_window(
+        fail, fail_proofs, fail_close_clock, payment, settings
+    )
     repo.save_pact(fail)
     for proof in fail_proofs:
         repo.save_proof(proof)
@@ -156,13 +165,19 @@ def advance_day(
     repo: Repository,
     clock: Clock,
     payment: PaymentProvider,
+    settings: Settings,
     hours: int = 24,
 ) -> dict:
-    """Bump the demo clock and settle any pacts whose deadline has now passed.
+    """Bump the demo clock, settle newly-due pacts, and close elapsed dispute windows.
 
     Demo-only: requires a FixedClock so the advance is deterministic and the same
     injected clock the scheduler reads moves forward. With a RealClock there is
     nothing to advance, so we refuse rather than silently no-op.
+
+    Reports two buckets from the reconcile sweep: `settled` (pacts that just crossed
+    their deadline into `failed` with an open dispute window — no money moved) and
+    `donated` (pacts whose grace window just elapsed and whose deferred donation was
+    executed this sweep).
     """
     if not isinstance(clock, FixedClock):
         raise ValueError(
@@ -170,10 +185,13 @@ def advance_day(
             f"got {type(clock).__name__}"
         )
     clock.advance(hours=hours)
-    settled = reconcile_on_startup(repo, clock, payment)
+    changed = reconcile_on_startup(repo, clock, payment, settings)
+    settled = [p.id for p in changed if p.status == PactStatus.failed]
+    donated = [p.id for p in changed if p.status == PactStatus.donated]
     return {
         "now": clock.now().isoformat(),
-        "settled": [p.id for p in settled],
+        "settled": settled,
+        "donated": donated,
     }
 
 

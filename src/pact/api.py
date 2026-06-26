@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from pact import broker
 from pact.anticheat import TokenStore
 from pact.charities import CHARITIES
 from pact.clock import Clock, FixedClock
@@ -15,8 +16,10 @@ from pact.lifecycle import (
     PactRefused,
     TransitionError,
     cancel,
+    close_dispute_window,
     confirm_and_start,
     draft_pact,
+    execute_forfeit_donation,
     new_pact_id,
     settle,
     spend_freeze,
@@ -24,16 +27,21 @@ from pact.lifecycle import (
     submit_proof,
     transition,
 )
-from pact.models import Modality, Pact, PactStatus, Profile, StakeState
+from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
 from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
 
+# Statuses at which a pact's outcome is genuinely FINAL and safe to fold into
+# the owner's streak/history. Deliberately excludes `failed`: under the Day-3
+# pre-donation dispute window a `failed` pact has NOT moved money and can still
+# be overturned to `succeeded` within the window, so recording it early would
+# wrongly (and irreversibly, first-write-wins) stamp a failure. Donation/forfeit
+# states below are reached only after the window closes. Mirrors scheduler.tick.
 _TERMINAL_STATUSES = {
     PactStatus.succeeded,
-    PactStatus.failed,
     PactStatus.donated,
     PactStatus.donation_failed,
     PactStatus.donation_declined,
@@ -64,6 +72,21 @@ class OwnerIn(BaseModel):
 
 class CoachIn(BaseModel):
     message: str
+
+
+class EnqueueTaskIn(BaseModel):
+    type: TaskType
+    input: dict
+    required_capability: str | None = None
+
+
+class ClaimTaskIn(BaseModel):
+    agent_name: str
+    capabilities: list[str]
+
+
+class TaskResultIn(BaseModel):
+    result: dict
 
 
 def create_app(
@@ -186,6 +209,11 @@ def create_app(
             pact = cancel(pact, clock, settings)
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=409, detail=str(exc))
+        # A post-cooling-off forfeit parks in donation_pending; execute the
+        # deferred donation here (idempotent, charge-once) so the stake actually
+        # moves. An in-cooling-off cancel (canceled_release) is a no-op below.
+        if pact.status == PactStatus.donation_pending:
+            pact = execute_forfeit_donation(pact, clock, payment)
         repo.update_pact(pact)
         _record_terminal(pact)
         return pact.model_dump(mode="json")
@@ -194,7 +222,13 @@ def create_app(
     def settle_pact(pact_id: str):
         pact = _require(pact_id)
         proofs_list = repo.list_proofs(pact_id)
-        pact, verdict = settle(pact, proofs_list, clock, payment)
+        if pact.status == PactStatus.failed:
+            # Already failed: try to close the dispute window (no-op if still open).
+            pact, verdict = close_dispute_window(
+                pact, proofs_list, clock, payment, settings
+            )
+        else:
+            pact, verdict = settle(pact, proofs_list, clock, payment, settings)
         repo.update_pact(pact)
         repo.save_verdict(verdict)
         _record_terminal(pact)
@@ -239,7 +273,8 @@ def create_app(
     @app.post("/api/pacts/{pact_id}/coach")
     def post_coach(pact_id: str, body: CoachIn):
         pact = _require(pact_id)
-        inbound, outbound = user_reply(pact, body.message, provider, clock)
+        proofs_list = repo.list_proofs(pact_id)
+        inbound, outbound = user_reply(pact, body.message, proofs_list, provider, clock)
         repo.save_coaching_message(inbound)
         repo.save_coaching_message(outbound)
         return {
@@ -295,7 +330,7 @@ def create_app(
                 status_code=409,
                 detail="advance-day requires demo clock mode (FixedClock)",
             )
-        return demo_advance_day(repo, clock, payment)
+        return demo_advance_day(repo, clock, payment, settings)
 
     @app.post("/demo/reset")
     def demo_reset_endpoint():
@@ -305,5 +340,44 @@ def create_app(
                 detail="reset requires demo clock mode (FixedClock)",
             )
         return demo_reset(repo, clock, settings)
+
+    @app.post("/api/pacts/{pact_id}/reasoning-tasks")
+    def enqueue_reasoning_task(pact_id: str, body: EnqueueTaskIn):
+        _require(pact_id)
+        task = broker.enqueue(
+            repo,
+            body.type,
+            pact_id,
+            body.input,
+            clock,
+            required_capability=body.required_capability,
+        )
+        return task.model_dump(mode="json")
+
+    @app.get("/api/reasoning-tasks")
+    def list_reasoning_tasks(
+        capability: str | None = None, status: str | None = None
+    ):
+        # Only "pending" is exposed; the broker storage of pending tasks is the
+        # work queue. `status` is accepted for forward-compat / clarity but the
+        # broker always returns pending tasks here.
+        tasks = broker.pending_for(repo, capability)
+        return [t.model_dump(mode="json") for t in tasks]
+
+    @app.post("/api/reasoning-tasks/{tid}/claim")
+    def claim_reasoning_task(tid: str, body: ClaimTaskIn):
+        try:
+            task = broker.claim(repo, tid, body.agent_name, set(body.capabilities))
+        except Exception as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return task.model_dump(mode="json")
+
+    @app.post("/api/reasoning-tasks/{tid}/result")
+    def post_reasoning_task_result(tid: str, body: TaskResultIn):
+        try:
+            task = broker.post_result(repo, tid, body.result)
+        except Exception as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return task.model_dump(mode="json")
 
     return app

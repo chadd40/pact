@@ -101,7 +101,7 @@ async def test_win_flow_succeeds_with_no_donation(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_fail_flow_donates_and_settle_is_idempotent(tmp_path):
+async def test_fail_flow_defers_then_donates_after_window(tmp_path):
     clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
     app, repo = _build(tmp_path, clock)
     async with _client(app) as client:
@@ -114,21 +114,43 @@ async def test_fail_flow_donates_and_settle_is_idempotent(tmp_path):
         # Advance well past the deadline so the pact is due.
         clock.advance(days=30)
 
+        # Phase 1: settle FAILS but defers the donation behind the dispute window.
         r = await client.post(f"/api/pacts/{pact_id}/settle")
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["status"] == "failed"
         assert body["valid_proof_count"] == 4
         assert body["target_count"] == 5
-        assert body["payment_action"] == "donation_executed"
-        assert body["payment_ref"] == f"test_sr_{pact_id}_1500"
+        assert body["payment_action"] == "none"
+        assert body["payment_ref"] is None
 
         pact = repo.get_pact(pact_id)
-        assert pact.status == "donated"
-        assert pact.spend_request_id == f"test_sr_{pact_id}_1500"
+        assert pact.status == "failed"
+        assert pact.spend_request_id is None
+        assert pact.stake_state == "committed"
+        assert pact.dispute_window_closes_at is not None
 
-        # Idempotent settle at the API layer: a second call returns the same
-        # verdict and does NOT create a new spend-request.
+        # Re-settling inside the open window is a no-op: still failed, still no money.
+        r_again = await client.post(f"/api/pacts/{pact_id}/settle")
+        assert r_again.status_code == 200, r_again.text
+        assert r_again.json()["payment_action"] == "none"
+        assert repo.get_pact(pact_id).spend_request_id is None
+
+        # Phase 2: advance past the grace window, then settle closes the window and
+        # executes the deferred donation exactly once.
+        clock.advance(days=2)  # > 24h default grace
+        r = await client.post(f"/api/pacts/{pact_id}/settle")
+        assert r.status_code == 200, r.text
+        body2 = r.json()
+        assert body2["payment_action"] == "donation_executed"
+        assert body2["payment_ref"] == f"test_sr_{pact_id}_1500"
+
+        donated = repo.get_pact(pact_id)
+        assert donated.status == "donated"
+        assert donated.spend_request_id == f"test_sr_{pact_id}_1500"
+        assert donated.stake_state == "executed"
+
+        # Idempotent: a second settle after donation moves no additional money.
         r2 = await client.post(f"/api/pacts/{pact_id}/settle")
         assert r2.status_code == 200, r2.text
         assert r2.json()["payment_ref"] == f"test_sr_{pact_id}_1500"
@@ -136,3 +158,4 @@ async def test_fail_flow_donates_and_settle_is_idempotent(tmp_path):
 
         r = await client.get(f"/api/pacts/{pact_id}/packet")
         assert r.json()["verdict"]["payment_action"] == "donation_executed"
+        assert r.json()["verdict"]["payment_ref"] == f"test_sr_{pact_id}_1500"
