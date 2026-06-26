@@ -23,6 +23,8 @@ class TestEmailProvider:
     assert on what *would* have been emailed.
     """
 
+    __test__ = False  # not a pytest test class (name starts with "Test")
+
     def __init__(self) -> None:
         self.sent: list[dict] = []
 

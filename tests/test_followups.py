@@ -202,3 +202,49 @@ def test_user_reply_reflects_real_valid_count():
     assert "3 of 5 done" in outbound.body
     assert outbound.pact_state_snapshot["valid"] == 3
     assert outbound.pact_state_snapshot["target"] == 5
+
+
+# ─── (c) Open-window `failed` must NOT be recorded to the profile ─────────────
+
+@pytest.mark.asyncio
+async def test_settle_to_failed_then_winning_dispute_records_kept_not_failed(tmp_path):
+    """Regression: under the Day-3 deferred-donation window, a settle that lands
+    `failed` (window open, no money moved) must NOT stamp a failure on the owner
+    profile -- otherwise a subsequent winning dispute (overturn to succeeded) is
+    silently lost to the first-write-wins idempotency guard."""
+    owner = "demo@pact.local"
+    clock = FixedClock(datetime(2026, 6, 25, 12, 0, tzinfo=timezone.utc))
+    app, repo, payment = _build_app(tmp_path, clock)
+
+    # Seed an active, owned pact (target 2) with ONE passed proof so settle fails.
+    pact = _active_pact(clock, target=2)
+    pact.owner = owner
+    repo.save_pact(pact)
+    repo.save_proof(_passed_proof(0, "2026-06-25", clock.now()))
+
+    async with _client(app) as client:
+        # Cross the deadline, then settle -> `failed`, window open, NO money.
+        clock.advance(days=4)
+        r = await client.post(f"/api/pacts/{pact.id}/settle")
+        assert r.status_code == 200
+        assert r.json()["status"] == "failed"
+        assert r.json()["payment_action"] == "none"
+        assert payment.calls == 0  # deferred — no donation yet
+
+        # Profile must NOT have recorded a failure for an open-window pact.
+        prof = (await client.get("/api/profile", params={"owner": owner})).json()
+        assert prof["failed"] == 0
+        assert prof["kept"] == 0
+
+        # Add a second distinct-day proof, then WIN the dispute -> succeeded.
+        repo.save_proof(_passed_proof(1, "2026-06-26", clock.now()))
+        r = await client.post(f"/api/pacts/{pact.id}/dispute")
+        assert r.status_code == 200
+        assert r.json()["status"] == "succeeded"
+        assert payment.calls == 0  # overturned before any donation
+
+        # The win is recorded; no stuck phantom failure.
+        prof = (await client.get("/api/profile", params={"owner": owner})).json()
+        assert prof["kept"] == 1
+        assert prof["failed"] == 0
+        assert prof["current_streak"] == 1
