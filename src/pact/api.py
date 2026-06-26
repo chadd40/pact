@@ -16,6 +16,7 @@ from pact.lifecycle import (
     PactRefused,
     TransitionError,
     cancel,
+    close_dispute_window,
     confirm_and_start,
     draft_pact,
     new_pact_id,
@@ -210,7 +211,13 @@ def create_app(
     def settle_pact(pact_id: str):
         pact = _require(pact_id)
         proofs_list = repo.list_proofs(pact_id)
-        pact, verdict = settle(pact, proofs_list, clock, payment, settings)
+        if pact.status == PactStatus.failed:
+            # Already failed: try to close the dispute window (no-op if still open).
+            pact, verdict = close_dispute_window(
+                pact, proofs_list, clock, payment, settings
+            )
+        else:
+            pact, verdict = settle(pact, proofs_list, clock, payment, settings)
         repo.update_pact(pact)
         repo.save_verdict(verdict)
         _record_terminal(pact)
