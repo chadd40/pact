@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from pact.anticheat import TokenStore
@@ -12,7 +13,11 @@ from pact.repository import Repository
 
 
 def build_app():
-    settings = load_settings()
+    # Read configuration from the process environment so PACT_CLOCK_MODE=demo (and the
+    # other PACT_* knobs) take effect at startup. load_settings() defaults to an empty
+    # mapping, so without this the server always runs with the RealClock and the demo
+    # advance-day/reset endpoints 409.
+    settings = load_settings(os.environ)
     repo = Repository.connect(settings.db_path)
     repo.init_schema()
     provider = TestLLMProvider()
