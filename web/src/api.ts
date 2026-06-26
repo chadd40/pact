@@ -7,6 +7,7 @@ import type {
   Packet,
   Profile,
   Proof,
+  TickResult,
   Verdict,
 } from "./types";
 
@@ -55,9 +56,14 @@ export const api = {
   draftPact: (prompt: string) =>
     request<Pact>("/api/pacts/draft", { json: { prompt } }),
 
-  confirmPact: (pact_id: string, stake_amount_cents: number, charity_id: string) =>
+  confirmPact: (
+    pact_id: string,
+    stake_amount_cents: number,
+    charity_id: string,
+    consent_acknowledged: boolean
+  ) =>
     request<Pact>("/api/pacts", {
-      json: { pact_id, stake_amount_cents, charity_id },
+      json: { pact_id, stake_amount_cents, charity_id, consent_acknowledged },
     }),
 
   setOwner: (pactId: string, owner: string) =>
@@ -78,6 +84,29 @@ export const api = {
     request<Proof>(`/api/pacts/${pactId}/proofs`, {
       json: { content_ok: true, image_path: null, ...body },
     }),
+
+  // Real photo proof: EXIF-stripped, stored, pHashed and judged server-side. The
+  // backend reads a multipart form (`token`, `content_ok`, file `image`). We hand
+  // a FormData straight to fetch and deliberately do NOT set Content-Type — the
+  // browser must set it with the multipart boundary or the upload won't parse.
+  uploadProofImage: (
+    pactId: string,
+    token: string,
+    file: File,
+    contentOk = true
+  ) => {
+    const form = new FormData();
+    form.append("token", token);
+    form.append("content_ok", String(contentOk));
+    form.append("image", file);
+    return request<Proof>(`/api/pacts/${pactId}/proofs/image`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  // Server-truth proof list for a pact, ordered by received_at.
+  getProofs: (pactId: string) => request<Proof[]>(`/api/pacts/${pactId}/proofs`),
 
   freeze: (pactId: string) =>
     request<Pact>(`/api/pacts/${pactId}/freeze`, { method: "POST" }),
@@ -105,6 +134,18 @@ export const api = {
       `/api/pacts/${pactId}/coach`,
       { json: { message } }
     ),
+
+  // Run one scheduler sweep: reconcile, close dispute windows, and enqueue any
+  // proactive coaching nudges into the outbox.
+  tick: () => request<TickResult>("/api/tick", { method: "POST" }),
+
+  // The owner's undelivered outbound coaching messages (the relay queue).
+  outbox: (owner: string) =>
+    request<CoachingMessage[]>(`/api/outbox?owner=${encodeURIComponent(owner)}`),
+
+  // Mark a coaching/outbox message as delivered so it leaves the relay queue.
+  markDelivered: (msgId: string) =>
+    request<CoachingMessage>(`/api/coach/${msgId}/delivered`, { method: "POST" }),
 
   // ── Profile & catalog ────────────────────────────────────────────────────
   profile: (owner: string) =>
