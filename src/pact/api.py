@@ -34,9 +34,14 @@ from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
 
+# Statuses at which a pact's outcome is genuinely FINAL and safe to fold into
+# the owner's streak/history. Deliberately excludes `failed`: under the Day-3
+# pre-donation dispute window a `failed` pact has NOT moved money and can still
+# be overturned to `succeeded` within the window, so recording it early would
+# wrongly (and irreversibly, first-write-wins) stamp a failure. Donation/forfeit
+# states below are reached only after the window closes. Mirrors scheduler.tick.
 _TERMINAL_STATUSES = {
     PactStatus.succeeded,
-    PactStatus.failed,
     PactStatus.donated,
     PactStatus.donation_failed,
     PactStatus.donation_declined,

@@ -34,12 +34,12 @@ def record_outcome(profile: Profile, pact: Pact, clock: Clock) -> Profile:
         # Not a terminal outcome we record — return the profile unchanged.
         return profile
 
-    # Idempotency guard: a pact's outcome is final once recorded. Key on
-    # pact_id ALONE (not pact_id+outcome) so a dispute-overturn (settle records
-    # "failed", then a successful dispute would try to record "succeeded")
-    # cannot double-count the same pact as both failed and kept. First outcome
-    # wins -- truthful here because charge-on-fail already moved the money on
-    # the failed settle.
+    # Idempotency guard: a pact is recorded at most once. Key on pact_id ALONE
+    # so a pact can't be double-counted. Callers MUST only invoke record_outcome
+    # on a genuinely FINAL outcome -- never on a `failed` pact whose Day-3 dispute
+    # window is still open (it has moved no money and may yet be overturned to
+    # `succeeded`). The donation/forfeit/success states are reached only after
+    # the window closes; see api._TERMINAL_STATUSES and scheduler.tick.
     for entry in profile.history:
         if entry.get("pact_id") == pact.id:
             return profile
