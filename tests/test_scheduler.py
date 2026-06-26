@@ -15,7 +15,6 @@ from pact.models import (
     Rubric,
     StakeState,
 )
-from pact.notify import TestEmailProvider
 from pact.payment import TestLinkProvider
 from pact.repository import Repository
 from pact.scheduler import tick
@@ -79,7 +78,6 @@ def test_ghosted_pact_ends_donated_after_deadline_plus_grace_and_profile_fails()
     clock = FixedClock(start)
     repo = _repo()
     payment = TestLinkProvider()
-    notifier = TestEmailProvider()
     settings = _settings()
 
     deadline = start + timedelta(days=3)
@@ -91,7 +89,7 @@ def test_ghosted_pact_ends_donated_after_deadline_plus_grace_and_profile_fails()
     # settle uses clock.now() (= deadline + 1h) as the base for the window.
     settle_time = deadline + timedelta(hours=1)
     clock.set(settle_time)
-    summary_open = tick(repo, clock, payment, notifier, settings)
+    summary_open = tick(repo, clock, payment, settings)
 
     opened = repo.get_pact("pact_ghost")
     assert opened.status == PactStatus.failed
@@ -105,7 +103,7 @@ def test_ghosted_pact_ends_donated_after_deadline_plus_grace_and_profile_fails()
     # Second tick AFTER the grace window closes: the deferred donation executes
     # exactly once and the owner Profile records a failure.
     clock.set(expected_window + timedelta(minutes=1))
-    summary_close = tick(repo, clock, payment, notifier, settings)
+    summary_close = tick(repo, clock, payment, settings)
 
     donated = repo.get_pact("pact_ghost")
     assert donated.status == PactStatus.donated
@@ -125,18 +123,17 @@ def test_ghosted_pact_ends_donated_after_deadline_plus_grace_and_profile_fails()
 
     # Idempotent: a third tick at the same instant moves no more money and does
     # not double-count the profile failure.
-    summary_again = tick(repo, clock, payment, notifier, settings)
+    summary_again = tick(repo, clock, payment, settings)
     assert summary_again["donated"] == []
     assert repo.get_pact("pact_ghost").spend_request_id == "test_sr_pact_ghost_500"
     assert repo.get_profile(OWNER).failed == 1
 
 
-def test_on_the_clock_pact_gets_one_nudge_per_tick_and_email_sent():
+def test_on_the_clock_pact_gets_one_nudge_persisted_to_outbox():
     start = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
     clock = FixedClock(start)
     repo = _repo()
     payment = TestLinkProvider()
-    notifier = TestEmailProvider()
     settings = _settings()
 
     # Behind pace: target 5, deadline 2 days out, zero proofs -> should_nudge fires.
@@ -144,7 +141,7 @@ def test_on_the_clock_pact_gets_one_nudge_per_tick_and_email_sent():
     pact = _active_pact("pact_live", start - timedelta(days=2), deadline)
     repo.save_pact(pact)
 
-    summary = tick(repo, clock, payment, notifier, settings)
+    summary = tick(repo, clock, payment, settings)
 
     # Active pact is not due, so it is neither settled nor donated.
     assert summary["settled"] == []
@@ -155,16 +152,21 @@ def test_on_the_clock_pact_gets_one_nudge_per_tick_and_email_sent():
     outbound = [m for m in msgs if m.direction == "outbound"]
     assert len(outbound) == 1
     assert outbound[0].trigger == "behind_pace"
+    # The nudge must be undelivered — it's in the outbox, not yet relayed.
+    assert outbound[0].delivered_at is None
 
-    assert len(notifier.sent) == 1
-    assert notifier.sent[0]["to"] == OWNER
+    # outbox returns the undelivered nudge
+    pending = repo.outbox(OWNER)
+    assert len(pending) == 1
+    assert pending[0].id == outbound[0].id
 
     # Idempotent within the same simulated day: a second tick adds no new nudge
-    # (nag-governor: at most one outbound per calendar day) and sends no email.
-    summary2 = tick(repo, clock, payment, notifier, settings)
+    # (nag-governor: at most one outbound per calendar day).
+    summary2 = tick(repo, clock, payment, settings)
     assert summary2["nudged"] == []
     assert len(repo.list_coaching_messages("pact_live")) == 1
-    assert len(notifier.sent) == 1
+    # outbox still has the same undelivered message
+    assert len(repo.outbox(OWNER)) == 1
 
 
 def test_proof_landed_today_suppresses_the_nudge():
@@ -172,7 +174,6 @@ def test_proof_landed_today_suppresses_the_nudge():
     clock = FixedClock(start)
     repo = _repo()
     payment = TestLinkProvider()
-    notifier = TestEmailProvider()
     settings = _settings()
 
     deadline = start + timedelta(days=3)
@@ -191,7 +192,7 @@ def test_proof_landed_today_suppresses_the_nudge():
     )
     repo.save_proof(proof)
 
-    summary = tick(repo, clock, payment, notifier, settings)
+    summary = tick(repo, clock, payment, settings)
     assert summary["nudged"] == []
     assert repo.list_coaching_messages("pact_proofed") == []
-    assert notifier.sent == []
+    assert repo.outbox(OWNER) == []

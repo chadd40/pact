@@ -91,13 +91,13 @@ def test_coaching_message_with_snapshot_and_channel():
         direction="inbound",
         trigger="reply",
         pact_state_snapshot={"valid": 2, "target": 5, "days_left": 2},
-        channel="email",
+        channel="agent",
         body="On it, two sessions tomorrow.",
         sent_at=_utc(2026, 6, 25, 18, 30, 0),
     )
     assert m.direction == "inbound"
     assert m.trigger == "reply"
-    assert m.channel == "email"
+    assert m.channel == "agent"
     assert m.pact_state_snapshot == {"valid": 2, "target": 5, "days_left": 2}
 
 
