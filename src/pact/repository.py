@@ -70,10 +70,12 @@ class Repository:
                 id TEXT PRIMARY KEY,
                 pact_id TEXT NOT NULL,
                 sent_at TEXT NOT NULL,
+                delivered_at TEXT,
                 data TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_coaching_pact ON coaching_messages(pact_id);
             CREATE INDEX IF NOT EXISTS idx_coaching_sent ON coaching_messages(sent_at);
+            CREATE INDEX IF NOT EXISTS idx_coaching_delivered ON coaching_messages(delivered_at);
             """
         )
         self.conn.commit()
@@ -230,10 +232,16 @@ class Repository:
     def save_coaching_message(self, msg: CoachingMessage) -> None:
         self.conn.execute(
             """
-            INSERT OR REPLACE INTO coaching_messages (id, pact_id, sent_at, data)
-            VALUES (?, ?, ?, ?)
+            INSERT OR REPLACE INTO coaching_messages (id, pact_id, sent_at, delivered_at, data)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (msg.id, msg.pact_id, msg.sent_at.isoformat(), msg.model_dump_json()),
+            (
+                msg.id,
+                msg.pact_id,
+                msg.sent_at.isoformat(),
+                msg.delivered_at.isoformat() if msg.delivered_at is not None else None,
+                msg.model_dump_json(),
+            ),
         )
         self.conn.commit()
 
@@ -243,6 +251,40 @@ class Repository:
             (pact_id,),
         ).fetchall()
         return [CoachingMessage.model_validate_json(r["data"]) for r in rows]
+
+    def get_coaching_message(self, msg_id: str) -> CoachingMessage | None:
+        row = self.conn.execute(
+            "SELECT data FROM coaching_messages WHERE id = ?", (msg_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return CoachingMessage.model_validate_json(row["data"])
+
+    def outbox(self, owner: str) -> list[CoachingMessage]:
+        """Return undelivered outbound coaching messages across all of the owner's pacts.
+
+        Messages are returned ordered by sent_at ascending (oldest first). Only
+        outbound messages with delivered_at = None are included — these are the
+        nudges the Hermes agent should relay then mark delivered.
+        """
+        pacts = self.list_pacts(owner=owner)
+        if not pacts:
+            return []
+        pact_ids = [p.id for p in pacts]
+        placeholders = ",".join("?" * len(pact_ids))
+        # Filter by delivered_at IS NULL at the DB level; direction is in the JSON
+        # blob so we filter on it in Python after deserialization.
+        rows = self.conn.execute(
+            f"""
+            SELECT data FROM coaching_messages
+            WHERE pact_id IN ({placeholders})
+              AND delivered_at IS NULL
+            ORDER BY sent_at
+            """,
+            pact_ids,
+        ).fetchall()
+        msgs = [CoachingMessage.model_validate_json(r["data"]) for r in rows]
+        return [m for m in msgs if m.direction == "outbound"]
 
     def close(self) -> None:
         self.conn.close()
