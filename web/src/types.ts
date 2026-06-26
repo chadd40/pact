@@ -65,6 +65,7 @@ export interface Pact {
   created_at: string;
   started_at: string | null;
   verdict_at: string | null;
+  dispute_window_closes_at: string | null;
 }
 
 export interface Proof {
@@ -116,7 +117,12 @@ export interface CoachingMessage {
   channel: string;
   body: string;
   sent_at: string;
+  delivered_at: string | null;
 }
+
+// One scheduler sweep. The backend returns an implementation-defined dict; the UI
+// only needs to know a sweep ran, so it's kept loose.
+export type TickResult = Record<string, unknown>;
 
 export interface Charity {
   id: string;
