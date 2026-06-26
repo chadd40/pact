@@ -27,7 +27,7 @@ from pact.lifecycle import (
     submit_proof,
     transition,
 )
-from pact.images import phash_of_bytes, save_proof_image, strip_exif
+from pact.images import save_proof_image, strip_exif
 from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
@@ -234,10 +234,9 @@ def create_app(
             settings.artifacts_dir, pact.id, proof_id, clean
         )
 
-        # Dedup over the CLEANED bytes. save_proof_image wrote the EXIF-stripped
-        # bytes to image_path, so submit_proof's phash_hex(image_path) hashes the
-        # same bytes as phash_of_bytes(clean) here.
-        _ = phash_of_bytes(clean)
+        # Dedup is done inside submit_proof via phash_hex(image_path) on the
+        # stored file. Every upload follows the same deterministic strip-and-save
+        # path, so re-uploading the same photo always collides on the stored hash.
         prior_proofs = repo.list_proofs(pact_id)
         prior_phashes = [p.phash for p in prior_proofs if p.phash is not None]
 
