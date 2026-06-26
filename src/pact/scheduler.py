@@ -107,3 +107,38 @@ def tick(
         "donated": donated_ids,
         "nudged": nudged_ids,
     }
+
+
+# ─── Tier-1: autonomous ticker loop helper ─────────────────────────────────────
+
+import asyncio
+from typing import Awaitable, Callable
+
+
+async def run_ticker_loop(
+    repo: Repository,
+    clock: Clock,
+    payment: PaymentProvider,
+    settings: Settings,
+    *,
+    stop: asyncio.Event,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> int:
+    """Drive scheduler.tick on an interval until ``stop`` is set.
+
+    One iteration = one ``tick`` followed by an awaitable ``sleep`` of
+    ``settings.scheduler_interval_seconds``. The loop is guarded by ``stop`` so it
+    exits cleanly on shutdown, and ``sleep`` is injected so tests pass a no-op (or
+    a coroutine that sets ``stop``) and drive a single deterministic iteration with
+    no real delay. ``tick`` itself is idempotent, so an extra iteration is harmless.
+
+    Returns the number of ticks executed before ``stop`` fired (useful for tests).
+    """
+    ticks = 0
+    while not stop.is_set():
+        tick(repo, clock, payment, settings)
+        ticks += 1
+        if stop.is_set():
+            break
+        await sleep(settings.scheduler_interval_seconds)
+    return ticks
