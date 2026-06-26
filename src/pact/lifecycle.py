@@ -405,6 +405,35 @@ def close_dispute_window(
     return pact, _build_verdict(pact, proofs, valid, verdict_status, PaymentAction.none, None)
 
 
+def execute_forfeit_donation(
+    pact: Pact,
+    clock: Clock,
+    payment: PaymentProvider,
+) -> Pact:
+    """Move the stake for a forfeited cancel (status donation_pending).
+
+    `cancel` parks a post-cooling-off forfeit in `donation_pending` without
+    moving any money (mirrors the deferred dispute-window posture). This helper
+    executes that pending donation exactly once: it creates the donation, records
+    the spend-request id, marks the stake executed, and transitions to `donated`.
+
+    Idempotent on `spend_request_id`: once the donation has fired, a second call
+    is a no-op and moves no further money. Anything not in `donation_pending`
+    (e.g. a release, or an already-`donated` pact) is returned unchanged.
+    """
+    if pact.status != PactStatus.donation_pending:
+        return pact
+    if pact.spend_request_id is not None:
+        return pact
+
+    result = payment.create_donation(pact, f"{pact.id}:donation")
+    pact.spend_request_id = result.provider_ref
+    pact.stake_state = StakeState.executed
+    pact = transition(pact, PactStatus.donated)
+    pact.verdict_at = clock.now()
+    return pact
+
+
 def submit_dispute(
     pact: Pact,
     proofs: list[Proof],
