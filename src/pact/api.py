@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from pact import broker
 from pact.anticheat import TokenStore
 from pact.charities import CHARITIES
 from pact.clock import Clock, FixedClock
@@ -24,7 +25,7 @@ from pact.lifecycle import (
     submit_proof,
     transition,
 )
-from pact.models import Modality, Pact, PactStatus, Profile, StakeState
+from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
 from pact.profile import record_outcome
@@ -64,6 +65,21 @@ class OwnerIn(BaseModel):
 
 class CoachIn(BaseModel):
     message: str
+
+
+class EnqueueTaskIn(BaseModel):
+    type: TaskType
+    input: dict
+    required_capability: str | None = None
+
+
+class ClaimTaskIn(BaseModel):
+    agent_name: str
+    capabilities: list[str]
+
+
+class TaskResultIn(BaseModel):
+    result: dict
 
 
 def create_app(
@@ -305,5 +321,44 @@ def create_app(
                 detail="reset requires demo clock mode (FixedClock)",
             )
         return demo_reset(repo, clock, settings)
+
+    @app.post("/api/pacts/{pact_id}/reasoning-tasks")
+    def enqueue_reasoning_task(pact_id: str, body: EnqueueTaskIn):
+        _require(pact_id)
+        task = broker.enqueue(
+            repo,
+            body.type,
+            pact_id,
+            body.input,
+            clock,
+            required_capability=body.required_capability,
+        )
+        return task.model_dump(mode="json")
+
+    @app.get("/api/reasoning-tasks")
+    def list_reasoning_tasks(
+        capability: str | None = None, status: str | None = None
+    ):
+        # Only "pending" is exposed; the broker storage of pending tasks is the
+        # work queue. `status` is accepted for forward-compat / clarity but the
+        # broker always returns pending tasks here.
+        tasks = broker.pending_for(repo, capability)
+        return [t.model_dump(mode="json") for t in tasks]
+
+    @app.post("/api/reasoning-tasks/{tid}/claim")
+    def claim_reasoning_task(tid: str, body: ClaimTaskIn):
+        try:
+            task = broker.claim(repo, tid, body.agent_name, set(body.capabilities))
+        except Exception as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return task.model_dump(mode="json")
+
+    @app.post("/api/reasoning-tasks/{tid}/result")
+    def post_reasoning_task_result(tid: str, body: TaskResultIn):
+        try:
+            task = broker.post_result(repo, tid, body.result)
+        except Exception as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return task.model_dump(mode="json")
 
     return app
