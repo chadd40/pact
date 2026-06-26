@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from pact.anticheat import TokenStore, phash_hex
+from pact.anticheat import TokenStore
 from pact.clock import Clock, FixedClock
 from pact.coaching import user_reply
 from pact.config import Settings

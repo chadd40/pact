@@ -40,7 +40,7 @@ def pace(pact: Pact, proofs: list[Proof], clock: Clock) -> dict:
     Returns a dict with keys:
       valid     – distinct valid (passed) days proven so far
       target    – the pact's required distinct-day count
-      days_left – whole days until the deadline, ceil'd, never negative
+      days_left – whole days until the deadline, floored, never negative
       needed    – remaining distinct days required, never negative
       on_pace   – True when the remaining days are enough to cover what's still needed
     """
