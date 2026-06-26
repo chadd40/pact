@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from pact.anticheat import TokenStore
+from pact.charities import CHARITIES
 from pact.clock import Clock, FixedClock
 from pact.coaching import user_reply
 from pact.config import Settings
@@ -267,6 +268,12 @@ def create_app(
         )
         repo.save_pact(fresh)
         return fresh.model_dump(mode="json")
+
+    @app.get("/api/charities")
+    def charities():
+        # Surface the curated charity catalogue (id, name, donation_url, category,
+        # default_amounts, ...) so the Confirm screen can render the picker.
+        return CHARITIES
 
     @app.get("/api/profile")
     def profile(owner: str):
