@@ -3,26 +3,41 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from pact.anticheat import TokenStore, phash_hex
-from pact.clock import Clock
+from pact.anticheat import TokenStore
+from pact.clock import Clock, FixedClock
+from pact.coaching import user_reply
 from pact.config import Settings
+from pact.demo import advance_day as demo_advance_day
+from pact.demo import reset as demo_reset
+from pact.demo import seed as demo_seed
 from pact.lifecycle import (
     PactRefused,
     TransitionError,
     cancel,
     confirm_and_start,
     draft_pact,
+    new_pact_id,
     settle,
     spend_freeze,
     submit_dispute,
     submit_proof,
     transition,
 )
-from pact.models import Modality, PactStatus
+from pact.models import Modality, Pact, PactStatus, Profile, StakeState
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
+from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
+
+_TERMINAL_STATUSES = {
+    PactStatus.succeeded,
+    PactStatus.failed,
+    PactStatus.donated,
+    PactStatus.donation_failed,
+    PactStatus.donation_declined,
+    PactStatus.canceled_forfeit,
+}
 
 
 class DraftIn(BaseModel):
@@ -38,9 +53,16 @@ class ConfirmIn(BaseModel):
 class ProofIn(BaseModel):
     modality: Modality
     token: str
-    token_in_image: bool = True
     content_ok: bool = True
     image_path: str | None = None
+
+
+class OwnerIn(BaseModel):
+    owner: str
+
+
+class CoachIn(BaseModel):
+    message: str
 
 
 def create_app(
@@ -58,6 +80,14 @@ def create_app(
         if pact is None:
             raise HTTPException(status_code=404, detail="pact not found")
         return pact
+
+    def _record_terminal(pact: Pact) -> None:
+        """After a terminal settle/dispute, fold the outcome into the owner profile."""
+        if pact.status not in _TERMINAL_STATUSES or not pact.owner:
+            return
+        profile = repo.get_profile(pact.owner) or Profile(owner=pact.owner)
+        profile = record_outcome(profile, pact, clock)
+        repo.save_profile(profile)
 
     @app.post("/api/pacts/draft")
     def draft(body: DraftIn):
@@ -78,6 +108,13 @@ def create_app(
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         # confirm_and_start already activates; persist as-is.
+        repo.update_pact(pact)
+        return pact.model_dump(mode="json")
+
+    @app.post("/api/pacts/{pact_id}/owner")
+    def set_owner(pact_id: str, body: OwnerIn):
+        pact = _require(pact_id)
+        pact.owner = body.owner
         repo.update_pact(pact)
         return pact.model_dump(mode="json")
 
@@ -118,7 +155,6 @@ def create_app(
                 pact,
                 body.modality,
                 body.token,
-                body.token_in_image,
                 body.content_ok,
                 body.image_path,
                 tokens,
@@ -150,6 +186,7 @@ def create_app(
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=409, detail=str(exc))
         repo.update_pact(pact)
+        _record_terminal(pact)
         return pact.model_dump(mode="json")
 
     @app.post("/api/pacts/{pact_id}/settle")
@@ -159,6 +196,7 @@ def create_app(
         pact, verdict = settle(pact, proofs_list, clock, payment)
         repo.update_pact(pact)
         repo.save_verdict(verdict)
+        _record_terminal(pact)
         return verdict.model_dump(mode="json")
 
     @app.post("/api/pacts/{pact_id}/dispute")
@@ -171,6 +209,7 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc))
         repo.update_pact(pact)
         repo.save_verdict(verdict)
+        _record_terminal(pact)
         return verdict.model_dump(mode="json")
 
     @app.get("/api/pacts/{pact_id}/packet")
@@ -180,6 +219,84 @@ def create_app(
         if verdict is None:
             raise HTTPException(status_code=404, detail="no verdict yet")
         proofs_list = repo.list_proofs(pact_id)
-        return build_packet(pact, proofs_list, verdict)
+        out = build_packet(pact, proofs_list, verdict)
+        # Coaching log alongside the verdict (spec §7): merge the thread in here so
+        # build_packet keeps its narrow spine signature.
+        out["coaching_log"] = [
+            m.model_dump(mode="json") for m in repo.list_coaching_messages(pact_id)
+        ]
+        return out
+
+    @app.get("/api/pacts/{pact_id}/coach")
+    def get_coach(pact_id: str):
+        _require(pact_id)
+        return [
+            m.model_dump(mode="json")
+            for m in repo.list_coaching_messages(pact_id)
+        ]
+
+    @app.post("/api/pacts/{pact_id}/coach")
+    def post_coach(pact_id: str, body: CoachIn):
+        pact = _require(pact_id)
+        inbound, outbound = user_reply(pact, body.message, provider, clock)
+        repo.save_coaching_message(inbound)
+        repo.save_coaching_message(outbound)
+        return {
+            "inbound": inbound.model_dump(mode="json"),
+            "outbound": outbound.model_dump(mode="json"),
+        }
+
+    @app.post("/api/pacts/{pact_id}/renew")
+    def renew(pact_id: str):
+        old = _require(pact_id)
+        # Clone the finished pact's terms into a NEW draft. Fresh id (re-seed off the
+        # old id + clock so repeated renews don't collide), status draft, money state
+        # reset; the deadline is carried but left for confirm to refresh.
+        new_id = new_pact_id(old.id + clock.now().isoformat())
+        fresh = old.model_copy(
+            update={
+                "id": new_id,
+                "status": PactStatus.draft,
+                "stake_state": StakeState.none,
+                "spend_request_id": None,
+                "freezes_used": 0,
+                "created_at": clock.now(),
+                "started_at": None,
+                "verdict_at": None,
+            }
+        )
+        repo.save_pact(fresh)
+        return fresh.model_dump(mode="json")
+
+    @app.get("/api/profile")
+    def profile(owner: str):
+        prof = repo.get_profile(owner)
+        if prof is None:
+            # Create-on-read: a default empty profile so the Home screen always renders.
+            prof = Profile(owner=owner)
+            repo.save_profile(prof)
+        return prof.model_dump(mode="json")
+
+    @app.post("/demo/seed")
+    def demo_seed_endpoint():
+        return demo_seed(repo, clock, settings)
+
+    @app.post("/demo/advance-day")
+    def demo_advance_day_endpoint():
+        if not isinstance(clock, FixedClock):
+            raise HTTPException(
+                status_code=409,
+                detail="advance-day requires demo clock mode (FixedClock)",
+            )
+        return demo_advance_day(repo, clock, payment)
+
+    @app.post("/demo/reset")
+    def demo_reset_endpoint():
+        if not isinstance(clock, FixedClock):
+            raise HTTPException(
+                status_code=409,
+                detail="reset requires demo clock mode (FixedClock)",
+            )
+        return demo_reset(repo, clock, settings)
 
     return app

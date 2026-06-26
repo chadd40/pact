@@ -147,6 +147,10 @@ def confirm_and_start(
     if charity is None:
         raise ValueError(f"unknown charity {charity_id!r}")
     charity_url = charity["donation_url"]
+    # Defensive: the catalog's donation_url should always sit on the charity's own
+    # allowed_domains, so this never fires for the shipped catalog. It guards against
+    # catalog corruption -- e.g. a future edit that changes donation_url without
+    # updating allowed_domains -- catching the incoherence before we stake on it.
     if not is_allowed_url(charity_id, charity_url):
         raise ValueError(f"charity url {charity_url!r} not on allowlist for {charity_id!r}")
 
@@ -167,7 +171,6 @@ def submit_proof(
     pact: Pact,
     modality: Modality,
     token: str,
-    token_in_image: bool,
     content_ok: bool,
     image_path: str | None,
     tokens: TokenStore,

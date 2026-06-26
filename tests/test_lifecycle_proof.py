@@ -129,7 +129,6 @@ def test_submit_proof_valid_photo_passes(tmp_path):
         pact,
         Modality.photo,
         token,
-        token_in_image=True,
         content_ok=True,
         image_path=image_path,
         tokens=tokens,
@@ -163,7 +162,6 @@ def test_submit_proof_invalid_token_fails(tmp_path):
         pact,
         Modality.photo,
         "PACT-XX",
-        token_in_image=True,
         content_ok=True,
         image_path=image_path,
         tokens=tokens,
@@ -188,7 +186,7 @@ def test_submit_proof_duplicate_phash_fails(tmp_path):
     # first valid proof
     token1 = tokens.issue(pact.id, clock)
     first = submit_proof(
-        pact, Modality.photo, token1, True, True, image_path,
+        pact, Modality.photo, token1, True, image_path,
         tokens, provider, clock,
     )
     assert first.status == ProofStatus.passed
@@ -196,7 +194,7 @@ def test_submit_proof_duplicate_phash_fails(tmp_path):
     # resubmit the SAME image -> duplicate phash -> failed
     token2 = tokens.issue(pact.id, clock)
     dup = submit_proof(
-        pact, Modality.photo, token2, True, True, image_path,
+        pact, Modality.photo, token2, True, image_path,
         tokens, provider, clock,
         prior_phashes=[first.phash],
     )
