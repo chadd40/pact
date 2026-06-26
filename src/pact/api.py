@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from pact import broker
@@ -27,6 +27,7 @@ from pact.lifecycle import (
     submit_proof,
     transition,
 )
+from pact.images import phash_of_bytes, save_proof_image, strip_exif
 from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
@@ -189,6 +190,56 @@ def create_app(
             )
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=422, detail=str(exc))
+        repo.save_proof(proof)
+        repo.update_pact(pact)
+        return proof.model_dump(mode="json")
+
+    @app.post("/api/pacts/{pact_id}/proofs/image")
+    async def proofs_image(
+        pact_id: str,
+        token: str = Form(...),
+        content_ok: bool = Form(True),
+        image: UploadFile = File(...),
+    ):
+        pact = _require(pact_id)
+
+        raw = await image.read()
+        try:
+            clean = strip_exif(raw)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"invalid image: {exc}")
+
+        # Generate the proof id up front so the artifact filename is stable and
+        # matches the Proof we persist. Mirrors submit_proof's id derivation.
+        proof_id = new_pact_id(pact.id + token + clock.now().isoformat()).replace(
+            "pact_", "proof_"
+        )
+        image_path, _thumb_path = save_proof_image(
+            settings.artifacts_dir, pact.id, proof_id, clean
+        )
+
+        # Dedup over the CLEANED bytes. save_proof_image wrote the EXIF-stripped
+        # bytes to image_path, so submit_proof's phash_hex(image_path) hashes the
+        # same bytes as phash_of_bytes(clean) here.
+        _ = phash_of_bytes(clean)
+        prior_proofs = repo.list_proofs(pact_id)
+        prior_phashes = [p.phash for p in prior_proofs if p.phash is not None]
+
+        try:
+            proof = submit_proof(
+                pact,
+                Modality.photo,
+                token,
+                content_ok,
+                image_path,
+                tokens,
+                provider,
+                clock,
+                prior_phashes=prior_phashes,
+            )
+        except (ValueError, TransitionError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
         repo.save_proof(proof)
         repo.update_pact(pact)
         return proof.model_dump(mode="json")
