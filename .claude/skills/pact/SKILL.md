@@ -54,6 +54,11 @@ Override with the `PACT_BASE_URL` environment variable when the server runs else
 - `/pact serve [--owner]` — **worker mode**: poll the broker and resolve pending **website**
   reasoning tasks this agent is capable of, so the website is "live intelligent" via your
   Hermes agent. Runs the `pact serve` worker loop.
+- `/pact outbox [--owner]` — **relay pending coaching nudges**: fetch `GET /api/outbox?owner=`,
+  deliver each undelivered nudge to the user through this agent's own channel (the user already
+  talks to their agent here — no separate transport needed), then call
+  `POST /api/coach/{id}/delivered` for each relayed message. Pact owns content + timing;
+  the agent owns delivery.
 
 ## Endpoints
 
@@ -85,14 +90,22 @@ Broker (the website enqueues; `/pact serve` resolves):
 - `POST /api/reasoning-tasks/{tid}/claim` — `{ agent_name, capabilities }` claim a task.
 - `POST /api/reasoning-tasks/{tid}/result` — `{ result }` post the resolved result.
 
+Outbox (coaching nudge relay — the agent is the delivery channel):
+
+- `GET /api/outbox?owner=` — the owner's undelivered outbound coaching messages. The agent
+  fetches this queue, relays each nudge through its own channel, then marks each delivered.
+- `POST /api/coach/{msg_id}/delivered` — mark a coaching message as delivered (set
+  `delivered_at`). Returns the updated message; 404 if not found.
+
 Ops:
 
-- `POST /api/tick` — run the scheduler once (reconcile, close dispute windows, nudge).
+- `POST /api/tick` — run the scheduler once (reconcile, close dispute windows, persist nudges
+  to outbox).
 
 ## Safety
 
 Real money moves only through an explicit human Link approval (charge-on-fail); this skill
-never auto-executes a live charge. Email and Link adapters default to test/dry-run. Refuse
-unsafe goals (self-harm, restrictive-eating, coercive or third-party stakes) at draft time
-with a supportive message and a crisis-resource line; enforce that the pact subject is the
-staking user.
+never auto-executes a live charge. The Link adapter defaults to dry-run. Refuse unsafe goals
+(self-harm, restrictive-eating, coercive or third-party stakes) at draft time with a
+supportive message and a crisis-resource line; enforce that the pact subject is the staking
+user.
