@@ -177,3 +177,27 @@ def test_pact_id_not_duplicated_when_already_present():
     assert updated.pact_ids == ["pact_win01"]
     assert updated.kept == 1
     assert len(updated.history) == 1
+
+
+def test_dispute_overturn_does_not_double_record_failed_then_succeeded():
+    # Regression: settle records a pact as failed, then a successful dispute
+    # would try to record the SAME pact as succeeded. The profile must NOT end
+    # up counting one pact as both failed and kept. First outcome wins.
+    profile = Profile(owner="colehaddad40@gmail.com")
+    clock = _clock()
+
+    failed = _pact("pact_x1", PactStatus.donated)  # charge-on-fail terminal
+    profile = record_outcome(profile, failed, clock)
+    assert profile.failed == 1
+    assert profile.kept == 0
+
+    overturned = _pact("pact_x1", PactStatus.succeeded)  # same id, dispute win
+    profile = record_outcome(profile, overturned, clock)
+
+    # No double count: still exactly one failure, no phantom kept/streak.
+    assert profile.failed == 1
+    assert profile.kept == 0
+    assert profile.current_streak == 0
+    assert profile.pact_ids == ["pact_x1"]
+    assert len(profile.history) == 1
+    assert profile.history[0]["outcome"] == "failed"

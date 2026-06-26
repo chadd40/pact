@@ -34,10 +34,14 @@ def record_outcome(profile: Profile, pact: Pact, clock: Clock) -> Profile:
         # Not a terminal outcome we record — return the profile unchanged.
         return profile
 
-    # Idempotency guard: skip if this pact already has a history entry for this
-    # same outcome.
+    # Idempotency guard: a pact's outcome is final once recorded. Key on
+    # pact_id ALONE (not pact_id+outcome) so a dispute-overturn (settle records
+    # "failed", then a successful dispute would try to record "succeeded")
+    # cannot double-count the same pact as both failed and kept. First outcome
+    # wins -- truthful here because charge-on-fail already moved the money on
+    # the failed settle.
     for entry in profile.history:
-        if entry.get("pact_id") == pact.id and entry.get("outcome") == outcome:
+        if entry.get("pact_id") == pact.id:
             return profile
 
     if outcome == "succeeded":
