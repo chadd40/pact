@@ -17,6 +17,9 @@ class Settings:
     clock_mode: str = "real"
     demo_seed_iso: str = "2026-06-22T09:00:00+00:00"
     link_mode: str = "dry_run"
+    reasoning_timeout_polls: int = 0
+    scheduler_enabled: bool = True
+    scheduler_interval_seconds: int = 60
 
 
 def _int(env: Mapping[str, str], key: str, default: int) -> int:
@@ -32,6 +35,26 @@ def _int(env: Mapping[str, str], key: str, default: int) -> int:
 def _str(env: Mapping[str, str], key: str, default: str) -> str:
     raw = env.get(key)
     return default if raw is None else raw
+
+
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
+
+
+def _bool(env: Mapping[str, str], key: str, default: bool) -> bool:
+    raw = env.get(key)
+    if raw is None:
+        return default
+    norm = raw.strip().lower()
+    if norm == "":
+        return default
+    if norm in _TRUE:
+        return True
+    if norm in _FALSE:
+        return False
+    raise ValueError(
+        f"{key} must be a boolean (one of {sorted(_TRUE | _FALSE)}), got {raw!r}"
+    )
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> Settings:
@@ -50,4 +73,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         clock_mode=_str(env, "PACT_CLOCK_MODE", "real"),
         demo_seed_iso=_str(env, "PACT_DEMO_SEED_ISO", "2026-06-22T09:00:00+00:00"),
         link_mode=_str(env, "PACT_LINK_MODE", "dry_run"),
+        reasoning_timeout_polls=_int(env, "PACT_REASONING_TIMEOUT_POLLS", 0),
+        scheduler_enabled=_bool(env, "PACT_SCHEDULER_ENABLED", True),
+        scheduler_interval_seconds=_int(env, "PACT_SCHEDULER_INTERVAL_SECONDS", 60),
     )
