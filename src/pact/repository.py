@@ -244,6 +244,9 @@ class Repository:
         ).fetchall()
         return [CoachingMessage.model_validate_json(r["data"]) for r in rows]
 
+    def close(self) -> None:
+        self.conn.close()
+
     # --- Demo reset ---
 
     def reset_all(self) -> None:
