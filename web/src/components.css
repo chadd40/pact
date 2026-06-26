@@ -803,6 +803,46 @@
   word-break: break-all;
 }
 
+/* ── needs_review state ──────────────────────────────────────────────────────── */
+.review-card {
+  text-align: center;
+  margin-top: 26px;
+  padding: 30px 24px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 560px;
+}
+
+/* ── dispute affordance ──────────────────────────────────────────────────────── */
+.dispute-card {
+  border: 1px solid var(--sealed-gold);
+  background: rgba(166, 121, 46, 0.06);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+}
+.dispute-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dispute-flow {
+  margin-top: 6px;
+}
+.dispute-note {
+  margin-top: 14px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink);
+  border-left: 2px solid var(--sealed-gold);
+  padding-left: 12px;
+}
+
 /* loading / empty */
 .center-note {
   text-align: center;
