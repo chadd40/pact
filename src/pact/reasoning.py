@@ -291,6 +291,18 @@ class BrokerReasoningProvider:
     def resolve(self, task: ReasoningTask) -> dict:
         from . import broker  # lazy import to avoid a circular import
 
+        # Zero poll budget + fallback allowed: no agent can post a result within
+        # a zero-poll window, so resolve via the stub directly and do NOT leave
+        # an unclaimable orphan task in the broker (the default demo path).
+        if self.timeout_polls == 0 and self.allow_fallback:
+            return self.fallback.resolve(task)
+
+        # Build the equivalent task ONCE and enqueue THAT EXACT task, so the id
+        # we poll is the id a worker claims. (Calling broker.enqueue would
+        # re-derive the id from a later clock.now() under a RealClock, yielding a
+        # DIFFERENT id than the one we poll -- the agent's posted result would
+        # then never be found, silently falling back to the stub. That bug is
+        # invisible under a FixedClock because both instants are identical.)
         equivalent = make_reasoning_task(
             task.type,
             task.pact_id,
@@ -298,21 +310,12 @@ class BrokerReasoningProvider:
             self.clock,
             task.required_capability,
         )
-        # Enqueue so a connected worker can claim+resolve it -- but only if it
-        # is not already in the broker (avoid clobbering an in-flight/done task).
-        existing = self.repo.get_task(equivalent.id)
-        if existing is None:
-            broker.enqueue(
-                self.repo,
-                task.type,
-                task.pact_id,
-                task.input,
-                self.clock,
-                required_capability=task.required_capability,
-            )
+        # Enqueue only if not already present (don't clobber an in-flight/done task).
+        if self.repo.get_task(equivalent.id) is None:
+            self.repo.save_task(equivalent)
 
-        # Poll for an agent-posted result. A result already present is found on
-        # the first read; otherwise sleep between attempts.
+        # Poll for an agent-posted result on THAT id. A result already present is
+        # found on the first read; otherwise sleep between attempts.
         result = broker.get_result(self.repo, equivalent.id)
         for _ in range(self.timeout_polls):
             if result is not None:

@@ -37,11 +37,10 @@ def _noop_sleep_recorder():
     return sleep, calls
 
 
-def test_no_worker_with_fallback_returns_stub_and_enqueues_task(repo, clock):
-    """No worker connected + allow_fallback=True:
-    - resolve returns the deterministic stub result, AND
-    - the task is now visible in the broker as a pending task (it was enqueued).
-    """
+def test_zero_polls_with_fallback_returns_stub_without_enqueuing_orphan(repo, clock):
+    """No poll budget + allow_fallback=True: resolve returns the deterministic
+    stub result and leaves NO orphan task in the broker -- enqueuing a task no
+    worker could claim within a zero-poll window would just leak pending rows."""
     sleep, sleep_calls = _noop_sleep_recorder()
     fallback = TestLLMProvider()
     provider = BrokerReasoningProvider(
@@ -59,23 +58,66 @@ def test_no_worker_with_fallback_returns_stub_and_enqueues_task(repo, clock):
         clock,
     )
 
-    # Before resolve, the broker has no such task.
     assert repo.get_task(task.id) is None
 
     result = provider.resolve(task)
 
-    # Fallback (TestLLMProvider) result, deterministic.
+    # Deterministic stub result.
     assert result["status"] == "passed"
     assert result["checklist"] == {"token": True, "content": True, "not_dup": True}
 
-    # The task was enqueued so a worker could have claimed it.
-    stored = repo.get_task(task.id)
-    assert stored is not None
-    assert stored.status == TaskStatus.pending
-    assert stored.id in {t.id for t in broker.pending_for(repo)}
-
-    # timeout_polls=0 => no polling, so no sleeps at all (fully deterministic).
+    # No orphan: nothing was enqueued, the queue is empty.
+    assert repo.get_task(task.id) is None
+    assert broker.pending_for(repo) == []
+    # timeout_polls=0 => no polling, no sleeps.
     assert sleep_calls == []
+
+
+def test_real_clock_enqueue_id_matches_polled_id_and_agent_result_wins():
+    """Regression for the FixedClock-masked id bug: under a RealClock the task
+    id must be computed ONCE, so the id resolve() polls is exactly the id a
+    worker claims. We simulate a connected worker by resolving the actually-
+    enqueued task during the injected sleep; the AGENT result must win. Under the
+    old code (id re-derived inside broker.enqueue at a later now()), the enqueued
+    id != the polled id and the stub fallback would win, failing this test."""
+    from pact.clock import RealClock
+
+    repo = Repository.connect(":memory:")
+    repo.init_schema()
+    clock = RealClock()
+    fallback = TestLLMProvider()
+    posted: dict[str, str] = {}
+
+    def worker_sleep(_seconds: float) -> None:
+        # A connected worker claims+resolves whatever the provider enqueued.
+        pending = broker.pending_for(repo)
+        if pending and "id" not in posted:
+            t = pending[0]
+            broker.claim(repo, t.id, "agent_1", {"text", "vision"})
+            broker.post_result(
+                repo,
+                t.id,
+                {"status": "passed", "reason": "agent reviewed", "checklist": {}},
+            )
+            posted["id"] = t.id
+
+    provider = BrokerReasoningProvider(
+        repo, clock, fallback, timeout_polls=3, sleep=worker_sleep, allow_fallback=True
+    )
+    task = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_rc",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+
+    result = provider.resolve(task)
+
+    # The agent's result won -> the enqueued id == the polled id under RealClock.
+    assert result["reason"] == "agent reviewed"
+    # The enqueued task was claimed+resolved (not left orphaned).
+    assert broker.pending_for(repo) == []
+    repo.close()
 
 
 def test_pre_posted_agent_result_wins_over_fallback(repo, clock):
