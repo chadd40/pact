@@ -218,6 +218,15 @@ a {
 .chip-draft {
   color: var(--ink-muted);
 }
+/* Under review — neutral by design: no money has moved, verdict suspended. */
+.chip-review {
+  color: var(--ink-muted);
+}
+.chip-review::before {
+  /* hollow dot — "pending", not a settled outcome */
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
 
 /* ── Document card ──────────────────────────────────────────────────────────── */
 
