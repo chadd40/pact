@@ -33,6 +33,7 @@ from pact.payment import PaymentProvider
 from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
+from pact.scheduler import tick as scheduler_tick
 
 # Statuses at which a pact's outcome is genuinely FINAL and safe to fold into
 # the owner's streak/history. Deliberately excludes `failed`: under the Day-3
@@ -379,5 +380,29 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=409, detail=str(exc))
         return task.model_dump(mode="json")
+
+    @app.post("/api/tick")
+    def tick_endpoint():
+        """Run one scheduler sweep: reconcile, close dispute windows, nudge."""
+        return scheduler_tick(repo, clock, payment, settings)
+
+    @app.get("/api/outbox")
+    def outbox(owner: str):
+        """Return the owner's undelivered outbound coaching messages (the relay queue).
+
+        The Hermes agent fetches this, relays each nudge through its own channel,
+        then marks each message delivered via POST /api/coach/{msg_id}/delivered.
+        """
+        return [m.model_dump(mode="json") for m in repo.outbox(owner)]
+
+    @app.post("/api/coach/{msg_id}/delivered")
+    def mark_delivered(msg_id: str):
+        """Mark a coaching message as delivered. Returns 404 if the message does not exist."""
+        msg = repo.get_coaching_message(msg_id)
+        if msg is None:
+            raise HTTPException(status_code=404, detail="coaching message not found")
+        msg = msg.model_copy(update={"delivered_at": clock.now()})
+        repo.save_coaching_message(msg)
+        return msg.model_dump(mode="json")
 
     return app
