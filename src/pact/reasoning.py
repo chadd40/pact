@@ -1,4 +1,5 @@
 import hashlib
+import time
 from typing import Protocol
 
 from .clock import Clock
@@ -242,16 +243,27 @@ class TestLLMProvider:
         return {"summary": summary}
 
 
+class ReasoningUnavailable(Exception):
+    """Raised when agent reasoning is required (no fallback allowed) but no
+    worker posted a result before the poll budget was exhausted."""
+
+
 class BrokerReasoningProvider:
-    """Hybrid provider: return an already-posted broker result if a worker
-    finished the equivalent enqueued task, else fall back to ``fallback``.
+    """Hybrid provider: enqueue the task so a connected worker can claim it,
+    poll the broker for an agent-posted result up to ``timeout_polls`` times,
+    and either return that result, fall back to the deterministic stub
+    (``allow_fallback=True``), or raise :class:`ReasoningUnavailable`
+    (``allow_fallback=False``).
 
     Equivalence is by deterministic task id: two tasks with the same
     (type, pact_id, sorted(input), required_capability, clock.now()) map to the
-    same id via ``make_reasoning_task``. ``timeout_polls`` is the number of
-    synchronous repo lookups to perform before giving up and falling back;
-    ``0`` (the default in tests) means "no agent connected -> immediate
-    fallback". No sleeping/network — each poll is one ``repo.get_task`` read.
+    same id via ``make_reasoning_task``. The task is enqueued only when no task
+    with that id already exists, so an already-posted ``done`` result is never
+    overwritten back to ``pending``.
+
+    ``sleep`` is injected (defaults to ``time.sleep``) so tests pass a no-op and
+    stay deterministic; ``timeout_polls=0`` means "no agent connected -> enqueue
+    then immediately fall back / raise" with no sleeping.
     """
 
     def __init__(
@@ -260,16 +272,24 @@ class BrokerReasoningProvider:
         clock,
         fallback: "ReasoningProvider",
         timeout_polls: int = 0,
+        sleep=time.sleep,
+        allow_fallback: bool = True,
+        poll_interval_seconds: float = 0.5,
     ) -> None:
         self.repo = repo
         self.clock = clock
         self.fallback = fallback
         self.timeout_polls = timeout_polls
+        self.sleep = sleep
+        self.allow_fallback = allow_fallback
+        self.poll_interval_seconds = poll_interval_seconds
 
     def capabilities(self) -> set[str]:
         return self.fallback.capabilities()
 
     def resolve(self, task: ReasoningTask) -> dict:
+        from . import broker  # lazy import to avoid a circular import
+
         equivalent = make_reasoning_task(
             task.type,
             task.pact_id,
@@ -277,12 +297,33 @@ class BrokerReasoningProvider:
             self.clock,
             task.required_capability,
         )
+        # Enqueue so a connected worker can claim+resolve it -- but only if it
+        # is not already in the broker (avoid clobbering an in-flight/done task).
+        existing = self.repo.get_task(equivalent.id)
+        if existing is None:
+            broker.enqueue(
+                self.repo,
+                task.type,
+                task.pact_id,
+                task.input,
+                self.clock,
+                required_capability=task.required_capability,
+            )
+
+        # Poll for an agent-posted result. A result already present is found on
+        # the first read; otherwise sleep between attempts.
+        result = broker.get_result(self.repo, equivalent.id)
         for _ in range(self.timeout_polls):
-            stored = self.repo.get_task(equivalent.id)
-            if (
-                stored is not None
-                and stored.status == TaskStatus.done
-                and stored.result is not None
-            ):
-                return stored.result
-        return self.fallback.resolve(task)
+            if result is not None:
+                return result
+            self.sleep(self.poll_interval_seconds)
+            result = broker.get_result(self.repo, equivalent.id)
+        if result is not None:
+            return result
+
+        if self.allow_fallback:
+            return self.fallback.resolve(task)
+        raise ReasoningUnavailable(
+            f"no agent result for task {equivalent.id} after "
+            f"{self.timeout_polls} polls and fallback is disabled"
+        )
