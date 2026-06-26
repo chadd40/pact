@@ -1,11 +1,12 @@
 import hashlib
 import time
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from .clock import Clock
 from .models import ReasoningTask, TaskStatus, TaskType
 
 
+@runtime_checkable
 class ReasoningProvider(Protocol):
     def capabilities(self) -> set[str]:
         ...
