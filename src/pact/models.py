@@ -153,3 +153,24 @@ class ReasoningTask(BaseModel):
     result: dict | None = None
     claimed_by: str | None = None
     created_at: datetime
+
+
+class Profile(BaseModel):
+    owner: str
+    pact_ids: list[str] = []
+    current_streak: int = 0
+    best_streak: int = 0
+    kept: int = 0
+    failed: int = 0
+    history: list[dict] = []
+
+
+class CoachingMessage(BaseModel):
+    id: str
+    pact_id: str
+    direction: str
+    trigger: str
+    pact_state_snapshot: dict = {}
+    channel: str = "web"
+    body: str
+    sent_at: datetime

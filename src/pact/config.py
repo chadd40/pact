@@ -14,6 +14,8 @@ class Settings:
     cooling_off_minutes: int = 60
     db_path: str = "pact.db"
     artifacts_dir: str = "artifacts"
+    clock_mode: str = "real"
+    demo_seed_iso: str = "2026-06-22T09:00:00+00:00"
 
 
 def _int(env: Mapping[str, str], key: str, default: int) -> int:
@@ -44,4 +46,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         cooling_off_minutes=_int(env, "PACT_COOLING_OFF_MINUTES", 60),
         db_path=_str(env, "PACT_DB_PATH", "pact.db"),
         artifacts_dir=_str(env, "PACT_ARTIFACTS_DIR", "artifacts"),
+        clock_mode=_str(env, "PACT_CLOCK_MODE", "real"),
+        demo_seed_iso=_str(env, "PACT_DEMO_SEED_ISO", "2026-06-22T09:00:00+00:00"),
     )

@@ -53,10 +53,91 @@ class TestLLMProvider:
             return self._verdict(task.input)
         raise ValueError(f"unsupported task type: {task.type}")
 
-    _REFUSAL_PHRASES = [
-        "every single day no rest",
-        "no rest ever",
-        "no days off ever",
+    # §9 intake safety gate: (category_reason, trigger_substrings).
+    # First matching category wins; reason is short and category-specific.
+    _REFUSAL_CATEGORIES = [
+        (
+            "Refusing: self-harm or self-punishment goals are not allowed. "
+            "If you're struggling, you're not alone — in the US you can call "
+            "or text 988 (Suicide & Crisis Lifeline).",
+            [
+                "hurt myself",
+                "harm myself",
+                "punish myself",
+                "self-harm",
+                "self harm",
+                "self-punish",
+            ],
+        ),
+        (
+            "Refusing: weight-loss-rate goals (losing a set amount of weight in "
+            "a short window) are unsafe to stake.",
+            [
+                "lose 5 pounds",
+                "lose 8 pounds",
+                "lose 10 pounds",
+                "lose 15 pounds",
+                "lose 20 pounds",
+                "pounds in",
+                "lbs this week",
+                "lbs in",
+                "drop 8 lbs",
+                "drop 10 lbs",
+            ],
+        ),
+        (
+            "Refusing: calorie-restriction, fasting, or purging goals are unsafe "
+            "to stake. If eating feels out of control, please reach out for "
+            "support — in the US you can call or text 988.",
+            [
+                "under 800 calories",
+                "calorie deficit",
+                "starve",
+                "fast for",
+                "fasting",
+                "purge",
+                "vomit",
+                "skip meals",
+            ],
+        ),
+        (
+            "Refusing: 'every single day with no rest' exercise goals are unsafe. "
+            "A safe pact caps frequency and bakes in a rest day.",
+            [
+                "every single day",
+                "every day with no rest",
+                "no rest",
+                "no days off",
+                "7 days straight",
+                "seven days straight",
+                "no rest day",
+            ],
+        ),
+        (
+            "Refusing: goals that train through injury or pain are unsafe. "
+            "Rest while injured still counts as keeping the pact.",
+            [
+                "injury",
+                "injured",
+                "through the pain",
+                "ignore the pain",
+                "push through pain",
+            ],
+        ),
+        (
+            "Refusing: a pact can only stake your own behavior — you can't put "
+            "someone else on the hook or stake against another person.",
+            [
+                "make my brother",
+                "make my sister",
+                "make my friend",
+                "make him pay",
+                "make her pay",
+                "make them pay",
+                "if i don't finish",
+                "force my",
+            ],
+        ),
     ]
 
     def _draft(self, input: dict) -> dict:
@@ -74,11 +155,11 @@ class TestLLMProvider:
                 "rubric": {},
             }
         lower = prompt.lower()
-        for phrase in self._REFUSAL_PHRASES:
-            if phrase in lower:
+        for reason, phrases in self._REFUSAL_CATEGORIES:
+            if any(phrase in lower for phrase in phrases):
                 return {
                     "refused": True,
-                    "reason": "Prompt describes an unrealistic or harmful commitment; refusing.",
+                    "reason": reason,
                     "title": "",
                     "goal": "",
                     "timezone": "America/Los_Angeles",
