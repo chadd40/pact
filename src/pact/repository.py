@@ -3,7 +3,15 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime
 
-from pact.models import Pact, PactStatus, Proof, ReasoningTask, Verdict
+from pact.models import (
+    CoachingMessage,
+    Pact,
+    PactStatus,
+    Profile,
+    Proof,
+    ReasoningTask,
+    Verdict,
+)
 
 
 class Repository:
@@ -52,6 +60,20 @@ class Repository:
                 status TEXT NOT NULL,
                 data TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS profiles (
+                owner TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS coaching_messages (
+                id TEXT PRIMARY KEY,
+                pact_id TEXT NOT NULL,
+                sent_at TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_coaching_pact ON coaching_messages(pact_id);
+            CREATE INDEX IF NOT EXISTS idx_coaching_sent ON coaching_messages(sent_at);
             """
         )
         self.conn.commit()
@@ -182,3 +204,57 @@ class Repository:
         if row is None:
             return None
         return Verdict.model_validate_json(row["data"])
+
+    # --- Profile ---
+
+    def save_profile(self, profile: Profile) -> None:
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO profiles (owner, data)
+            VALUES (?, ?)
+            """,
+            (profile.owner, profile.model_dump_json()),
+        )
+        self.conn.commit()
+
+    def get_profile(self, owner: str) -> Profile | None:
+        row = self.conn.execute(
+            "SELECT data FROM profiles WHERE owner = ?", (owner,)
+        ).fetchone()
+        if row is None:
+            return None
+        return Profile.model_validate_json(row["data"])
+
+    # --- CoachingMessage ---
+
+    def save_coaching_message(self, msg: CoachingMessage) -> None:
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO coaching_messages (id, pact_id, sent_at, data)
+            VALUES (?, ?, ?, ?)
+            """,
+            (msg.id, msg.pact_id, msg.sent_at.isoformat(), msg.model_dump_json()),
+        )
+        self.conn.commit()
+
+    def list_coaching_messages(self, pact_id: str) -> list[CoachingMessage]:
+        rows = self.conn.execute(
+            "SELECT data FROM coaching_messages WHERE pact_id = ? ORDER BY sent_at",
+            (pact_id,),
+        ).fetchall()
+        return [CoachingMessage.model_validate_json(r["data"]) for r in rows]
+
+    # --- Demo reset ---
+
+    def reset_all(self) -> None:
+        self.conn.executescript(
+            """
+            DELETE FROM pacts;
+            DELETE FROM proofs;
+            DELETE FROM tasks;
+            DELETE FROM verdicts;
+            DELETE FROM profiles;
+            DELETE FROM coaching_messages;
+            """
+        )
+        self.conn.commit()
