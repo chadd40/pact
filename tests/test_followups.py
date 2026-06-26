@@ -150,6 +150,7 @@ async def test_api_forfeit_cancel_records_failed_and_executes_donation(tmp_path)
                 "pact_id": pact_id,
                 "stake_amount_cents": 1500,
                 "charity_id": "world_central_kitchen",
+                "consent_acknowledged": True,
             },
         )
         assert r.status_code == 200, r.text
