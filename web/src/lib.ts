@@ -27,9 +27,13 @@ export function formatDateTime(iso: string): string {
 // Status → chip class + readable label.
 export function statusChip(status: PactStatus): { cls: string; label: string } {
   switch (status) {
+    // needs_review: proof is under review and NO money has moved. Deliberately a
+    // neutral chip, distinct from the gold "active" and the red "failed", so the
+    // ledger reads honestly while the verdict is still suspended.
+    case "needs_review":
+      return { cls: "chip-review", label: "Under review" };
     case "active":
     case "evaluating":
-    case "needs_review":
     case "donation_pending":
       return { cls: "chip-active", label: status === "active" ? "Active" : status.replace(/_/g, " ") };
     case "succeeded":

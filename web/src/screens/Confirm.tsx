@@ -14,8 +14,14 @@ export function Confirm() {
   const [charities, setCharities] = useState<Charity[]>([]);
   const [stakeDollars, setStakeDollars] = useState<string>("");
   const [charityId, setCharityId] = useState<string>("");
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Stake caps mirror the backend (500–2000 cents). Keep them here as the single
+  // source of truth for the input bounds and the helper copy.
+  const STAKE_MIN = 5;
+  const STAKE_MAX = 20;
 
   useEffect(() => {
     let alive = true;
@@ -43,18 +49,26 @@ export function Confirm() {
   }
 
   const stakeCents = Math.round((parseFloat(stakeDollars) || 0) * 100);
+  const stakeInRange = stakeCents >= STAKE_MIN * 100 && stakeCents <= STAKE_MAX * 100;
   const r = pact.rubric;
 
   const sign = async () => {
+    // Belt-and-suspenders: the button is gated on `consent`, but never POST without
+    // it — the backend returns 422 if consent_acknowledged is false.
+    if (!consent) {
+      setErr("Please accept the terms above before starting the pact.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
       // Stamp the owner first so the profile aggregates this pact.
       await api.setOwner(pact.id, DEMO_OWNER).catch(() => {});
-      await api.confirmPact(pact.id, stakeCents, charityId);
+      await api.confirmPact(pact.id, stakeCents, charityId, true);
       signalChange();
       navigate(`/pact/${pact.id}`);
     } catch (e) {
+      // Surface the 422 (consent missing / stake out of caps) in the contract voice.
       setErr(e instanceof ApiError ? e.detail : "Could not start the pact.");
       setBusy(false);
     }
@@ -126,8 +140,9 @@ export function Confirm() {
                 <input
                   className="stake-input"
                   type="number"
-                  min={5}
-                  max={500}
+                  min={STAKE_MIN}
+                  max={STAKE_MAX}
+                  step={1}
                   value={stakeDollars}
                   onChange={(e) => setStakeDollars(e.target.value)}
                 />
@@ -136,8 +151,14 @@ export function Confirm() {
                 </span>
               </div>
               <div className="mono-label" style={{ marginTop: 8 }}>
-                If you fail, this moves to the charity below. If you keep it, $0 moves.
+                Allowed range ${STAKE_MIN}–${STAKE_MAX}. If you fail, this moves to the
+                charity below. If you keep it, $0 moves.
               </div>
+              {!stakeInRange && (
+                <div className="stake-warn">
+                  Stake must be between ${STAKE_MIN} and ${STAKE_MAX}.
+                </div>
+              )}
             </Clause>
 
             <Clause label="Beneficiary">
@@ -155,11 +176,32 @@ export function Confirm() {
               </div>
             </Clause>
 
+            <Clause label="§9 · Plain terms">
+              <p className="legal-copy">
+                Pact is a voluntary commitment device — not an escrow, bank, or money
+                transmitter. We never hold your money; it moves directly from your Link
+                card to your chosen charity only if you choose to honor a failed pact.
+                Pact is free. Not financial or tax advice.
+              </p>
+            </Clause>
+
             <p className="honesty-line">
               I understand this is an honesty-based commitment. Server time is the source of
               truth; duplicate or fabricated proof voids the pact. By signing I authorize the
               stake to move to my chosen charity if I do not keep my word.
             </p>
+
+            <label className="consent-row">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => {
+                  setConsent(e.target.checked);
+                  if (e.target.checked) setErr(null);
+                }}
+              />
+              <span>I understand and accept the terms above.</span>
+            </label>
 
             {err && (
               <div className="refusal" style={{ marginTop: 14 }}>
@@ -175,7 +217,8 @@ export function Confirm() {
               <button
                 className="btn btn-seal"
                 onClick={sign}
-                disabled={busy || stakeCents <= 0 || !charityId}
+                disabled={busy || !consent || !stakeInRange || !charityId}
+                title={!consent ? "Accept the terms to continue" : undefined}
               >
                 {busy ? <span className="spin" /> : "✶"} Approve stake & start
               </button>
