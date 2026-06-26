@@ -59,6 +59,7 @@ class ConfirmIn(BaseModel):
     pact_id: str
     stake_amount_cents: int
     charity_id: str
+    consent_acknowledged: bool = False
 
 
 class ProofIn(BaseModel):
@@ -129,7 +130,12 @@ def create_app(
         pact = _require(body.pact_id)
         try:
             pact = confirm_and_start(
-                pact, body.stake_amount_cents, body.charity_id, clock, settings
+                pact,
+                body.stake_amount_cents,
+                body.charity_id,
+                clock,
+                settings,
+                consent_acknowledged=body.consent_acknowledged,
             )
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=422, detail=str(exc))

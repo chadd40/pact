@@ -137,7 +137,15 @@ def confirm_and_start(
     charity_id: str,
     clock: Clock,
     settings: Settings,
+    consent_acknowledged: bool = False,
 ) -> Pact:
+    # Honest acknowledgment, not a compliance gate: a pact cannot start until the
+    # owner explicitly acknowledges that real money goes to charity on failure.
+    if not consent_acknowledged:
+        raise ValueError(
+            "consent_acknowledged must be True to start a pact "
+            "(money goes to charity on failure)"
+        )
     if not (settings.min_stake_cents <= stake_amount_cents <= settings.max_stake_cents):
         raise ValueError(
             f"stake {stake_amount_cents} outside caps "

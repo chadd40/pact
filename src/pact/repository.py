@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime
 
 from pact.models import (
@@ -18,6 +19,11 @@ class Repository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
         self.conn.row_factory = sqlite3.Row
+        # One shared sqlite3 connection (check_same_thread=False) is written from
+        # FastAPI's threadpool. SQLite serializes statements but interleaved
+        # execute+commit from two threads can still corrupt/race; a process-local
+        # lock makes each write method atomic. Reads stay lock-free.
+        self._write_lock = threading.Lock()
 
     @classmethod
     def connect(cls, path: str) -> "Repository":
@@ -25,6 +31,10 @@ class Repository:
         return cls(conn)
 
     def init_schema(self) -> None:
+        with self._write_lock:
+            self._init_schema_locked()
+
+    def _init_schema_locked(self) -> None:
         self.conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS pacts (
@@ -95,20 +105,21 @@ class Repository:
     # --- Pact ---
 
     def save_pact(self, pact: Pact) -> None:
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO pacts (id, owner, status, deadline_at, data)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                pact.id,
-                pact.owner,
-                pact.status.value,
-                pact.deadline_at.isoformat(),
-                pact.model_dump_json(),
-            ),
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO pacts (id, owner, status, deadline_at, data)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    pact.id,
+                    pact.owner,
+                    pact.status.value,
+                    pact.deadline_at.isoformat(),
+                    pact.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
 
     def get_pact(self, pact_id: str) -> Pact | None:
         row = self.conn.execute(
@@ -140,14 +151,15 @@ class Repository:
     # --- Proof ---
 
     def save_proof(self, proof: Proof) -> None:
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO proofs (id, pact_id, data)
-            VALUES (?, ?, ?)
-            """,
-            (proof.id, proof.pact_id, proof.model_dump_json()),
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO proofs (id, pact_id, data)
+                VALUES (?, ?, ?)
+                """,
+                (proof.id, proof.pact_id, proof.model_dump_json()),
+            )
+            self.conn.commit()
 
     def list_proofs(self, pact_id: str) -> list[Proof]:
         rows = self.conn.execute(
@@ -158,20 +170,21 @@ class Repository:
     # --- ReasoningTask ---
 
     def save_task(self, task: ReasoningTask) -> None:
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO tasks (id, pact_id, status, required_capability, data)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                task.id,
-                task.pact_id,
-                task.status.value,
-                task.required_capability,
-                task.model_dump_json(),
-            ),
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO tasks (id, pact_id, status, required_capability, data)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    task.id,
+                    task.pact_id,
+                    task.status.value,
+                    task.required_capability,
+                    task.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
 
     def get_task(self, task_id: str) -> ReasoningTask | None:
         row = self.conn.execute(
@@ -202,14 +215,15 @@ class Repository:
     # --- Verdict ---
 
     def save_verdict(self, verdict: Verdict) -> None:
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO verdicts (pact_id, status, data)
-            VALUES (?, ?, ?)
-            """,
-            (verdict.pact_id, verdict.status.value, verdict.model_dump_json()),
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO verdicts (pact_id, status, data)
+                VALUES (?, ?, ?)
+                """,
+                (verdict.pact_id, verdict.status.value, verdict.model_dump_json()),
+            )
+            self.conn.commit()
 
     def get_verdict(self, pact_id: str) -> Verdict | None:
         row = self.conn.execute(
@@ -222,14 +236,15 @@ class Repository:
     # --- Profile ---
 
     def save_profile(self, profile: Profile) -> None:
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO profiles (owner, data)
-            VALUES (?, ?)
-            """,
-            (profile.owner, profile.model_dump_json()),
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO profiles (owner, data)
+                VALUES (?, ?)
+                """,
+                (profile.owner, profile.model_dump_json()),
+            )
+            self.conn.commit()
 
     def get_profile(self, owner: str) -> Profile | None:
         row = self.conn.execute(
@@ -242,20 +257,21 @@ class Repository:
     # --- CoachingMessage ---
 
     def save_coaching_message(self, msg: CoachingMessage) -> None:
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO coaching_messages (id, pact_id, sent_at, delivered_at, data)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                msg.id,
-                msg.pact_id,
-                msg.sent_at.isoformat(),
-                msg.delivered_at.isoformat() if msg.delivered_at is not None else None,
-                msg.model_dump_json(),
-            ),
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO coaching_messages (id, pact_id, sent_at, delivered_at, data)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    msg.id,
+                    msg.pact_id,
+                    msg.sent_at.isoformat(),
+                    msg.delivered_at.isoformat() if msg.delivered_at is not None else None,
+                    msg.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
 
     def list_coaching_messages(self, pact_id: str) -> list[CoachingMessage]:
         rows = self.conn.execute(
@@ -304,14 +320,15 @@ class Repository:
     # --- Demo reset ---
 
     def reset_all(self) -> None:
-        self.conn.executescript(
-            """
-            DELETE FROM pacts;
-            DELETE FROM proofs;
-            DELETE FROM tasks;
-            DELETE FROM verdicts;
-            DELETE FROM profiles;
-            DELETE FROM coaching_messages;
-            """
-        )
-        self.conn.commit()
+        with self._write_lock:
+            self.conn.executescript(
+                """
+                DELETE FROM pacts;
+                DELETE FROM proofs;
+                DELETE FROM tasks;
+                DELETE FROM verdicts;
+                DELETE FROM profiles;
+                DELETE FROM coaching_messages;
+                """
+            )
+            self.conn.commit()

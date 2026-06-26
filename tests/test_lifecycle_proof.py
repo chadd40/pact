@@ -64,7 +64,9 @@ def test_confirm_and_start_activates_and_freezes_charity():
     provider = TestLLMProvider()
     pact = _draft(clock, settings, provider)
 
-    started = confirm_and_start(pact, 1000, "world_central_kitchen", clock, settings)
+    started = confirm_and_start(
+        pact, 1000, "world_central_kitchen", clock, settings, consent_acknowledged=True
+    )
 
     assert started.status == PactStatus.active
     assert started.stake_state == StakeState.committed
@@ -81,7 +83,10 @@ def test_confirm_and_start_rejects_stake_above_cap():
     pact = _draft(clock, settings, provider)
 
     with pytest.raises(ValueError):
-        confirm_and_start(pact, settings.max_stake_cents + 1, "world_central_kitchen", clock, settings)
+        confirm_and_start(
+            pact, settings.max_stake_cents + 1, "world_central_kitchen", clock, settings,
+            consent_acknowledged=True,
+        )
 
 
 def test_confirm_and_start_rejects_stake_below_cap():
@@ -91,7 +96,10 @@ def test_confirm_and_start_rejects_stake_below_cap():
     pact = _draft(clock, settings, provider)
 
     with pytest.raises(ValueError):
-        confirm_and_start(pact, settings.min_stake_cents - 1, "world_central_kitchen", clock, settings)
+        confirm_and_start(
+            pact, settings.min_stake_cents - 1, "world_central_kitchen", clock, settings,
+            consent_acknowledged=True,
+        )
 
 
 def test_confirm_and_start_rejects_unknown_charity():
@@ -101,7 +109,9 @@ def test_confirm_and_start_rejects_unknown_charity():
     pact = _draft(clock, settings, provider)
 
     with pytest.raises(ValueError):
-        confirm_and_start(pact, 1000, "not_a_real_charity", clock, settings)
+        confirm_and_start(
+            pact, 1000, "not_a_real_charity", clock, settings, consent_acknowledged=True
+        )
 
 
 # ---------- submit_proof ----------
@@ -120,7 +130,8 @@ def test_submit_proof_valid_photo_passes(tmp_path):
     provider = TestLLMProvider()
     tokens = TokenStore()
     pact = confirm_and_start(
-        _draft(clock, settings, provider), 1000, "world_central_kitchen", clock, settings
+        _draft(clock, settings, provider), 1000, "world_central_kitchen", clock, settings,
+        consent_acknowledged=True,
     )
     token = tokens.issue(pact.id, clock)
     image_path = _make_image(tmp_path)
@@ -153,7 +164,8 @@ def test_submit_proof_invalid_token_fails(tmp_path):
     provider = TestLLMProvider()
     tokens = TokenStore()
     pact = confirm_and_start(
-        _draft(clock, settings, provider), 1000, "world_central_kitchen", clock, settings
+        _draft(clock, settings, provider), 1000, "world_central_kitchen", clock, settings,
+        consent_acknowledged=True,
     )
     image_path = _make_image(tmp_path)
 
@@ -179,7 +191,8 @@ def test_submit_proof_duplicate_phash_fails(tmp_path):
     provider = TestLLMProvider()
     tokens = TokenStore()
     pact = confirm_and_start(
-        _draft(clock, settings, provider), 1000, "world_central_kitchen", clock, settings
+        _draft(clock, settings, provider), 1000, "world_central_kitchen", clock, settings,
+        consent_acknowledged=True,
     )
     image_path = _make_image(tmp_path)
 
