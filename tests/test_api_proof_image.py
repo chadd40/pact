@@ -51,6 +51,7 @@ async def _draft_confirm_start(client, prompt):
             "pact_id": pact_id,
             "stake_amount_cents": 1500,
             "charity_id": "world_central_kitchen",
+            "consent_acknowledged": True,
         },
     )
     assert r.status_code == 200, r.text
