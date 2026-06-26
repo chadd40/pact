@@ -60,7 +60,6 @@ async def _submit_valid_proof(client, pact_id):
         json={
             "modality": "text",
             "token": token,
-            "token_in_image": True,
             "content_ok": True,
             "image_path": None,
         },
