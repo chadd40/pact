@@ -7,6 +7,7 @@ from pact.clock import Clock, FixedClock
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, reconcile_on_startup, settle
 from pact.models import (
+    CoachingMessage,
     Modality,
     Pact,
     PactStatus,
@@ -85,6 +86,28 @@ def _passed_proof(pact_id: str, idx: int, received_at: datetime) -> Proof:
     )
 
 
+def _coaching_message(
+    msg_id: str,
+    pact_id: str,
+    trigger: str,
+    body: str,
+    sent_at: datetime,
+    snapshot: dict,
+) -> CoachingMessage:
+    """An outbound, undelivered coach nudge with a stable id (repeatable reset)."""
+    return CoachingMessage(
+        id=msg_id,
+        pact_id=pact_id,
+        direction="outbound",
+        trigger=trigger,
+        pact_state_snapshot=snapshot,
+        channel="web",
+        body=body,
+        sent_at=sent_at,
+        delivered_at=None,
+    )
+
+
 def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     """Build three deterministic demo pacts (WIN / FAIL / LIVE) and persist them.
 
@@ -157,6 +180,32 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     repo.save_pact(live)
     for proof in live_proofs:
         repo.save_proof(proof)
+
+    # Seed visible coaching activity on the LIVE pact so the coach pane and the
+    # outbox are alive immediately after Seed. Outbound + undelivered so they
+    # surface in repo.outbox(owner). Stable ids -> /demo/reset overwrites in place.
+    live_snapshot = {"valid": 2, "target": live.target_count, "days_left": 4}
+    coaching = [
+        _coaching_message(
+            "coach-live-mid_week",
+            live.id,
+            "mid_week",
+            "Midway check-in: 2 of 5 days logged. Nice start — keep the streak going.",
+            now - timedelta(days=1, hours=2),
+            live_snapshot,
+        ),
+        _coaching_message(
+            "coach-live-behind_pace",
+            live.id,
+            "behind_pace",
+            "Heads up: you're a touch behind pace with 4 days left. One session today "
+            "keeps $5 with you instead of World Central Kitchen.",
+            now - timedelta(hours=2),
+            live_snapshot,
+        ),
+    ]
+    for msg in coaching:
+        repo.save_coaching_message(msg)
 
     return {"win": win.id, "fail": fail.id, "live": live.id}
 
