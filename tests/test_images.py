@@ -97,11 +97,11 @@ def test_save_proof_image_writes_both_files_under_pact_dir(tmp_path):
     assert os.path.commonpath([pact_dir, thumb_path]) == pact_dir
     assert image_path != thumb_path
     # Stored full image is EXIF-stripped.
-    saved = Image.open(image_path)
-    assert dict(saved.getexif()) == {}
+    with Image.open(image_path) as saved:
+        assert dict(saved.getexif()) == {}
     # Stored thumb is a real, smaller-or-equal image.
-    saved_thumb = Image.open(thumb_path)
-    assert max(saved_thumb.size) <= 256
+    with Image.open(thumb_path) as saved_thumb:
+        assert max(saved_thumb.size) <= 256
 
 
 def test_save_proof_image_creates_missing_dirs(tmp_path):
