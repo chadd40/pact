@@ -104,6 +104,7 @@ class Pact(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     verdict_at: datetime | None = None
+    dispute_window_closes_at: datetime | None = None
 
     @field_validator("stake_amount_cents")
     @classmethod
