@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+
+from pydantic import BaseModel, field_validator
+
+
+class PactStatus(str, Enum):
+    draft = "draft"
+    active = "active"
+    evaluating = "evaluating"
+    succeeded = "succeeded"
+    failed = "failed"
+    needs_review = "needs_review"
+    canceled_release = "canceled_release"
+    canceled_forfeit = "canceled_forfeit"
+    donation_pending = "donation_pending"
+    donated = "donated"
+    donation_failed = "donation_failed"
+    donation_declined = "donation_declined"
+
+
+class StakeState(str, Enum):
+    none = "none"
+    committed = "committed"
+    executing = "executing"
+    executed = "executed"
+    released = "released"
+    declined = "declined"
+    error = "error"
+
+
+class ProofStatus(str, Enum):
+    passed = "passed"
+    failed = "failed"
+    ambiguous = "ambiguous"
+
+
+class Modality(str, Enum):
+    photo = "photo"
+    log = "log"
+    url = "url"
+    file = "file"
+    text = "text"
+
+
+class TaskType(str, Enum):
+    draft = "draft"
+    judge_proof = "judge_proof"
+    coach = "coach"
+    verdict = "verdict"
+
+
+class TaskStatus(str, Enum):
+    pending = "pending"
+    claimed = "claimed"
+    done = "done"
+    failed = "failed"
+
+
+class PaymentAction(str, Enum):
+    none = "none"
+    donation_executed = "donation_executed"
+    donation_failed = "donation_failed"
+    donation_declined = "donation_declined"
+    cancelled = "cancelled"
+
+
+class Rubric(BaseModel):
+    modality: Modality
+    require_token: bool = True
+    must_show: list[str]
+    reject_if: list[str] = []
+    min_distinct_days: int
+    count_target: int
+    rest_if_injured_counts: bool = True
+    rigor_floor: dict = {}
+
+
+class Pact(BaseModel):
+    id: str
+    owner: str
+    original_prompt: str
+    title: str
+    goal: str
+    timezone: str
+    deadline_at: datetime
+    target_count: int
+    distinct_days: bool = True
+    recommended_stake_cents: int
+    stake_amount_cents: int
+    currency: str = "usd"
+    charity_id: str
+    charity_url: str
+    proof_source: str = "manual"
+    freezes_allowed: int = 1
+    freezes_used: int = 0
+    freeze_extension_hours: int = 24
+    rubric: Rubric
+    status: PactStatus = PactStatus.draft
+    stake_state: StakeState = StakeState.none
+    spend_request_id: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    verdict_at: datetime | None = None
+
+    @field_validator("stake_amount_cents")
+    @classmethod
+    def _check_stake(cls, v: int) -> int:
+        if not (0 < v <= 50000):
+            raise ValueError("stake_amount_cents must satisfy 0 < v <= 50000")
+        return v
+
+
+class Proof(BaseModel):
+    id: str
+    pact_id: str
+    modality: Modality
+    received_at: datetime
+    day_bucket: str
+    token_issued: str | None = None
+    token_ok: bool = False
+    phash: str | None = None
+    dup_of: str | None = None
+    artifact_path: str | None = None
+    status: ProofStatus
+    judge_reason: str = ""
+    judge_checklist: dict = {}
+
+
+class Verdict(BaseModel):
+    pact_id: str
+    status: PactStatus
+    valid_proof_count: int
+    target_count: int
+    freezes_used: int
+    summary: str
+    proof_ids: list[str]
+    payment_action: PaymentAction = PaymentAction.none
+    payment_ref: str | None = None
+    receipt_artifact_path: str | None = None
+    honesty_note: str
+
+
+class ReasoningTask(BaseModel):
+    id: str
+    pact_id: str | None
+    type: TaskType
+    required_capability: str | None = None
+    input: dict
+    status: TaskStatus = TaskStatus.pending
+    result: dict | None = None
+    claimed_by: str | None = None
+    created_at: datetime

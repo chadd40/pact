@@ -1,0 +1,166 @@
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from pact.clock import FixedClock
+from pact.lifecycle import settle, submit_dispute
+from pact.models import (
+    PactStatus,
+    StakeState,
+    PaymentAction,
+    ProofStatus,
+    Modality,
+    Pact,
+    Proof,
+    Rubric,
+)
+from pact.payment import PaymentResult, TestLinkProvider
+
+
+class SpyPaymentProvider:
+    """Counts create_donation calls; delegates to a real TestLinkProvider."""
+
+    def __init__(self):
+        self.calls = 0
+        self._inner = TestLinkProvider()
+
+    def create_donation(self, pact: Pact, idempotency_key: str) -> PaymentResult:
+        self.calls += 1
+        self.last_idempotency_key = idempotency_key
+        return self._inner.create_donation(pact, idempotency_key)
+
+
+def _rubric() -> Rubric:
+    return Rubric(
+        modality=Modality.photo,
+        must_show=["evidence of the activity"],
+        min_distinct_days=3,
+        count_target=3,
+    )
+
+
+def _pact(clock: FixedClock, target: int = 3) -> Pact:
+    now = clock.now()
+    return Pact(
+        id="pact_abc123",
+        owner="demo@pact.local",
+        original_prompt="do the thing 3x or $5 to charity",
+        title="Do the thing 3x",
+        goal="Complete the thing on 3 distinct days.",
+        timezone="America/Los_Angeles",
+        deadline_at=now,
+        target_count=target,
+        distinct_days=True,
+        recommended_stake_cents=500,
+        stake_amount_cents=500,
+        charity_id="world_central_kitchen",
+        charity_url="https://wck.org/donate",
+        rubric=_rubric(),
+        status=PactStatus.active,
+        stake_state=StakeState.committed,
+        created_at=now,
+        started_at=now,
+    )
+
+
+def _proof(idx: int, day: str, status: ProofStatus, received: datetime) -> Proof:
+    return Proof(
+        id=f"proof_{idx}",
+        pact_id="pact_abc123",
+        modality=Modality.photo,
+        received_at=received,
+        day_bucket=day,
+        token_ok=True,
+        status=status,
+    )
+
+
+def _passing_proofs(n: int, base: datetime) -> list[Proof]:
+    out = []
+    for i in range(n):
+        day = f"2026-06-2{i}"  # distinct day buckets 2026-06-20..2026-06-2n
+        out.append(_proof(i, day, ProofStatus.passed, base + timedelta(days=i)))
+    return out
+
+
+def test_success_makes_zero_payment_calls_and_releases_stake():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    pact = _pact(clock, target=3)
+    proofs = _passing_proofs(3, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
+    payment = SpyPaymentProvider()
+
+    new_pact, verdict = settle(pact, proofs, clock, payment)
+
+    assert new_pact.status == PactStatus.succeeded
+    assert new_pact.stake_state == StakeState.released
+    assert new_pact.spend_request_id is None
+    assert payment.calls == 0  # provably zero link-cli calls on success
+    assert verdict.status == PactStatus.succeeded
+    assert verdict.valid_proof_count == 3
+    assert verdict.target_count == 3
+    assert verdict.payment_action == PaymentAction.none
+    assert verdict.payment_ref is None
+    assert new_pact.verdict_at == clock.now()
+
+
+def test_failure_executes_donation_exactly_once():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    pact = _pact(clock, target=3)
+    proofs = _passing_proofs(2, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
+    payment = SpyPaymentProvider()
+
+    new_pact, verdict = settle(pact, proofs, clock, payment)
+
+    assert new_pact.status == PactStatus.donated
+    assert payment.calls == 1
+    assert payment.last_idempotency_key == "pact_abc123:donation"
+    assert new_pact.spend_request_id == f"test_sr_pact_abc123_{pact.stake_amount_cents}"
+    assert verdict.status == PactStatus.failed
+    assert verdict.valid_proof_count == 2
+    assert verdict.payment_action == PaymentAction.donation_executed
+    assert verdict.payment_ref == new_pact.spend_request_id
+
+
+def test_settle_is_idempotent_no_second_donation():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    pact = _pact(clock, target=3)
+    proofs = _passing_proofs(1, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
+    payment = SpyPaymentProvider()
+
+    p1, v1 = settle(pact, proofs, clock, payment)
+    assert payment.calls == 1
+    first_ref = p1.spend_request_id
+
+    p2, v2 = settle(p1, proofs, clock, payment)
+
+    assert payment.calls == 1  # NO second donation
+    assert p2.status == PactStatus.donated
+    assert p2.spend_request_id == first_ref
+    assert v2.payment_ref == first_ref
+    assert v2.status == PactStatus.failed
+
+
+def test_dispute_reruns_settle_exactly_once_then_final():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    pact = _pact(clock, target=3)
+    base = datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc)
+    proofs = _passing_proofs(2, base)
+    payment = SpyPaymentProvider()
+
+    failed_pact, failed_verdict = settle(pact, proofs, clock, payment)
+    assert failed_pact.status == PactStatus.donated
+    assert payment.calls == 1
+
+    # Dispute supplies a third valid distinct-day proof -> success on re-run.
+    extra = _proof(99, "2026-06-25", ProofStatus.passed,
+                   datetime(2026, 6, 25, 12, 0, tzinfo=timezone.utc))
+    disputed = proofs + [extra]
+
+    dp1, dv1 = submit_dispute(failed_pact, disputed, clock, payment)
+    assert dp1.status == PactStatus.succeeded
+    assert dv1.status == PactStatus.succeeded
+    assert dv1.valid_proof_count == 3
+
+    # Second dispute is rejected: the window is single-use, result already final.
+    with pytest.raises(Exception):
+        submit_dispute(dp1, disputed, clock, payment)
