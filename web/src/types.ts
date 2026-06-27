@@ -39,6 +39,17 @@ export interface Rubric {
   rigor_floor: Record<string, unknown>;
 }
 
+// Derived progress/pace block the API attaches to a pact (src/pact/progress.py).
+export interface Progress {
+  valid_count: number;
+  target: number;
+  pct: number; // 0..100
+  days_left: number;
+  on_track: boolean;
+  behind: boolean;
+  milestone: number; // highest crossed of 25/50/75/100, else 0
+}
+
 export interface Pact {
   id: string;
   owner: string;
@@ -67,6 +78,13 @@ export interface Pact {
   started_at: string | null;
   verdict_at: string | null;
   dispute_window_closes_at: string | null;
+  progress?: Progress; // present on GET /api/pacts and /api/pacts/:id
+}
+
+export interface LinkStatus {
+  owner: string;
+  connected: boolean;
+  funding_ref: string | null;
 }
 
 export interface Proof {
