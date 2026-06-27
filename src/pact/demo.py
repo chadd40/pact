@@ -199,7 +199,7 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
             live.id,
             "behind_pace",
             "Heads up: you're a touch behind pace with 4 days left. One session today "
-            "keeps $5 with you instead of World Central Kitchen.",
+            "keeps your stake with you instead of the Against Malaria Foundation.",
             now - timedelta(hours=2),
             live_snapshot,
         ),
