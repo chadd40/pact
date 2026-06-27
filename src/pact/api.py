@@ -33,6 +33,7 @@ from pact.link import connect_account, is_owner_connected, new_account
 from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
+from pact.progress import compute_progress
 from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
@@ -201,13 +202,19 @@ def create_app(
         repo.update_pact(pact)
         return pact.model_dump(mode="json")
 
+    def _with_progress(pact: Pact) -> dict:
+        """Pact JSON augmented with the derived `progress` block both surfaces use."""
+        d = pact.model_dump(mode="json")
+        d["progress"] = compute_progress(pact, repo.list_proofs(pact.id), clock.now())
+        return d
+
     @app.get("/api/pacts/{pact_id}")
     def get_pact(pact_id: str):
-        return _require(pact_id).model_dump(mode="json")
+        return _with_progress(_require(pact_id))
 
     @app.get("/api/pacts")
     def list_pacts(owner: str | None = None):
-        return [p.model_dump(mode="json") for p in repo.list_pacts(owner)]
+        return [_with_progress(p) for p in repo.list_pacts(owner)]
 
     @app.post("/api/pacts/{pact_id}/proof-token")
     def proof_token(pact_id: str):
