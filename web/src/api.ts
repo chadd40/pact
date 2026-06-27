@@ -3,6 +3,7 @@ import type {
   CoachingMessage,
   DemoAdvanceResult,
   DemoSeedResult,
+  LinkStatus,
   Pact,
   Packet,
   Profile,
@@ -167,6 +168,15 @@ export const api = {
     request<Profile>(`/api/profile?owner=${encodeURIComponent(owner)}`),
 
   charities: () => request<Charity[]>("/api/charities"),
+
+  // ── Link (funding connection) ──────────────────────────────────────────────
+  // Connected after the first pact: registers a TEST funding source so the
+  // charge-on-fail donation is allowed to fire. No money moves (local-first).
+  linkStatus: (owner: string) =>
+    request<LinkStatus>(`/api/link/status?owner=${encodeURIComponent(owner)}`),
+
+  linkConnect: (owner: string) =>
+    request<LinkStatus>("/api/link/connect", { json: { owner } }),
 
   // ── Demo control ───────────────────────────────────────────────────────────
   demoSeed: () => request<DemoSeedResult>("/demo/seed", { method: "POST" }),

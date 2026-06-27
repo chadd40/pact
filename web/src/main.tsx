@@ -3,22 +3,19 @@ import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./styles.css";
 import "./components.css";
+import "./redesign.css";
 import { App } from "./App";
-import { Home } from "./screens/Home";
+import { Dashboard } from "./screens/Dashboard";
 import { Create } from "./screens/Create";
-import { Confirm } from "./screens/Confirm";
-import { Active } from "./screens/Active";
-import { VerdictScreen } from "./screens/Verdict";
+import { PactView } from "./screens/Pact";
 
 const router = createBrowserRouter([
   {
     element: <App />,
     children: [
-      { path: "/", element: <Home /> },
+      { path: "/", element: <Dashboard /> },
       { path: "/create", element: <Create /> },
-      { path: "/confirm/:pactId", element: <Confirm /> },
-      { path: "/pact/:pactId", element: <Active /> },
-      { path: "/verdict/:pactId", element: <VerdictScreen /> },
+      { path: "/pact/:pactId", element: <PactView /> },
     ],
   },
 ]);
