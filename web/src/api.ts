@@ -3,6 +3,7 @@ import type {
   CoachingMessage,
   DemoAdvanceResult,
   DemoSeedResult,
+  LinkStatus,
   Pact,
   Packet,
   Profile,
@@ -135,6 +136,11 @@ export const api = {
   dispute: (pactId: string) =>
     request<Verdict>(`/api/pacts/${pactId}/dispute`, { method: "POST" }),
 
+  // Explicitly decline a pending donation (nag-until-resolved exit). The miss is
+  // already on the record; this just stops the agent nagging. No money moves.
+  decline: (pactId: string) =>
+    request<Pact>(`/api/pacts/${pactId}/decline`, { method: "POST" }),
+
   packet: (pactId: string) => request<Packet>(`/api/pacts/${pactId}/packet`),
 
   renew: (pactId: string) =>
@@ -167,6 +173,22 @@ export const api = {
     request<Profile>(`/api/profile?owner=${encodeURIComponent(owner)}`),
 
   charities: () => request<Charity[]>("/api/charities"),
+
+  // ── Link (funding connection) ──────────────────────────────────────────────
+  // Connected after the first pact: registers a TEST funding source so the
+  // charge-on-fail donation is allowed to fire. No money moves (local-first).
+  linkStatus: (owner: string) =>
+    request<LinkStatus>(`/api/link/status?owner=${encodeURIComponent(owner)}`),
+
+  linkConnect: (owner: string) =>
+    request<LinkStatus>("/api/link/connect", { json: { owner } }),
+
+  // Connect-your-agent seam: mint the token the user pastes into their agent so
+  // it claims this account's pacts. (Stub — deterministic per owner.)
+  mintAgentToken: (owner: string) =>
+    request<{ owner: string; token: string }>("/api/account/agent-token", {
+      json: { owner },
+    }),
 
   // ── Demo control ───────────────────────────────────────────────────────────
   demoSeed: () => request<DemoSeedResult>("/demo/seed", { method: "POST" }),
