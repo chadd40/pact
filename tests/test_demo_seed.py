@@ -109,4 +109,4 @@ def test_seed_stays_within_stake_caps(repo):
     for key in ("win", "fail", "live"):
         pact = repo.get_pact(ids[key])
         assert settings.min_stake_cents <= pact.stake_amount_cents <= settings.max_stake_cents
-        assert pact.charity_id == "world_central_kitchen"
+        assert pact.charity_id == "against_malaria_foundation"

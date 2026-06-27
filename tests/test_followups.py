@@ -62,8 +62,8 @@ def _active_pact(clock: FixedClock, *, target: int = 5) -> Pact:
         distinct_days=True,
         recommended_stake_cents=500,
         stake_amount_cents=500,
-        charity_id="world_central_kitchen",
-        charity_url="https://wck.org/donate",
+        charity_id="against_malaria_foundation",
+        charity_url="https://againstmalaria.com/donate",
         rubric=_rubric(),
         status=PactStatus.active,
         stake_state=StakeState.committed,
@@ -149,7 +149,7 @@ async def test_api_forfeit_cancel_records_failed_and_executes_donation(tmp_path)
             json={
                 "pact_id": pact_id,
                 "stake_amount_cents": 1500,
-                "charity_id": "world_central_kitchen",
+                "charity_id": "against_malaria_foundation",
                 "consent_acknowledged": True,
             },
         )

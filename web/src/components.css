@@ -32,10 +32,15 @@
 }
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   text-decoration: none;
   color: var(--paper);
+}
+.brand-wordmark {
+  height: 22px;
+  width: auto;
+  display: block;
 }
 .brand-mark {
   font-family: var(--font-display);

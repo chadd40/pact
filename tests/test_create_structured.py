@@ -27,7 +27,7 @@ from pact.repository import Repository
 
 
 _NOW = datetime(2026, 6, 26, 12, 0, 0, tzinfo=timezone.utc)
-_CHARITY = "world_central_kitchen"
+_CHARITY = "against_malaria_foundation"
 
 
 def _clock() -> FixedClock:

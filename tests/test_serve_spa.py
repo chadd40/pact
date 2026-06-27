@@ -19,6 +19,11 @@ def _make_dist(root: Path) -> Path:
     (dist / "assets" / "app.js").write_text(
         "console.log('PACT_ASSET_MARKER');", encoding="utf-8"
     )
+    # Files vite copies from web/public/ to the dist ROOT (favicon, wordmark, the
+    # charity stamps) — these must be served as files, not the SPA shell.
+    (dist / "pact_wordmark.png").write_bytes(b"PNG_WORDMARK_BYTES")
+    (dist / "charity-stamps").mkdir(parents=True, exist_ok=True)
+    (dist / "charity-stamps" / "charity_water.png").write_bytes(b"PNG_STAMP_BYTES")
     return dist
 
 
@@ -101,6 +106,37 @@ async def test_unknown_non_api_path_falls_back_to_index(monkeypatch, tmp_path):
             resp = await client.get("/pact/some-client-route")
             assert resp.status_code == 200
             assert "PACT_SPA_MARKER" in resp.text
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+async def test_dist_root_static_files_served_not_spa_shell(monkeypatch, tmp_path):
+    """Files vite copies from web/public/ to the dist root (favicon, wordmark,
+    charity stamps) are served as real files, NOT swallowed by the SPA fallback."""
+    import pact.main as main
+
+    dist = _make_dist(tmp_path)
+    monkeypatch.setattr(main, "_dist_dir", lambda settings=None: dist)
+
+    path, env = _env_for_db()
+    try:
+        app = main.build_app(env=env)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            r1 = await client.get("/pact_wordmark.png")
+            assert r1.status_code == 200
+            assert "PACT_SPA_MARKER" not in r1.text
+            assert "image/png" in r1.headers["content-type"]
+
+            r2 = await client.get("/charity-stamps/charity_water.png")
+            assert r2.status_code == 200
+            assert "PACT_SPA_MARKER" not in r2.text
+            assert "image/png" in r2.headers["content-type"]
     finally:
         try:
             os.remove(path)
