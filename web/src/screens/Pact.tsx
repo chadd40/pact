@@ -97,7 +97,7 @@ export function PactView() {
     return (
       <div className="pv">
         <div className="pv-note">{err}</div>
-        <button className="pc-btn" onClick={() => navigate("/")}>Back to dashboard</button>
+        <button className="pc-btn" onClick={() => navigate("/dashboard")}>Back to dashboard</button>
       </div>
     );
   }
@@ -117,7 +117,7 @@ export function PactView() {
     <div className="pv">
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
 
-      <button className="pv-back m" onClick={() => navigate("/")}>← Dashboard</button>
+      <button className="pv-back m" onClick={() => navigate("/dashboard")}>← Dashboard</button>
 
       {/* Header */}
       <div className="pv-head">
@@ -302,7 +302,7 @@ export function PactView() {
             </div>
           )}
 
-          <button className="pc-btn ghost" onClick={() => navigate("/")}>
+          <button className="pc-btn ghost" onClick={() => navigate("/dashboard")}>
             Back to dashboard
           </button>
         </div>
