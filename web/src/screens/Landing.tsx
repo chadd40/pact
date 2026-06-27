@@ -33,6 +33,7 @@ export function Landing() {
 
   const pinRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const stageWrapRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const beatRef = useRef(0);
@@ -55,14 +56,15 @@ export function Landing() {
     };
   }, []);
 
-  // Scale the whole hero (headline + phone + cue) as ONE fixed-size design stage
-  // to fit the window — uniform zoom, like the Create flow's stage. Everything
-  // scales together instead of reflowing.
+  // Scale the phone scene (phone + cue) as ONE fixed-size design stage to fit the
+  // space below the headline — uniform zoom. Measures the actual available height
+  // so the headline + chrome are always cleared.
   useEffect(() => {
     const STAGE_W = 480;
-    const STAGE_H = 840;
+    const STAGE_H = 770;
     const fit = () => {
-      const s = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H, 1.25);
+      const availH = stageWrapRef.current?.clientHeight || window.innerHeight;
+      const s = Math.min(window.innerWidth / STAGE_W, availH / STAGE_H, 1.2);
       if (stageRef.current) stageRef.current.style.transform = `scale(${s.toFixed(3)})`;
     };
     fit();
@@ -160,12 +162,14 @@ export function Landing() {
             </span>
           </div>
 
-          {/* hero stage — headline + phone + cue scale together as one unit */}
-          <div className="lp-stage" ref={stageRef}>
-            <div className="lp-headline">Everyone has a list of things they wish they did.</div>
+          {/* headline — sits just below the chrome (logo + Start a pact) */}
+          <div className="lp-headline">Everyone has a list of things they wish they did.</div>
 
-            <div className="lp-bezel">
-              <div className="lp-screen">
+          {/* phone scene — scales as one unit to fill the space below the headline */}
+          <div className="lp-stagewrap" ref={stageWrapRef}>
+            <div className="lp-stage" ref={stageRef}>
+              <div className="lp-bezel">
+                <div className="lp-screen">
               <div className="lp-statusbar">
                 <span className="lp-time">9:41</span>
                 <span className="lp-status-right">
@@ -259,10 +263,11 @@ export function Landing() {
             </div>
           </div>
 
-          <div className="lp-cue" ref={cueRef}>
-            <span className="m">Scroll</span>
-            <span className="lp-cue-arrow">↓</span>
-          </div>
+              <div className="lp-cue" ref={cueRef}>
+                <span className="m">Scroll</span>
+                <span className="lp-cue-arrow">↓</span>
+              </div>
+            </div>
           </div>
 
         </div>

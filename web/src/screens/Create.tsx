@@ -163,8 +163,10 @@ export function Create() {
   const railHeadRef = useRef<HTMLHeadingElement>(null);
   const openBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
+    if (stage === 1 && isCustom) return; // the name input auto-focuses itself
     if (stage >= 1 && stage <= 4) railHeadRef.current?.focus();
     else if (stage === 6) openBtnRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
   const selectedGoal = goalIndex ?? active;
@@ -503,7 +505,7 @@ export function Create() {
         >
           <div className="pc-rail-head">
             <div className="m step">Step {stepMeta.n} of 4</div>
-            <h2>{stepMeta.head}</h2>
+            <h2 ref={railHeadRef} tabIndex={-1}>{stepMeta.head}</h2>
           </div>
 
           <div className="pc-rail-body">
@@ -514,6 +516,7 @@ export function Create() {
                   <input
                     className="pc-name-input"
                     placeholder="Name your goal…"
+                    aria-label="Name your goal"
                     value={customTitle}
                     autoFocus
                     maxLength={60}
@@ -521,16 +524,23 @@ export function Create() {
                   />
                 )}
                 <div className="pc-freq-top">
-                  <div className="pc-freq-num">
+                  <div
+                    className="pc-freq-num"
+                    role="spinbutton"
+                    aria-label="Days per week"
+                    aria-valuenow={days}
+                    aria-valuemin={1}
+                    aria-valuemax={7}
+                  >
                     <span className="n m">{days}</span>
                     <span className="u">days<br />a week</span>
                   </div>
                   <div className="pc-step-btns">
-                    <button className="pc-step-btn" onClick={() => setDays((d) => Math.max(1, d - 1))} aria-label="Fewer days">−</button>
-                    <button className="pc-step-btn" onClick={() => setDays((d) => Math.min(7, d + 1))} aria-label="More days">+</button>
+                    <button className="pc-step-btn" onClick={() => setDays((d) => Math.max(1, d - 1))} aria-label="Fewer days per week">−</button>
+                    <button className="pc-step-btn" onClick={() => setDays((d) => Math.min(7, d + 1))} aria-label="More days per week">+</button>
                   </div>
                 </div>
-                <div className="pc-bars">
+                <div className="pc-bars" aria-hidden="true">
                   {[1, 2, 3, 4, 5, 6, 7].map((n) => (
                     <div key={n} className={`pc-bar ${days >= n ? "on" : ""}`} />
                   ))}
@@ -538,7 +548,12 @@ export function Create() {
                 <div className="pc-sub-label m">Commit for</div>
                 <div className="pc-week-pills">
                   {WEEK_OPTIONS.map((w) => (
-                    <button key={w} className={`pc-pill ${weeks === w ? "sel" : ""}`} onClick={() => setWeeks(w)}>
+                    <button
+                      key={w}
+                      className={`pc-pill ${weeks === w ? "sel" : ""}`}
+                      onClick={() => setWeeks(w)}
+                      aria-pressed={weeks === w}
+                    >
                       {w} {w === 1 ? "wk" : "wks"}
                     </button>
                   ))}
@@ -563,7 +578,12 @@ export function Create() {
                 </div>
                 <div className="pc-preset-pills">
                   {STAKE_PRESETS.map((v) => (
-                    <button key={v} className={`pc-pill ${stake === v ? "sel" : ""}`} onClick={() => setStake(v)}>
+                    <button
+                      key={v}
+                      className={`pc-pill ${stake === v ? "sel" : ""}`}
+                      onClick={() => setStake(v)}
+                      aria-pressed={stake === v}
+                    >
                       ${v}
                     </button>
                   ))}
@@ -672,7 +692,7 @@ export function Create() {
                 {charity?.name || "your charity"} gets paid — so let's not.
               </div>
               <div className="actions">
-                <button className="open" onClick={openPact}>
+                <button className="open" ref={openBtnRef} onClick={openPact}>
                   Open my pact <Arrow />
                 </button>
                 <button className="replay" onClick={restart}>Replay</button>
@@ -683,11 +703,18 @@ export function Create() {
 
         {/* Error toast */}
         {error && (
-          <div className="pc-error">
+          <div className="pc-error" role="alert">
             <span>{error}</span>
-            <span className="x" onClick={() => setError(null)}>✕</span>
+            <button type="button" className="x" onClick={() => setError(null)} aria-label="Dismiss error">✕</button>
           </div>
         )}
+      </div>
+
+      {/* Small-screen fallback — sibling of the stage so it survives the stage being hidden */}
+      <div className="pc-mobile-note">
+        <div className="mn-mark">pact</div>
+        <h2>Make your pact on a bigger screen</h2>
+        <p>The card deck is designed for desktop. Open Pact on a laptop to choose a card and seal your commitment.</p>
       </div>
     </div>
   );
@@ -778,11 +805,12 @@ function CardBack(p: CardBackProps) {
         )}
       </div>
 
-      <div className="cb-rule" />
-
-      <div className={`cb-sign ${p.signed ? "in" : ""}`}>
-        <div className="cb-sign-name">{p.owner}</div>
-        <div className="cb-sign-date m">{p.signed ? `SIGNED · ${p.sealedDate}` : "AWAITING SIGNATURE"}</div>
+      <div className="cb-foot">
+        <div className="cb-rule" />
+        <div className={`cb-sign ${p.signed ? "in" : ""}`}>
+          <div className="cb-sign-name">{p.owner}</div>
+          <div className="cb-sign-date m">{p.signed ? `SIGNED · ${p.sealedDate}` : "AWAITING SIGNATURE"}</div>
+        </div>
       </div>
     </div>
   );
