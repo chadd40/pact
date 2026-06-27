@@ -53,7 +53,7 @@
 /* ── Pinned hero ────────────────────────────────────────────────────────────── */
 .lp-pin {
   position: relative;
-  height: 340vh;
+  height: 200vh;
 }
 .lp-sticky {
   position: sticky;

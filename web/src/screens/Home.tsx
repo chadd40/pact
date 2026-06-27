@@ -138,6 +138,10 @@ export function Home() {
   };
   const onLeave = () => { if (tiltRef.current) tiltRef.current.style.transform = ""; };
   const step = (dir: number) => setActive((a) => Math.max(0, Math.min(cardCount.current - 1, a + dir)));
+  const onStageKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+  };
   const openCard = (id: string) => { if (suppressClick.current) return; navigate(`/pact/${id}`); };
 
   const cardStyle = (i: number): React.CSSProperties => {
@@ -177,7 +181,7 @@ export function Home() {
       {/* ── Carousel shelf ── */}
       <div className="home-shelf">
         <div className="home-shelf-label m">Active pacts · click a card to open it</div>
-        <div className="home-stage" onPointerDown={onDown} onMouseMove={onTilt} onMouseLeave={onLeave}>
+        <div className="home-stage" role="group" aria-label="Active pacts carousel — use left and right arrow keys, or click a card" onKeyDown={onStageKey} onPointerDown={onDown} onMouseMove={onTilt} onMouseLeave={onLeave}>
           <div className="home-tilt" ref={tiltRef}>
             {carousel.map((p, i) => {
               const cad = p.cadence;

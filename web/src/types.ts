@@ -61,7 +61,7 @@ export interface Cadence {
 }
 
 // Donation approve-and-monitor state (the two-phase Link flow).
-export type DonationStateName = "idle" | "awaiting_approval" | "donated" | "declined";
+export type DonationStateName = "idle" | "awaiting_approval" | "donated" | "declined" | "error";
 export interface DonationState {
   state: DonationStateName;
   status: PactStatus;

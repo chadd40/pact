@@ -94,6 +94,8 @@ export function AppShell() {
         {pending && (
           <button
             className="as-nag"
+            role="alert"
+            aria-live="assertive"
             aria-label={`Resolve your ${dollars(pending.stake_amount_cents)} unresolved donation`}
             onClick={() => navigate(`/pact/${pending.id}`)}
           >
