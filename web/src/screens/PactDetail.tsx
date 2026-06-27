@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import { useDemo } from "../App";
+import { useClock, useDemo } from "../App";
+import { useAppData } from "../data";
 import { SubmitSheet } from "../components/SubmitSheet";
 import { CoachPane } from "../components/CoachPane";
 import { LinkModal } from "../components/LinkModal";
 import { DeclineModal } from "../components/DeclineModal";
 import { GoalGlyph } from "../components/GoalGlyph";
 import { dollars, formatDate, pactNo } from "../lib";
-import type { Charity, CoachingMessage, Pact, Packet } from "../types";
+import type { CoachingMessage, Pact, Packet } from "../types";
 
 const LIVE = new Set(["active", "evaluating"]);
 const KEPT = new Set(["succeeded", "canceled_release"]);
@@ -17,13 +18,14 @@ const DECLINED = new Set(["donation_declined", "canceled_forfeit"]);
 
 export function PactDetail() {
   const { pactId } = useParams();
-  const { nowMs, bump, signalChange } = useDemo();
+  const { bump, signalChange } = useDemo();
+  const nowMs = useClock();
+  const { charityById } = useAppData();
   const navigate = useNavigate();
 
   const [pact, setPact] = useState<Pact | null>(null);
   const [coach, setCoach] = useState<CoachingMessage[]>([]);
   const [packet, setPacket] = useState<Packet | null>(null);
-  const [charity, setCharity] = useState<Charity | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -37,12 +39,7 @@ export function PactDetail() {
     const p = await api.getPact(pactId).catch(() => null);
     if (!p) { setErr("Pact not found."); return; }
     setPact(p);
-    const [cs, cats] = await Promise.all([
-      api.getCoach(pactId).catch(() => [] as CoachingMessage[]),
-      api.charities().catch(() => [] as Charity[]),
-    ]);
-    setCoach(cs);
-    setCharity(cats.find((c) => c.id === p.charity_id) ?? null);
+    setCoach(await api.getCoach(pactId).catch(() => [] as CoachingMessage[]));
     if (!LIVE.has(p.status) && p.status !== "needs_review") {
       setPacket(await api.packet(pactId).catch(() => null));
     }
@@ -76,6 +73,7 @@ export function PactDetail() {
   }
   if (!pact) return <div className="pd-missing"><div>Loading…</div></div>;
 
+  const charity = charityById[pact.charity_id];
   const cad = pact.cadence;
   const prog = pact.progress;
   const status = pact.status;

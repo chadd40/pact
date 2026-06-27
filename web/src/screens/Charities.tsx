@@ -1,16 +1,8 @@
-import { useEffect, useState } from "react";
-import { api } from "../api";
-import type { Charity } from "../types";
+import { useAppData } from "../data";
 
-// Browse the charity catalog — where forfeited stakes go.
+// Browse the charity catalog — where forfeited stakes go. Read from shared AppData.
 export function Charities() {
-  const [charities, setCharities] = useState<Charity[] | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    api.charities().then((c) => alive && setCharities(c)).catch(() => alive && setCharities([]));
-    return () => { alive = false; };
-  }, []);
+  const { charities } = useAppData();
 
   return (
     <div className="pg">
@@ -20,7 +12,7 @@ export function Charities() {
         <div className="pg-lede">Every pact names a cause. If you miss, your stake is donated here — verified organizations, real impact. Pick one when you build a pact.</div>
       </div>
 
-      {charities === null ? (
+      {charities.length === 0 ? (
         <div className="pg-empty">Loading…</div>
       ) : (
         <div className="ch-grid">

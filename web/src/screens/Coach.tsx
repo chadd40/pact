@@ -2,27 +2,24 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
+import { useAppData } from "../data";
 import { GoalGlyph } from "../components/GoalGlyph";
 import { formatDateTime } from "../lib";
-import type { CoachingMessage, Pact } from "../types";
+import type { CoachingMessage } from "../types";
 
 // Global coach view: your agent + the recent nudges across all your pacts.
 export function Coach() {
   const { bump } = useDemo();
+  const { pacts } = useAppData();
   const navigate = useNavigate();
-  const [pacts, setPacts] = useState<Pact[]>([]);
   const [feed, setFeed] = useState<CoachingMessage[]>([]);
 
+  // Pacts come from shared AppData; only the outbox feed is Coach-specific.
   useEffect(() => {
     let alive = true;
-    (async () => {
-      const ps = await api.listPacts(DEMO_OWNER).catch(() => [] as Pact[]);
-      if (!alive) return;
-      setPacts(ps);
-      const out = await api.outbox(DEMO_OWNER).catch(() => [] as CoachingMessage[]);
-      if (!alive) return;
-      setFeed(out.slice().reverse());
-    })();
+    api.outbox(DEMO_OWNER)
+      .then((out) => alive && setFeed(out.slice().reverse()))
+      .catch(() => {});
     return () => { alive = false; };
   }, [bump]);
 
