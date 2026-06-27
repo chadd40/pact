@@ -39,7 +39,7 @@ async def _draft_confirm_start(client, prompt, owner="demo@pact.local"):
         json={
             "pact_id": pact_id,
             "stake_amount_cents": 1500,
-            "charity_id": "world_central_kitchen",
+            "charity_id": "against_malaria_foundation",
             "consent_acknowledged": True,
         },
     )

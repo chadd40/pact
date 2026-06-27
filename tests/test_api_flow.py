@@ -39,12 +39,12 @@ async def _draft_confirm_start(client, prompt):
         json={
             "pact_id": pact_id,
             "stake_amount_cents": 1500,
-            "charity_id": "world_central_kitchen",
+            "charity_id": "against_malaria_foundation",
             "consent_acknowledged": True,
         },
     )
     assert r.status_code == 200, r.text
-    assert r.json()["charity_id"] == "world_central_kitchen"
+    assert r.json()["charity_id"] == "against_malaria_foundation"
 
     r = await client.post(f"/api/pacts/{pact_id}/start")
     assert r.status_code == 200, r.text

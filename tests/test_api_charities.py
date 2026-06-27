@@ -29,9 +29,9 @@ async def test_charities_endpoint_returns_catalog(tmp_path):
         r = await client.get("/api/charities")
         assert r.status_code == 200, r.text
         body = r.json()
-        assert len(body) == len(CHARITIES) == 10
+        assert len(body) == len(CHARITIES) == 15
         ids = {c["id"] for c in body}
-        assert "world_central_kitchen" in ids
-        # Each entry carries the keys the Confirm picker renders.
+        assert "against_malaria_foundation" in ids
+        # Each entry carries the keys the picker renders, incl. the stamp asset.
         for c in body:
-            assert {"id", "name", "donation_url", "category", "default_amounts"} <= set(c)
+            assert {"id", "name", "donation_url", "category", "default_amounts", "stamp"} <= set(c)

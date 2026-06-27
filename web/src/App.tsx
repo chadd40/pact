@@ -126,8 +126,7 @@ export function App() {
       <div className="demobar">
         <div className="demobar-inner">
           <Link to="/" className="brand">
-            <span className="brand-mark">§</span>
-            <span className="brand-word">PACT</span>
+            <img src="/pact_wordmark.png" alt="Pact" className="brand-wordmark" />
           </Link>
           <span className="demobar-tag mono-label">Demo console</span>
           <div className="demobar-spacer" />

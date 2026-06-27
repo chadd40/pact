@@ -59,17 +59,6 @@ const GOALS: GoalCard[] = [
 ];
 const CUSTOM_INDEX = GOALS.length - 1;
 
-// Accent palette cycled across the real charity catalog to derive a chip color.
-const ACCENTS = [
-  "#D98A5C", "#7FB99B", "#8AB4E0", "#9CC275", "#E0B266",
-  "#C58FB8", "#6FB6C9", "#D88F8F", "#A6C26B", "#B79BD6",
-];
-
-function charityInitial(name: string): string {
-  const m = name.match(/[A-Za-z]/);
-  return (m ? m[0] : "?").toUpperCase();
-}
-
 // Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 sending · 6 message
 type Stage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -165,9 +154,6 @@ export function Create() {
   const goalName = isCustom ? customTitle.trim() || "Custom goal" : goalCard.title;
 
   const charity = charities.find((c) => c.id === charityId) || null;
-  const charityAccent = charity
-    ? ACCENTS[charities.indexOf(charity) % ACCENTS.length]
-    : "#8a8474";
 
   const checkins = days * weeks;
   const weeksWord = weeks === 1 ? "week" : "weeks";
@@ -549,29 +535,20 @@ export function Create() {
 
                       {stage === 3 && (
                         <div>
-                          <div className="pc-chips">
-                            {charities.map((c, i) => {
-                              const accent = ACCENTS[i % ACCENTS.length];
+                          <div className="pc-chips pc-chips-stamps">
+                            {charities.map((c) => {
                               const sel = charityId === c.id;
                               return (
-                                <div
+                                <button
                                   key={c.id}
-                                  className="pc-chip"
+                                  type="button"
+                                  className={`pc-chip-stamp${sel ? " sel" : ""}`}
                                   title={c.name}
                                   onClick={() => setCharityId(c.id)}
-                                  style={
-                                    sel
-                                      ? {
-                                          background: accent,
-                                          color: "#16150F",
-                                          border: `2px solid ${accent}`,
-                                          transform: "scale(1.08)",
-                                        }
-                                      : undefined
-                                  }
+                                  aria-pressed={sel}
                                 >
-                                  {charityInitial(c.name)}
-                                </div>
+                                  <img src={c.stamp} alt={c.name} loading="lazy" />
+                                </button>
                               );
                             })}
                           </div>
@@ -585,7 +562,7 @@ export function Create() {
 
                       {stage > 3 && charity && (
                         <div className="pc-charity-done">
-                          <span className="dot" style={{ background: charityAccent }} />
+                          <img className="pc-done-stamp" src={charity.stamp} alt={charity.name} />
                           <span className="nm">{charity.name}</span>
                         </div>
                       )}
@@ -599,7 +576,7 @@ export function Create() {
                   </div>
                 </div>
 
-                {/* Wax stamp badge */}
+                {/* Wax stamp badge — the selected charity's real stamp */}
                 <div
                   className="pc-stamp"
                   style={{
@@ -609,11 +586,9 @@ export function Create() {
                       : "rotate(-9deg) scale(1.5)",
                   }}
                 >
-                  <div className="ring1" style={{ borderColor: charityAccent }} />
-                  <div className="ring2" style={{ borderColor: charityAccent }} />
-                  <div className="letter" style={{ color: charityAccent }}>
-                    {charity ? charityInitial(charity.name) : ""}
-                  </div>
+                  {charity && (
+                    <img className="pc-stamp-img" src={charity.stamp} alt={charity.name} />
+                  )}
                 </div>
               </div>
             </div>
