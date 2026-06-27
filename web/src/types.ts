@@ -54,6 +54,7 @@ export interface Pact {
   currency: string;
   charity_id: string;
   charity_url: string;
+  agent?: string | null;
   proof_source: string;
   freezes_allowed: number;
   freezes_used: number;
