@@ -83,7 +83,7 @@ export function App() {
       const win = await api.getPact(seeded.win);
       setNowIso(win.deadline_at);
       signalChange();
-      navigate("/");
+      navigate("/dashboard");
     } finally {
       setBusy(null);
     }
@@ -113,7 +113,7 @@ export function App() {
       const win = await api.getPact(seeded.win);
       setNowIso(win.deadline_at);
       signalChange();
-      navigate("/");
+      navigate("/dashboard");
     } finally {
       setBusy(null);
     }
@@ -121,37 +121,43 @@ export function App() {
 
   const ctx: DemoCtx = { nowIso, nowMs, setNow, refreshNow, bump, signalChange };
 
+  const isLanding = location.pathname === "/";
+
   return (
     <DemoContext.Provider value={ctx}>
-      <div className="demobar">
+      <div className={`demobar${isLanding ? " demobar-minimal" : ""}`}>
         <div className="demobar-inner">
-          <Link to="/" className="brand">
+          <Link to={isLanding ? "/" : "/dashboard"} className="brand">
             <img src="/pact_wordmark.png" alt="Pact" className="brand-wordmark" />
           </Link>
-          <span className="demobar-tag mono-label">Demo console</span>
-          <div className="demobar-spacer" />
-          <span className="demobar-clock data">
-            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>
-              CLOCK
-            </span>{" "}
-            {nowIso ? formatDateTime(nowIso) : "—"}
-          </span>
-          <button className="btn btn-ghost btn-sm" onClick={doSeed} disabled={!!busy}>
-            {busy === "seed" ? <span className="spin" /> : null}
-            Seed demo
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={doAdvance}
-            disabled={!!busy || !nowIso}
-          >
-            {busy === "advance" ? <span className="spin" /> : null}
-            Advance day
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={doReset} disabled={!!busy}>
-            {busy === "reset" ? <span className="spin" /> : null}
-            Reset
-          </button>
+          {!isLanding && (
+            <>
+              <span className="demobar-tag mono-label">Demo console</span>
+              <div className="demobar-spacer" />
+              <span className="demobar-clock data">
+                <span className="mono-label" style={{ letterSpacing: "0.12em" }}>
+                  CLOCK
+                </span>{" "}
+                {nowIso ? formatDateTime(nowIso) : "—"}
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={doSeed} disabled={!!busy}>
+                {busy === "seed" ? <span className="spin" /> : null}
+                Seed demo
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={doAdvance}
+                disabled={!!busy || !nowIso}
+              >
+                {busy === "advance" ? <span className="spin" /> : null}
+                Advance day
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={doReset} disabled={!!busy}>
+                {busy === "reset" ? <span className="spin" /> : null}
+                Reset
+              </button>
+            </>
+          )}
         </div>
       </div>
 

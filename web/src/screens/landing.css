@@ -1,0 +1,289 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   PACT · Landing — minimal iMessage hero (feel the wish) → scroll → the deck.
+   Geist tokens for the page; authentic iMessage colors inside the phone.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.landing .m {
+  font-family: var(--pc-mono);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────────── */
+.lp-hero {
+  min-height: calc(100vh - 58px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  padding: 36px 16px;
+}
+
+/* The phone */
+.lp-phone {
+  position: relative;
+  width: 300px;
+  height: 612px;
+  background: #111014;
+  border-radius: 46px;
+  padding: 11px;
+  box-shadow: 0 44px 90px -34px rgba(22, 21, 15, 0.55), 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+.lp-phone-notch {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 128px;
+  height: 26px;
+  background: #111014;
+  border-radius: 0 0 16px 16px;
+  z-index: 3;
+}
+.lp-screen {
+  position: relative;
+  height: 100%;
+  background: #fff;
+  border-radius: 36px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* iMessage top bar */
+.lp-imsg-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32px 14px 10px;
+  border-bottom: 1px solid #ececec;
+}
+.lp-imsg-back {
+  color: #0a84ff;
+  font-size: 27px;
+  line-height: 1;
+}
+.lp-imsg-spacer {
+  width: 27px;
+}
+.lp-imsg-contact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.lp-imsg-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #c7c7cc;
+  color: #fff;
+  display: grid;
+  place-content: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+.lp-imsg-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+}
+
+/* Thread + bubbles */
+.lp-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 14px;
+}
+.lp-bubble {
+  max-width: 80%;
+  padding: 9px 13px;
+  border-radius: 18px;
+  font-size: 14.5px;
+  line-height: 1.36;
+  font-family: -apple-system, "SF Pro Text", var(--pc-sans);
+}
+.lp-in {
+  align-self: flex-start;
+  background: #e9e9eb;
+  color: #111;
+  border-bottom-left-radius: 5px;
+}
+.lp-out {
+  align-self: flex-end;
+  background: #0a84ff;
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.lp-wishword {
+  display: inline-block;
+  font-weight: 600;
+  animation: wishIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes wishIn {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lp-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 13px 15px;
+}
+.lp-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  animation: typingDot 1.2s infinite;
+}
+.lp-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.lp-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes typingDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* Scroll cue */
+.lp-scrollcue {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--pc-muted);
+}
+.lp-scrolltext {
+  font-size: 13.5px;
+  font-style: italic;
+  font-family: var(--pc-script);
+  font-size: 21px;
+  color: var(--pc-muted);
+}
+.lp-chevron {
+  font-size: 24px;
+  line-height: 1;
+  animation: bob 1.6s ease-in-out infinite;
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* ── Deck section ───────────────────────────────────────────────────────────── */
+.lp-deck {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+  max-width: 780px;
+  margin: 0 auto;
+}
+.lp-deck-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pc-muted-2);
+}
+.lp-deck-title {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--pc-ink);
+  margin: 14px 0 12px;
+}
+.lp-deck-sub {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--pc-muted);
+  max-width: 520px;
+}
+.lp-deck-cards {
+  display: flex;
+  gap: 14px;
+  margin: 36px 0 30px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.lp-card {
+  width: 168px;
+  height: 200px;
+  background: var(--pc-card);
+  color: var(--pc-on-card);
+  border: 1px solid var(--pc-card-border);
+  border-radius: 18px;
+  padding: 18px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 18px 40px -30px rgba(22, 21, 15, 0.5);
+}
+.lp-card:hover {
+  transform: translateY(-3px);
+}
+.lp-card-title {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--pc-cream-bright);
+  margin-top: auto;
+}
+.lp-card-sub {
+  font-size: 13px;
+  color: var(--pc-on-card-dim);
+  margin-top: 4px;
+}
+.lp-card-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pc-on-card-faint);
+}
+.lp-cta {
+  background: var(--pc-ink);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 15px 30px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--pc-sans);
+  transition: transform 0.15s ease;
+}
+.lp-cta:hover {
+  transform: translateY(-2px);
+}

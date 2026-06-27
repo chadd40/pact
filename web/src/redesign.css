@@ -14,6 +14,13 @@
   color: var(--pc-ink);
 }
 
+/* Landing: the demo console collapses to a clean, transparent wordmark bar. */
+.demobar.demobar-minimal {
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+}
+
 /* ── Shared button ──────────────────────────────────────────────────────────── */
 .pc-btn {
   appearance: none;

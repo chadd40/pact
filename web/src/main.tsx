@@ -5,6 +5,7 @@ import "./styles.css";
 import "./components.css";
 import "./redesign.css";
 import { App } from "./App";
+import { Landing } from "./screens/Landing";
 import { Dashboard } from "./screens/Dashboard";
 import { Create } from "./screens/Create";
 import { PactView } from "./screens/Pact";
@@ -13,7 +14,8 @@ const router = createBrowserRouter([
   {
     element: <App />,
     children: [
-      { path: "/", element: <Dashboard /> },
+      { path: "/", element: <Landing /> },
+      { path: "/dashboard", element: <Dashboard /> },
       { path: "/create", element: <Create /> },
       { path: "/pact/:pactId", element: <PactView /> },
     ],
