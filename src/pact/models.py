@@ -93,6 +93,7 @@ class Pact(BaseModel):
     currency: str = "usd"
     charity_id: str
     charity_url: str
+    agent: str | None = None
     proof_source: str = "manual"
     freezes_allowed: int = 1
     freezes_used: int = 0

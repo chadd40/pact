@@ -8,8 +8,8 @@ def test_defaults_match_contract():
     assert isinstance(s, Settings)
     assert s.reasoning_mode == "hybrid"
     assert s.payment_mode == "test_link"
-    assert s.min_stake_cents == 500
-    assert s.max_stake_cents == 2000
+    assert s.min_stake_cents == 1000
+    assert s.max_stake_cents == 50000
     assert s.default_freezes == 1
     assert s.freeze_extension_hours == 24
     assert s.dispute_grace_hours == 24
@@ -26,8 +26,8 @@ def test_settings_default_constructor_matches():
     s = Settings()
     assert s.reasoning_mode == "hybrid"
     assert s.payment_mode == "test_link"
-    assert s.min_stake_cents == 500
-    assert s.max_stake_cents == 2000
+    assert s.min_stake_cents == 1000
+    assert s.max_stake_cents == 50000
     assert s.default_freezes == 1
     assert s.freeze_extension_hours == 24
     assert s.dispute_grace_hours == 24
@@ -66,7 +66,7 @@ def test_partial_override_keeps_defaults():
     s = load_settings({"PACT_MAX_STAKE_CENTS": "9999"})
     assert s.max_stake_cents == 9999
     # untouched keys keep contract defaults
-    assert s.min_stake_cents == 500
+    assert s.min_stake_cents == 1000
     assert s.reasoning_mode == "hybrid"
     assert s.db_path == "pact.db"
 

@@ -56,6 +56,21 @@ export const api = {
   draftPact: (prompt: string) =>
     request<Pact>("/api/pacts/draft", { json: { prompt } }),
 
+  // Structured create: builds an ACTIVE pact directly from the new Create flow's
+  // choices (goal, frequency, stake, charity, agent, consent). Returns the created
+  // pact so the UI can land straight on the Active screen.
+  createPact: (payload: {
+    goal_title: string;
+    goal_template: string | null;
+    days_per_week: number;
+    weeks: number;
+    stake_amount_cents: number;
+    charity_id: string;
+    agent: string | null;
+    consent_acknowledged: boolean;
+    owner: string;
+  }) => request<Pact>("/api/pacts/create", { json: payload }),
+
   confirmPact: (
     pact_id: string,
     stake_amount_cents: number,
