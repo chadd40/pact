@@ -132,23 +132,40 @@ export function Create() {
     };
   }, []);
 
-  // Responsive scale: fit the fixed world into the viewport.
+  // Responsive scale: fit the fixed world into the *visible* area below the
+  // sticky demo bar, so the stage centers correctly and nothing clips under the fold.
   const rootRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
     const apply = () => {
+      const top = el.getBoundingClientRect().top;
+      const avail = window.innerHeight - top;
+      el.style.minHeight = `${avail}px`;
       const pad = 28;
       const w = el.clientWidth - pad;
-      const h = el.clientHeight - pad;
+      const h = avail - pad;
       const scale = Math.min(w / STAGE_W, h / STAGE_H, 1);
       el.style.setProperty("--pc-scale", String(Math.max(scale, 0.3)));
     };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", apply);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", apply);
+    };
   }, []);
+
+  // Move keyboard focus onto the active surface when the stage changes, so focus
+  // is never stranded on hidden deck controls.
+  const railHeadRef = useRef<HTMLHeadingElement>(null);
+  const openBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (stage >= 1 && stage <= 4) railHeadRef.current?.focus();
+    else if (stage === 6) openBtnRef.current?.focus();
+  }, [stage]);
 
   const selectedGoal = goalIndex ?? active;
   const isCustom = selectedGoal === CUSTOM_INDEX;
@@ -167,14 +184,21 @@ export function Create() {
 
   // ── Transitions ───────────────────────────────────────────────────────────
   const select = (i: number) => {
+    // Fresh card every time — don't carry over a prior in-progress pact.
+    setDays(5);
+    setWeeks(4);
+    setStake(200);
+    setCharityId(null);
+    setAgentKey(null);
+    if (i !== CUSTOM_INDEX) setCustomTitle("");
     setGoalIndex(i);
     setActive(i);
     setStage(1);
     setEditorReady(false);
-    // Let the flip land, then "load" the first section.
+    // Let the flip land (.85s + .1s delay), then "load" the first section.
     window.setTimeout(() => {
       if (stageRef.current === 1) setEditorReady(true);
-    }, 760);
+    }, 980);
   };
 
   const tap = (i: number) => {
@@ -208,6 +232,7 @@ export function Create() {
 
   const seal = async () => {
     if (!charityId || !agentKey) return;
+    if (stageRef.current >= 5) return; // guard against double-seal (duplicate pacts)
     setError(null);
     setStage(5);
     try {
@@ -334,9 +359,12 @@ export function Create() {
         <div className="pc-brand">pact</div>
 
         {/* Back */}
-        <div
+        <button
+          type="button"
           className="pc-back"
           onClick={back}
+          disabled={!editing}
+          aria-hidden={!editing}
           style={{
             opacity: editing ? 1 : 0,
             pointerEvents: editing ? "auto" : "none",
@@ -344,7 +372,7 @@ export function Create() {
         >
           <Chevron dir="l" size={15} />
           Back
-        </div>
+        </button>
 
         {/* Carousel heading */}
         <div className="pc-heading" style={{ opacity: deckMode ? 1 : 0 }}>
@@ -359,12 +387,27 @@ export function Create() {
             {GOALS.map((g, i) => {
               const isHero = i === goalIndex;
               return (
-                <div key={g.title} className="pc-slot" style={slotStyle(i)} onClick={() => tap(i)}>
+                <div
+                  key={g.title}
+                  className="pc-slot"
+                  style={slotStyle(i)}
+                  onClick={() => tap(i)}
+                  onKeyDown={(e) => {
+                    if (deckMode && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      tap(i);
+                    }
+                  }}
+                  role={deckMode ? "button" : undefined}
+                  tabIndex={deckMode ? 0 : -1}
+                  aria-hidden={!deckMode && !isHero}
+                  aria-label={deckMode ? `${g.title} — ${g.desc}` : undefined}
+                >
                   <div className="pc-flip" style={flipStyle(i)}>
                     {/* FRONT */}
                     <div className="pc-face pc-front">
                       {g.art ? (
-                        <img className="pc-art" src={g.art} alt={g.title} draggable={false} />
+                        <img className="pc-art" src={g.art} alt="" draggable={false} />
                       ) : (
                         <div className="pc-custom-front">
                           <div className="cf-plus">
@@ -419,6 +462,8 @@ export function Create() {
           className="pc-arrow prev"
           onClick={prev}
           disabled={active === 0}
+          tabIndex={deckMode ? 0 : -1}
+          aria-hidden={!deckMode}
           style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
           aria-label="Previous card"
         >
@@ -428,6 +473,8 @@ export function Create() {
           className="pc-arrow next"
           onClick={next}
           disabled={active === GOALS.length - 1}
+          tabIndex={deckMode ? 0 : -1}
+          aria-hidden={!deckMode}
           style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
           aria-label="Next card"
         >
@@ -438,6 +485,8 @@ export function Create() {
         <button
           className="pc-choose"
           onClick={() => select(active)}
+          tabIndex={deckMode ? 0 : -1}
+          aria-hidden={!deckMode}
           style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
         >
           Choose this card <Arrow size={17} />
