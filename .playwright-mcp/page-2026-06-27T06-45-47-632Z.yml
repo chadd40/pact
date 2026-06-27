@@ -1,0 +1,55 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - link "Pact" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - img "Pact" [ref=e6]
+    - generic [ref=e7]: Demo console
+    - generic [ref=e8]: CLOCK —
+    - button "Seed demo" [ref=e9] [cursor=pointer]
+    - button "Advance day" [disabled] [ref=e10]
+    - button "Reset" [ref=e11] [cursor=pointer]
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - button "← Dashboard" [ref=e14] [cursor=pointer]
+      - generic [ref=e15]:
+        - img "Against Malaria Foundation" [ref=e16]
+        - generic [ref=e17]:
+          - generic [ref=e18]: Work out 5x this week (LIVE)
+          - generic [ref=e19]: $10 on the line · 5× · due Jun 26, 2026 · Against Malaria Foundation
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - img [ref=e22]
+          - generic [ref=e25]:
+            - generic [ref=e26]: 2/5
+            - generic [ref=e27]: check-ins
+        - generic [ref=e28]:
+          - generic [ref=e29]: On track
+          - generic [ref=e30]: 4 days left
+          - generic [ref=e31]: 🎉 25% there — keep going.
+      - generic [ref=e32]:
+        - generic [ref=e33]: Prove it
+        - button "Add photo proof" [ref=e34] [cursor=pointer]
+        - generic [ref=e35]:
+          - generic [ref=e36]: 2026-06-20 · passed
+          - generic [ref=e37]: 2026-06-21 · passed
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]: Connect a funding source
+          - generic [ref=e41]: Pact never holds your money. Connecting registers a funding source so your stake can actually be charged if you miss — that's what makes the pact real. No money moves now.
+        - button "Connect Link" [ref=e42] [cursor=pointer]
+      - generic [ref=e43]:
+        - generic [ref=e44]: Coaching
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - generic [ref=e48]: Hermes
+              - generic [ref=e49]: "Midway check-in: 2 of 5 days logged. Nice start — keep the streak going."
+            - generic [ref=e50]:
+              - generic [ref=e51]: Hermes
+              - generic [ref=e52]: "Heads up: you're a touch behind pace with 4 days left. One session today keeps your stake with you instead of the Against Malaria Foundation."
+          - generic [ref=e53]:
+            - textbox "Message your agent" [ref=e54]:
+              - /placeholder: Message Hermes…
+            - button "Send" [disabled] [ref=e55]
+      - button "Cancel pact" [ref=e56] [cursor=pointer]
+      - generic [ref=e57]: Cancelling inside the cooling-off window releases your stake. After that it forfeits to Against Malaria Foundation.

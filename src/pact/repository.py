@@ -20,11 +20,22 @@ class Repository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
         self.conn.row_factory = sqlite3.Row
-        # One shared sqlite3 connection (check_same_thread=False) is written from
-        # FastAPI's threadpool. SQLite serializes statements but interleaved
-        # execute+commit from two threads can still corrupt/race; a process-local
-        # lock makes each write method atomic. Reads stay lock-free.
-        self._write_lock = threading.Lock()
+        # One shared sqlite3 connection (check_same_thread=False) is accessed from
+        # FastAPI's threadpool — and the redesigned UI fires several reads in
+        # parallel per page. A single Python sqlite3 connection is NOT safe for
+        # concurrent use (even read+read races a shared cursor), so ALL access —
+        # reads and writes — is serialized through this reentrant lock. RLock so a
+        # write method that internally calls a read on the same thread can't
+        # self-deadlock. Cheap and correct for a local-first single-process app.
+        self._write_lock = threading.RLock()
+
+    def _one(self, sql: str, params: tuple = ()):
+        with self._write_lock:
+            return self.conn.execute(sql, params).fetchone()
+
+    def _all(self, sql: str, params: tuple = ()):
+        with self._write_lock:
+            return self.conn.execute(sql, params).fetchall()
 
     @classmethod
     def connect(cls, path: str) -> "Repository":
@@ -128,9 +139,7 @@ class Repository:
             self.conn.commit()
 
     def get_pact(self, pact_id: str) -> Pact | None:
-        row = self.conn.execute(
-            "SELECT data FROM pacts WHERE id = ?", (pact_id,)
-        ).fetchone()
+        row = self._one("SELECT data FROM pacts WHERE id = ?", (pact_id,))
         if row is None:
             return None
         return Pact.model_validate_json(row["data"])
@@ -140,18 +149,16 @@ class Repository:
 
     def list_pacts(self, owner: str | None = None) -> list[Pact]:
         if owner is None:
-            rows = self.conn.execute("SELECT data FROM pacts").fetchall()
+            rows = self._all("SELECT data FROM pacts")
         else:
-            rows = self.conn.execute(
-                "SELECT data FROM pacts WHERE owner = ?", (owner,)
-            ).fetchall()
+            rows = self._all("SELECT data FROM pacts WHERE owner = ?", (owner,))
         return [Pact.model_validate_json(r["data"]) for r in rows]
 
     def due_active_pacts(self, now: datetime) -> list[Pact]:
-        rows = self.conn.execute(
+        rows = self._all(
             "SELECT data FROM pacts WHERE status = ? AND deadline_at <= ?",
             (PactStatus.active.value, now.isoformat()),
-        ).fetchall()
+        )
         return [Pact.model_validate_json(r["data"]) for r in rows]
 
     # --- Proof ---
@@ -168,9 +175,7 @@ class Repository:
             self.conn.commit()
 
     def list_proofs(self, pact_id: str) -> list[Proof]:
-        rows = self.conn.execute(
-            "SELECT data FROM proofs WHERE pact_id = ?", (pact_id,)
-        ).fetchall()
+        rows = self._all("SELECT data FROM proofs WHERE pact_id = ?", (pact_id,))
         return [Proof.model_validate_json(r["data"]) for r in rows]
 
     # --- ReasoningTask ---
@@ -193,9 +198,7 @@ class Repository:
             self.conn.commit()
 
     def get_task(self, task_id: str) -> ReasoningTask | None:
-        row = self.conn.execute(
-            "SELECT data FROM tasks WHERE id = ?", (task_id,)
-        ).fetchone()
+        row = self._one("SELECT data FROM tasks WHERE id = ?", (task_id,))
         if row is None:
             return None
         return ReasoningTask.model_validate_json(row["data"])
@@ -204,15 +207,14 @@ class Repository:
         from pact.models import TaskStatus
 
         if capability is None:
-            rows = self.conn.execute(
-                "SELECT data FROM tasks WHERE status = ?",
-                (TaskStatus.pending.value,),
-            ).fetchall()
+            rows = self._all(
+                "SELECT data FROM tasks WHERE status = ?", (TaskStatus.pending.value,)
+            )
         else:
-            rows = self.conn.execute(
+            rows = self._all(
                 "SELECT data FROM tasks WHERE status = ? AND required_capability = ?",
                 (TaskStatus.pending.value, capability),
-            ).fetchall()
+            )
         return [ReasoningTask.model_validate_json(r["data"]) for r in rows]
 
     def update_task(self, task: ReasoningTask) -> None:
@@ -232,9 +234,7 @@ class Repository:
             self.conn.commit()
 
     def get_verdict(self, pact_id: str) -> Verdict | None:
-        row = self.conn.execute(
-            "SELECT data FROM verdicts WHERE pact_id = ?", (pact_id,)
-        ).fetchone()
+        row = self._one("SELECT data FROM verdicts WHERE pact_id = ?", (pact_id,))
         if row is None:
             return None
         return Verdict.model_validate_json(row["data"])
@@ -253,9 +253,7 @@ class Repository:
             self.conn.commit()
 
     def get_profile(self, owner: str) -> Profile | None:
-        row = self.conn.execute(
-            "SELECT data FROM profiles WHERE owner = ?", (owner,)
-        ).fetchone()
+        row = self._one("SELECT data FROM profiles WHERE owner = ?", (owner,))
         if row is None:
             return None
         return Profile.model_validate_json(row["data"])
@@ -271,9 +269,7 @@ class Repository:
             self.conn.commit()
 
     def get_link_account(self, owner: str) -> LinkAccount | None:
-        row = self.conn.execute(
-            "SELECT data FROM link_accounts WHERE owner = ?", (owner,)
-        ).fetchone()
+        row = self._one("SELECT data FROM link_accounts WHERE owner = ?", (owner,))
         if row is None:
             return None
         return LinkAccount.model_validate_json(row["data"])
@@ -298,16 +294,14 @@ class Repository:
             self.conn.commit()
 
     def list_coaching_messages(self, pact_id: str) -> list[CoachingMessage]:
-        rows = self.conn.execute(
+        rows = self._all(
             "SELECT data FROM coaching_messages WHERE pact_id = ? ORDER BY sent_at",
             (pact_id,),
-        ).fetchall()
+        )
         return [CoachingMessage.model_validate_json(r["data"]) for r in rows]
 
     def get_coaching_message(self, msg_id: str) -> CoachingMessage | None:
-        row = self.conn.execute(
-            "SELECT data FROM coaching_messages WHERE id = ?", (msg_id,)
-        ).fetchone()
+        row = self._one("SELECT data FROM coaching_messages WHERE id = ?", (msg_id,))
         if row is None:
             return None
         return CoachingMessage.model_validate_json(row["data"])
@@ -326,15 +320,15 @@ class Repository:
         placeholders = ",".join("?" * len(pact_ids))
         # Filter by delivered_at IS NULL at the DB level; direction is in the JSON
         # blob so we filter on it in Python after deserialization.
-        rows = self.conn.execute(
+        rows = self._all(
             f"""
             SELECT data FROM coaching_messages
             WHERE pact_id IN ({placeholders})
               AND delivered_at IS NULL
             ORDER BY sent_at
             """,
-            pact_ids,
-        ).fetchall()
+            tuple(pact_ids),
+        )
         msgs = [CoachingMessage.model_validate_json(r["data"]) for r in rows]
         return [m for m in msgs if m.direction == "outbound"]
 
