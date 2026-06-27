@@ -6,6 +6,7 @@ from datetime import datetime
 
 from pact.models import (
     CoachingMessage,
+    LinkAccount,
     Pact,
     PactStatus,
     Profile,
@@ -72,6 +73,11 @@ class Repository:
             );
 
             CREATE TABLE IF NOT EXISTS profiles (
+                owner TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS link_accounts (
                 owner TEXT PRIMARY KEY,
                 data TEXT NOT NULL
             );
@@ -253,6 +259,24 @@ class Repository:
         if row is None:
             return None
         return Profile.model_validate_json(row["data"])
+
+    # --- LinkAccount ---
+
+    def save_link_account(self, acct: LinkAccount) -> None:
+        with self._write_lock:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO link_accounts (owner, data) VALUES (?, ?)",
+                (acct.owner, acct.model_dump_json()),
+            )
+            self.conn.commit()
+
+    def get_link_account(self, owner: str) -> LinkAccount | None:
+        row = self.conn.execute(
+            "SELECT data FROM link_accounts WHERE owner = ?", (owner,)
+        ).fetchone()
+        if row is None:
+            return None
+        return LinkAccount.model_validate_json(row["data"])
 
     # --- CoachingMessage ---
 
