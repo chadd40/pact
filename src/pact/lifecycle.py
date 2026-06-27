@@ -520,6 +520,103 @@ def submit_dispute(
 from pact.repository import Repository
 
 
+def create_pact_structured(
+    *,
+    goal_title: str,
+    goal_template: str | None,
+    days_per_week: int,
+    weeks: int,
+    stake_amount_cents: int,
+    charity_id: str,
+    agent: str | None,
+    consent_acknowledged: bool,
+    owner: str,
+    clock: Clock,
+    settings: Settings,
+    original_prompt: str = "",
+) -> Pact:
+    """Build an ACTIVE pact directly from structured UI inputs.
+
+    Validates consent, stake cap, and charity before constructing the pact so
+    the caller can persist it unconditionally on success.
+    """
+    if not consent_acknowledged:
+        raise ValueError(
+            "consent_acknowledged must be True to start a pact "
+            "(money goes to charity on failure)"
+        )
+    if not (settings.min_stake_cents <= stake_amount_cents <= settings.max_stake_cents):
+        raise ValueError(
+            f"stake {stake_amount_cents} outside caps "
+            f"[{settings.min_stake_cents}, {settings.max_stake_cents}]"
+        )
+    charity = get_charity(charity_id)
+    if charity is None:
+        raise ValueError(f"unknown charity {charity_id!r}")
+    charity_url = charity["donation_url"]
+    if not is_allowed_url(charity_id, charity_url):
+        raise ValueError(f"charity url {charity_url!r} not on allowlist for {charity_id!r}")
+
+    now = clock.now()
+    target_count = days_per_week * weeks
+    deadline_at = now + timedelta(weeks=weeks)
+
+    # A sensible default photo rubric mirroring the TestLLMProvider._draft shape.
+    min_distinct_days = min(max(target_count, 1), max(target_count - 1, 4))
+    # Ensure min_distinct_days never exceeds count_target.
+    min_distinct_days = min(min_distinct_days, target_count)
+    rubric = Rubric(
+        modality=Modality.photo,
+        require_token=True,
+        must_show=["clear evidence the committed action was performed"],
+        reject_if=["stock/watermark", "pure UI screenshot", "missing token"],
+        min_distinct_days=min_distinct_days,
+        count_target=target_count,
+        rest_if_injured_counts=True,
+        rigor_floor={
+            "require_token": True,
+            "min_distinct_days": min_distinct_days,
+            "non_negotiable": [
+                "require_token",
+                "server_time_is_truth",
+                "no_duplicates",
+            ],
+        },
+    )
+
+    template_note = f" (template: {goal_template})" if goal_template else ""
+    goal = (
+        f"Complete the committed action {target_count} times on {target_count} "
+        f"distinct days over {weeks} week{'s' if weeks != 1 else ''}{template_note}."
+    )
+
+    pact_id = new_pact_id(goal_title + now.isoformat() + owner)
+
+    return Pact(
+        id=pact_id,
+        owner=owner,
+        original_prompt=original_prompt or goal_title,
+        title=goal_title,
+        goal=goal,
+        timezone="America/Los_Angeles",
+        deadline_at=deadline_at,
+        target_count=target_count,
+        distinct_days=True,
+        recommended_stake_cents=stake_amount_cents,
+        stake_amount_cents=stake_amount_cents,
+        charity_id=charity_id,
+        charity_url=charity_url,
+        agent=agent,
+        freezes_allowed=settings.default_freezes,
+        freeze_extension_hours=settings.freeze_extension_hours,
+        rubric=rubric,
+        status=PactStatus.active,
+        stake_state=StakeState.committed,
+        created_at=now,
+        started_at=now,
+    )
+
+
 def reconcile_on_startup(
     repo: Repository,
     clock: Clock,
