@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from pact.charities import get_charity
 from pact.clock import Clock
-from pact.coaching import generate_coach_message, should_nudge
+from pact.coaching import donation_nag_message, generate_coach_message, should_nudge
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, settle
+from pact.link import is_owner_connected
 from pact.models import PactStatus, Profile
 from pact.payment import PaymentProvider
 from pact.profile import record_outcome
@@ -53,6 +54,7 @@ def tick(
     settled_ids: list[str] = []
     donated_ids: list[str] = []
     nudged_ids: list[str] = []
+    nagged_ids: list[str] = []
 
     # ── Pass 1: reconcile due active pacts (settle opens windows). ──────────────
     for pact in repo.due_active_pacts(now):
@@ -67,22 +69,29 @@ def tick(
     # verdict, no money) until the window has actually closed, and is idempotent
     # once the donation has executed.
     for pact in repo.list_pacts():
-        if pact.status != PactStatus.failed:
+        # `donation_pending` is included so a pact deferred for a missing funding
+        # source fires its donation on a later tick, once the owner connects Link.
+        if pact.status not in (PactStatus.failed, PactStatus.donation_pending):
             continue
         proofs = repo.list_proofs(pact.id)
         # Snapshot before calling — close_dispute_window mutates pact in place,
         # so checking pact.status after the call would always be equal.
-        was_failed = pact.status == PactStatus.failed
-        updated, verdict = close_dispute_window(pact, proofs, clock, payment, settings)
-        if was_failed and updated.status == PactStatus.donated:
-            # The window just closed on this tick: persist, record the failure,
-            # and report it as donated.
+        was_failed = pact.status in (PactStatus.failed, PactStatus.donation_pending)
+        updated, verdict = close_dispute_window(
+            pact, proofs, clock, payment, settings,
+            link_connected=is_owner_connected(repo, pact.owner),
+        )
+        if was_failed and updated.status in (PactStatus.donated, PactStatus.donation_pending):
+            # The window closed: persist + record the failure (idempotent) at
+            # finalization, regardless of whether the human-approved donation has
+            # executed yet. Only report it as donated if money actually moved.
             repo.update_pact(updated)
             repo.save_verdict(verdict)
             profile = repo.get_profile(updated.owner) or Profile(owner=updated.owner)
             profile = record_outcome(profile, updated, clock)
             repo.save_profile(profile)
-            donated_ids.append(updated.id)
+            if updated.status == PactStatus.donated:
+                donated_ids.append(updated.id)
 
     # ── Pass 3: emit at-most-one coach nudge per active pact. ───────────────────
     provider = _get_fallback_provider()
@@ -101,11 +110,27 @@ def tick(
         repo.save_coaching_message(msg)
         nudged_ids.append(pact.id)
 
+    # ── Pass 4: nag unresolved donations until approved or declined. ────────────
+    # While a missed pact sits at donation_pending, keep one standing reminder in
+    # the outbox. Don't pile up: skip if an undelivered donation_pending nudge is
+    # already queued — once the agent relays + marks it delivered, the next tick
+    # re-arms it. Resolves when the owner approves (donated) or declines.
+    for pact in repo.list_pacts():
+        if pact.status != PactStatus.donation_pending:
+            continue
+        existing = repo.list_coaching_messages(pact.id)
+        if any(m.trigger == "donation_pending" and m.delivered_at is None for m in existing):
+            continue
+        msg = donation_nag_message(pact, clock, _charity_name(pact.charity_id))
+        repo.save_coaching_message(msg)
+        nagged_ids.append(pact.id)
+
     return {
         "now": now.isoformat(),
         "settled": settled_ids,
         "donated": donated_ids,
         "nudged": nudged_ids,
+        "nagged": nagged_ids,
     }
 
 

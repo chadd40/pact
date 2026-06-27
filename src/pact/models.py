@@ -167,6 +167,27 @@ class Profile(BaseModel):
     history: list[dict] = []
 
 
+class LinkAccount(BaseModel):
+    """A per-owner Link funding connection. Pact never holds money (no escrow);
+    'connected' only means a funding source is registered so a charge CAN fire
+    on failure. The funding_ref here is a safe deterministic TEST reference."""
+
+    owner: str
+    connected: bool = False
+    funding_ref: str | None = None
+    connected_at: datetime | None = None
+
+
+class AccountLink(BaseModel):
+    """Ties an external agent to an owner's Pact account. STUB seam for real
+    multi-user agent auth — the token is deterministic per owner and carries no
+    real secret/rotation/expiry today (the app is single-owner / local-first)."""
+
+    owner: str
+    token: str
+    created_at: datetime | None = None
+
+
 class CoachingMessage(BaseModel):
     id: str
     pact_id: str

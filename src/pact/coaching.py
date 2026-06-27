@@ -30,6 +30,30 @@ def _message_id(pact_id: str, direction: str, trigger: str, body: str, sent_iso:
     return "msg_" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:8]
 
 
+def donation_nag_message(pact: Pact, clock: Clock, charity_name: str) -> CoachingMessage:
+    """A standing reminder to resolve a missed pact's donation. Part of
+    'nag until resolved': the agent re-surfaces this until the owner approves the
+    charge in Link or explicitly declines. Trigger 'donation_pending'.
+    """
+    now = clock.now()
+    dollars = pact.stake_amount_cents / 100
+    body = (
+        f'You came up short on "{pact.title}", so ${dollars:.0f} is owed to '
+        f"{charity_name}. Approve the donation in Link to honor your pact — or "
+        f"decline it. It stays open until you resolve it."
+    )
+    return CoachingMessage(
+        id=_message_id(pact.id, "outbound", "donation_pending", body, now.isoformat()),
+        pact_id=pact.id,
+        direction="outbound",
+        trigger="donation_pending",
+        pact_state_snapshot={"status": pact.status.value, "stake_cents": pact.stake_amount_cents},
+        channel="web",
+        body=body,
+        sent_at=now,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Task 4: pace()
 # ---------------------------------------------------------------------------

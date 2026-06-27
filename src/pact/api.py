@@ -4,10 +4,11 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from pact import broker
+from pact.accounts import link_for
 from pact.anticheat import TokenStore
-from pact.charities import CHARITIES
+from pact.charities import CHARITIES, get_charity
 from pact.clock import Clock, FixedClock
-from pact.coaching import user_reply
+from pact.coaching import generate_coach_message, user_reply
 from pact.config import Settings
 from pact.demo import advance_day as demo_advance_day
 from pact.demo import reset as demo_reset
@@ -19,6 +20,7 @@ from pact.lifecycle import (
     close_dispute_window,
     confirm_and_start,
     create_pact_structured,
+    decline_donation,
     draft_pact,
     execute_forfeit_donation,
     new_pact_id,
@@ -29,9 +31,11 @@ from pact.lifecycle import (
     transition,
 )
 from pact.images import save_proof_image, strip_exif
+from pact.link import connect_account, is_owner_connected, new_account
 from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
+from pact.progress import compute_progress
 from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
@@ -45,6 +49,10 @@ from pact.scheduler import tick as scheduler_tick
 # states below are reached only after the window closes. Mirrors scheduler.tick.
 _TERMINAL_STATUSES = {
     PactStatus.succeeded,
+    # donation_pending is reached only AFTER the dispute window closes (no more
+    # overturns), so it's a finalized miss: record the failure now even though the
+    # human-approved donation is still being nagged toward resolution.
+    PactStatus.donation_pending,
     PactStatus.donated,
     PactStatus.donation_failed,
     PactStatus.donation_declined,
@@ -105,6 +113,14 @@ class TaskResultIn(BaseModel):
     result: dict
 
 
+class LinkConnectIn(BaseModel):
+    owner: str
+
+
+class AccountTokenIn(BaseModel):
+    owner: str
+
+
 def create_app(
     repo: Repository,
     provider: ReasoningProvider,
@@ -128,6 +144,19 @@ def create_app(
         profile = repo.get_profile(pact.owner) or Profile(owner=pact.owner)
         profile = record_outcome(profile, pact, clock)
         repo.save_profile(profile)
+
+    def _seed_handoff(pact: Pact) -> None:
+        """When a pact goes live, the assigned agent greets the owner with an
+        opening coaching message — surfaced in both the web thread and the agent
+        outbox. Idempotent: skipped if a handoff already exists for this pact."""
+        if any(m.trigger == "handoff" for m in repo.list_coaching_messages(pact.id)):
+            return
+        charity = get_charity(pact.charity_id)
+        msg = generate_coach_message(
+            pact, repo.list_proofs(pact.id), "handoff", provider, clock,
+            charity["name"] if charity else "charity",
+        )
+        repo.save_coaching_message(msg)
 
     @app.post("/api/pacts/draft")
     def draft(body: DraftIn):
@@ -157,6 +186,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         repo.save_pact(pact)
+        _seed_handoff(pact)
         return pact.model_dump(mode="json")
 
     @app.post("/api/pacts")
@@ -175,6 +205,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc))
         # confirm_and_start already activates; persist as-is.
         repo.update_pact(pact)
+        _seed_handoff(pact)
         return pact.model_dump(mode="json")
 
     @app.post("/api/pacts/{pact_id}/owner")
@@ -196,13 +227,19 @@ def create_app(
         repo.update_pact(pact)
         return pact.model_dump(mode="json")
 
+    def _with_progress(pact: Pact) -> dict:
+        """Pact JSON augmented with the derived `progress` block both surfaces use."""
+        d = pact.model_dump(mode="json")
+        d["progress"] = compute_progress(pact, repo.list_proofs(pact.id), clock.now())
+        return d
+
     @app.get("/api/pacts/{pact_id}")
     def get_pact(pact_id: str):
-        return _require(pact_id).model_dump(mode="json")
+        return _with_progress(_require(pact_id))
 
     @app.get("/api/pacts")
     def list_pacts(owner: str | None = None):
-        return [p.model_dump(mode="json") for p in repo.list_pacts(owner)]
+        return [_with_progress(p) for p in repo.list_pacts(owner)]
 
     @app.post("/api/pacts/{pact_id}/proof-token")
     def proof_token(pact_id: str):
@@ -323,10 +360,12 @@ def create_app(
     def settle_pact(pact_id: str):
         pact = _require(pact_id)
         proofs_list = repo.list_proofs(pact_id)
-        if pact.status == PactStatus.failed:
-            # Already failed: try to close the dispute window (no-op if still open).
+        if pact.status in (PactStatus.failed, PactStatus.donation_pending):
+            # Already failed (or deferred for Link): try to close the dispute window.
+            # The donation fires only if the owner has connected a funding source.
             pact, verdict = close_dispute_window(
-                pact, proofs_list, clock, payment, settings
+                pact, proofs_list, clock, payment, settings,
+                link_connected=is_owner_connected(repo, pact.owner),
             )
         else:
             pact, verdict = settle(pact, proofs_list, clock, payment, settings)
@@ -347,6 +386,20 @@ def create_app(
         repo.save_verdict(verdict)
         _record_terminal(pact)
         return verdict.model_dump(mode="json")
+
+    @app.post("/api/pacts/{pact_id}/decline")
+    def decline(pact_id: str):
+        """Owner explicitly declines a pending donation (the nag-until-resolved
+        exit). The miss was already recorded at finalization; this resolves the
+        open donation so the agent stops nagging."""
+        pact = _require(pact_id)
+        try:
+            pact = decline_donation(pact, clock)
+        except TransitionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        repo.update_pact(pact)
+        _record_terminal(pact)
+        return pact.model_dump(mode="json")
 
     @app.get("/api/pacts/{pact_id}/packet")
     def packet(pact_id: str):
@@ -419,6 +472,35 @@ def create_app(
             prof = Profile(owner=owner)
             repo.save_profile(prof)
         return prof.model_dump(mode="json")
+
+    @app.get("/api/link/status")
+    def link_status(owner: str):
+        acct = repo.get_link_account(owner) or new_account(owner)
+        return {"owner": owner, "connected": acct.connected, "funding_ref": acct.funding_ref}
+
+    @app.post("/api/link/connect")
+    def link_connect(body: LinkConnectIn):
+        # Safe local-first stub: registers a deterministic TEST funding source so
+        # charge-on-fail is permitted. Never touches a real card or moves money.
+        acct = repo.get_link_account(body.owner) or new_account(body.owner)
+        acct = connect_account(acct, clock)
+        repo.save_link_account(acct)
+        return {"owner": acct.owner, "connected": acct.connected, "funding_ref": acct.funding_ref}
+
+    @app.post("/api/account/agent-token")
+    def mint_agent_token(body: AccountTokenIn):
+        # Connect-your-agent seam: mint the token the user pastes into their agent
+        # so it claims this account's pacts. STUB (deterministic per owner).
+        link = link_for(body.owner, clock)
+        repo.save_account_link(link)
+        return {"owner": link.owner, "token": link.token}
+
+    @app.get("/api/account/resolve")
+    def resolve_agent_token(token: str):
+        owner = repo.owner_for_token(token)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="unknown token")
+        return {"owner": owner}
 
     @app.post("/demo/seed")
     def demo_seed_endpoint():
