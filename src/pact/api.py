@@ -420,6 +420,11 @@ def create_app(
             state = "donated"
         elif pact.status == PactStatus.donation_declined:
             state = "declined"
+        elif pact.status == PactStatus.donation_failed:
+            # Provider error during capture (see execute_forfeit_donation): money
+            # did NOT move and the pact is terminal — surfaced so the UI can stop
+            # waiting instead of spinning on a charge that will never land.
+            state = "error"
         elif pact.status == PactStatus.donation_pending:
             state = (
                 "awaiting_approval"

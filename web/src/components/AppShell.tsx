@@ -92,7 +92,11 @@ export function AppShell() {
       {/* ── Main ── */}
       <div className="as-main">
         {pending && (
-          <button className="as-nag" onClick={() => navigate(`/pact/${pending.id}`)}>
+          <button
+            className="as-nag"
+            aria-label={`Resolve your ${dollars(pending.stake_amount_cents)} unresolved donation`}
+            onClick={() => navigate(`/pact/${pending.id}`)}
+          >
             <span className="as-nag-dot" />
             <span className="as-nag-msg">
               Action needed — your {dollars(pending.stake_amount_cents)} stake is unresolved.

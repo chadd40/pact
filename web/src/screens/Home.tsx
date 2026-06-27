@@ -184,7 +184,16 @@ export function Home() {
               const prog = p.progress;
               const behind = prog?.behind ?? false;
               return (
-                <div key={p.id} className="home-card real" style={cardStyle(i)} onClick={() => openCard(p.id)}>
+                <div
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${p.title} — ${dollars(p.stake_amount_cents)} on the line`}
+                  className="home-card real"
+                  style={cardStyle(i)}
+                  onClick={() => openCard(p.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCard(p.id); } }}
+                >
                   <div className="home-card-top">
                     <div className="home-card-glyph"><Glyph name={goalGlyph(p.title)} /></div>
                     <div className={`home-card-flag ${behind ? "risk" : "ok"}`}>
@@ -215,7 +224,15 @@ export function Home() {
               );
             })}
             {/* New pact card */}
-            <div className="home-card new" style={cardStyle(carousel.length)} onClick={() => { if (!suppressClick.current) navigate("/create"); }}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Start a new pact"
+              className="home-card new"
+              style={cardStyle(carousel.length)}
+              onClick={() => { if (!suppressClick.current) navigate("/create"); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/create"); } }}
+            >
               <div className="home-card-new-plus">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="26" height="26"><path d="M12 5v14M5 12h14" /></svg>
               </div>
@@ -268,7 +285,7 @@ function LedgerRow({ pact, charity, onClick }: { pact: Pact; charity?: Charity; 
     ? `Donation due · ${charity?.name ?? "charity"}`
     : `Donated · ${charity?.name ?? "charity"}`;
   return (
-    <button className="home-row" onClick={onClick}>
+    <button className="home-row" onClick={onClick} aria-label={`${pact.title} — ${dest} — ${dollars(pact.stake_amount_cents)}`}>
       <span className={`home-row-icon ${kept ? "kept" : review ? "review" : pending ? "pending" : "missed"}`}>
         {kept ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M5 12.5 10 17l9-11" /></svg>
