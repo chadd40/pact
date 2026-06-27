@@ -7,7 +7,7 @@ import { CoachPane } from "../components/CoachPane";
 import { LinkModal } from "../components/LinkModal";
 import { DeclineModal } from "../components/DeclineModal";
 import { GoalGlyph } from "../components/GoalGlyph";
-import { dollars, formatDate } from "../lib";
+import { dollars, formatDate, pactNo } from "../lib";
 import type { Charity, CoachingMessage, Pact, Packet } from "../types";
 
 const LIVE = new Set(["active", "evaluating"]);
@@ -158,7 +158,7 @@ export function PactDetail() {
             </div>
             <div className="pd-hero-sig">
               <span className="pd-hero-script">pact</span>
-              <span className="pd-hero-no m">No. {pact.id.slice(-4).toUpperCase()}</span>
+              <span className="pd-hero-no m">No. {pactNo(pact.id)}</span>
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
-import { dollars, formatDate } from "../lib";
+import { dollars, formatDate, pactNo } from "../lib";
 import type { Charity, Pact, Profile } from "../types";
 
 const STEP = 210;
@@ -209,7 +209,7 @@ export function Home() {
                   </div>
                   <div className="home-card-foot">
                     <span className="home-card-script">pact</span>
-                    <span className="home-card-no m">No. {p.id.slice(-4).toUpperCase()}</span>
+                    <span className="home-card-no m">No. {pactNo(p.id)}</span>
                   </div>
                 </div>
               );

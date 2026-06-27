@@ -97,3 +97,10 @@ export function pace(pact: Pact, validCount: number, nowMs: number): string {
 export function tokenLine(token: string): string {
   return token;
 }
+
+// A stable 3-digit "No." for a pact card from its id (cosmetic ledger flourish).
+export function pactNo(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return String((h % 900) + 100);
+}
