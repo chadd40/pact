@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:#DED9CF;font-family:'Geist',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+  .m{font-family:'Geist Mono',monospace}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:5px;background:#39362c;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#EFEBE1;cursor:pointer;border:3px solid #16150F;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#EFEBE1;cursor:pointer;border:3px solid #16150F}
+  @keyframes pdots{0%,80%,100%{opacity:.22;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+  @keyframes pfloat{0%{transform:translateY(-6px)}100%{transform:translateY(6px)}}
+  @keyframes shimmer{0%{background-position:140% 0}100%{background-position:-140% 0}}
+</style>
+</helmet>
+
+<div style="position:relative;width:1080px;height:760px;border-radius:26px;overflow:hidden;background:radial-gradient(130% 100% at 50% 6%,#F4F1EA 0%,#E4DFD4 62%,#DAD4C7 100%);box-shadow:0 40px 90px rgba(22,21,15,.22);font-family:'Geist',sans-serif">
+  <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 50% 120%,rgba(22,21,15,.10),transparent 60%)"></div>
+
+  <!-- top brand -->
+  <div style="position:absolute;top:20px;left:28px;z-index:60"><img src="uploads/pact_wordmark.png" alt="pact" style="height:30px;width:auto;display:block" /></div>
+
+  <!-- back -->
+  <div onClick="{{ back }}" style="position:absolute;top:22px;right:26px;z-index:60;height:34px;padding:0 14px;border-radius:9px;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:600;color:#56524a;background:rgba(255,255,255,.5);border:1px solid rgba(22,21,15,.08);opacity:{{ backOpacity }};transition:opacity .4s ease"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M15 6l-6 6 6 6"/></svg>Back</div>
+
+  <!-- carousel heading -->
+  <div style="position:absolute;top:64px;left:0;right:0;text-align:center;z-index:40;opacity:{{ headingOpacity }};transition:opacity .5s ease;pointer-events:none">
+    <div class="m" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#8a8678">New pact · Step 1</div>
+    <div style="margin-top:10px;font-size:30px;font-weight:600;letter-spacing:-.025em;color:#16150F">What are you committing to?</div>
+    <div style="margin-top:7px;font-size:14.5px;color:#6f6a5e">Browse the deck. Click a card to choose it.</div>
+  </div>
+
+  <!-- ====== 3D WORLD ====== -->
+  <div style="position:absolute;inset:0;perspective:1750px;perspective-origin:50% 46%">
+    <div style="position:absolute;inset:0;transform-style:preserve-3d">
+
+      <!-- EMBLEM 0 · Work out -->
+      <div onClick="{{ tap0 }}" style="position:absolute;left:50%;top:50%;width:300px;height:418px;border-radius:22px;overflow:hidden;cursor:pointer;background:#16150F;border:1px solid #2c2a22;box-shadow:0 34px 62px -30px rgba(22,21,15,.5);color:#EFEBE1;transition:transform .7s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ emb0 }}">
+        <div style="position:absolute;inset:0;background:radial-gradient(110% 70% at 22% 8%,rgba(214,178,120,.14),transparent 55%)"></div>
+        <div style="position:relative;height:100%;padding:28px 26px;display:flex;flex-direction:column">
+          <div style="width:54px;height:54px;border-radius:15px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="28" height="28"><path d="M3 9v6M6 7.5v9M18 7.5v9M21 9v6M6 12h12"/></svg></div>
+          <div style="margin-top:auto">
+            <div style="font-size:25px;font-weight:600;letter-spacing:-.02em">Work out</div>
+            <div style="margin-top:5px;font-size:14px;color:#a39d8e">Move your body</div>
+          </div>
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between"><div class="m" style="font-size:10px;letter-spacing:.16em;color:#6f6a5e">pact</div><div class="m" style="font-size:10px;color:#6f6a5e">01</div></div>
+        </div>
+      </div>
+
+      <!-- EMBLEM 1 · Read -->
+      <div onClick="{{ tap1 }}" style="position:absolute;left:50%;top:50%;width:300px;height:418px;border-radius:22px;overflow:hidden;cursor:pointer;background:#16150F;border:1px solid #2c2a22;box-shadow:0 34px 62px -30px rgba(22,21,15,.5);color:#EFEBE1;transition:transform .7s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ emb1 }}">
+        <div style="position:absolute;inset:0;background:radial-gradient(110% 70% at 22% 8%,rgba(214,178,120,.14),transparent 55%)"></div>
+        <div style="position:relative;height:100%;padding:28px 26px;display:flex;flex-direction:column">
+          <div style="width:54px;height:54px;border-radius:15px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="27" height="27"><path d="M5 4a1 1 0 0 1 1-1h12v16H6a1 1 0 0 0-1 1Z"/><path d="M18 3v16"/></svg></div>
+          <div style="margin-top:auto">
+            <div style="font-size:25px;font-weight:600;letter-spacing:-.02em">Read</div>
+            <div style="margin-top:5px;font-size:14px;color:#a39d8e">Feed your mind</div>
+          </div>
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between"><div class="m" style="font-size:10px;letter-spacing:.16em;color:#6f6a5e">pact</div><div class="m" style="font-size:10px;color:#6f6a5e">02</div></div>
+        </div>
+      </div>
+
+      <!-- EMBLEM 2 · Ship daily -->
+      <div onClick="{{ tap2 }}" style="position:absolute;left:50%;top:50%;width:300px;height:418px;border-radius:22px;overflow:hidden;cursor:pointer;background:#16150F;border:1px solid #2c2a22;box-shadow:0 34px 62px -30px rgba(22,21,15,.5);color:#EFEBE1;transition:transform .7s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ emb2 }}">
+        <div style="position:absolute;inset:0;background:radial-gradient(110% 70% at 22% 8%,rgba(214,178,120,.14),transparent 55%)"></div>
+        <div style="position:relative;height:100%;padding:28px 26px;display:flex;flex-direction:column">
+          <div style="width:54px;height:54px;border-radius:15px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="27" height="27"><path d="M13 3 5 13h6l-1 8 8-10h-6l1-8Z"/></svg></div>
+          <div style="margin-top:auto">
+            <div style="font-size:25px;font-weight:600;letter-spacing:-.02em">Ship daily</div>
+            <div style="margin-top:5px;font-size:14px;color:#a39d8e">Build in public</div>
+          </div>
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between"><div class="m" style="font-size:10px;letter-spacing:.16em;color:#6f6a5e">pact</div><div class="m" style="font-size:10px;color:#6f6a5e">03</div></div>
+        </div>
+      </div>
+
+      <!-- EMBLEM 3 · Meditate -->
+      <div onClick="{{ tap3 }}" style="position:absolute;left:50%;top:50%;width:300px;height:418px;border-radius:22px;overflow:hidden;cursor:pointer;background:#16150F;border:1px solid #2c2a22;box-shadow:0 34px 62px -30px rgba(22,21,15,.5);color:#EFEBE1;transition:transform .7s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ emb3 }}">
+        <div style="position:absolute;inset:0;background:radial-gradient(110% 70% at 22% 8%,rgba(214,178,120,.14),transparent 55%)"></div>
+        <div style="position:relative;height:100%;padding:28px 26px;display:flex;flex-direction:column">
+          <div style="width:54px;height:54px;border-radius:15px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="27" height="27"><path d="M5 19c8 1 14-5 14-14 0 0-13-1-13 8a6 6 0 0 0 2 6Z"/></svg></div>
+          <div style="margin-top:auto">
+            <div style="font-size:25px;font-weight:600;letter-spacing:-.02em">Meditate</div>
+            <div style="margin-top:5px;font-size:14px;color:#a39d8e">Find some quiet</div>
+          </div>
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between"><div class="m" style="font-size:10px;letter-spacing:.16em;color:#6f6a5e">pact</div><div class="m" style="font-size:10px;color:#6f6a5e">04</div></div>
+        </div>
+      </div>
+
+      <!-- EMBLEM 4 · No phone -->
+      <div onClick="{{ tap4 }}" style="position:absolute;left:50%;top:50%;width:300px;height:418px;border-radius:22px;overflow:hidden;cursor:pointer;background:#16150F;border:1px solid #2c2a22;box-shadow:0 34px 62px -30px rgba(22,21,15,.5);color:#EFEBE1;transition:transform .7s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ emb4 }}">
+        <div style="position:absolute;inset:0;background:radial-gradient(110% 70% at 22% 8%,rgba(214,178,120,.14),transparent 55%)"></div>
+        <div style="position:relative;height:100%;padding:28px 26px;display:flex;flex-direction:column">
+          <div style="width:54px;height:54px;border-radius:15px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="27" height="27"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/></svg></div>
+          <div style="margin-top:auto">
+            <div style="font-size:25px;font-weight:600;letter-spacing:-.02em">No phone at night</div>
+            <div style="margin-top:5px;font-size:14px;color:#a39d8e">Reclaim your evenings</div>
+          </div>
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between"><div class="m" style="font-size:10px;letter-spacing:.16em;color:#6f6a5e">pact</div><div class="m" style="font-size:10px;color:#6f6a5e">05</div></div>
+        </div>
+      </div>
+
+      <!-- EMBLEM 5 · Custom (glassy) -->
+      <div onClick="{{ tap5 }}" style="position:absolute;left:50%;top:50%;width:300px;height:418px;border-radius:22px;overflow:hidden;cursor:pointer;background:linear-gradient(155deg,rgba(245,242,235,.17),rgba(245,242,235,.04));border:1.5px dashed rgba(239,235,225,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 34px 62px -30px rgba(22,21,15,.45);color:#EFEBE1;transition:transform .7s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ emb5 }}">
+        <div style="position:relative;height:100%;padding:28px 26px;display:flex;flex-direction:column">
+          <div style="width:54px;height:54px;border-radius:15px;background:rgba(239,235,225,.16);border:1px solid rgba(239,235,225,.4);color:#EFEBE1;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="27" height="27"><path d="M12 5v14M5 12h14"/></svg></div>
+          <div style="margin-top:auto">
+            <div style="font-size:25px;font-weight:600;letter-spacing:-.02em">Custom goal</div>
+            <div style="margin-top:5px;font-size:14px;color:rgba(239,235,225,.7)">Make your own</div>
+          </div>
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between"><div class="m" style="font-size:10px;letter-spacing:.16em;color:rgba(239,235,225,.55)">pact</div><div class="m" style="font-size:10px;color:rgba(239,235,225,.55)">+</div></div>
+        </div>
+      </div>
+
+      <!-- ====== DETAIL CARD ====== -->
+      <div style="position:absolute;left:50%;top:50%;animation:pfloat 6s ease-in-out infinite alternate">
+        <div onClick="{{ cardTap }}" style="width:404px;height:566px;border-radius:24px;overflow:hidden;background:#16150F;border:1px solid #2c2a22;box-shadow:0 60px 100px -30px rgba(22,21,15,.65);color:#EFEBE1;transition:transform .8s cubic-bezier(.22,.61,.36,1),opacity .5s ease;backface-visibility:hidden;{{ detailStyle }}">
+          <div style="position:absolute;inset:0;background:radial-gradient(110% 60% at 20% 4%,rgba(214,178,120,.13),transparent 52%),radial-gradient(90% 60% at 95% 100%,rgba(47,122,85,.10),transparent 55%),repeating-linear-gradient(135deg,rgba(239,235,225,.028) 0 1px,transparent 1px 10px);pointer-events:none"></div>
+
+          <div style="position:relative;height:100%;padding:26px 28px;display:flex;flex-direction:column">
+            <!-- header -->
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:13px">
+                <div style="width:46px;height:46px;border-radius:13px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center">
+                  <sc-if value="{{ gi0 }}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><path d="M3 9v6M6 7.5v9M18 7.5v9M21 9v6M6 12h12"/></svg></sc-if>
+                  <sc-if value="{{ gi1 }}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="23" height="23"><path d="M5 4a1 1 0 0 1 1-1h12v16H6a1 1 0 0 0-1 1Z"/><path d="M18 3v16"/></svg></sc-if>
+                  <sc-if value="{{ gi2 }}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="23" height="23"><path d="M13 3 5 13h6l-1 8 8-10h-6l1-8Z"/></svg></sc-if>
+                  <sc-if value="{{ gi3 }}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="23" height="23"><path d="M5 19c8 1 14-5 14-14 0 0-13-1-13 8a6 6 0 0 0 2 6Z"/></svg></sc-if>
+                  <sc-if value="{{ gi4 }}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="23" height="23"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/></svg></sc-if>
+                  <sc-if value="{{ gi5 }}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="23" height="23"><path d="M12 5v14M5 12h14"/></svg></sc-if>
+                </div>
+                <div>
+                  <div style="font-size:21px;font-weight:600;letter-spacing:-.02em">{{ goalName }}</div>
+                  <div class="m" style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7d7768;margin-top:2px">Pact · No. 001</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#2c2a22;margin:20px 0 16px"></div>
+
+            <div style="opacity:{{ zonesOpacity }};transition:opacity .55s ease">
+            <!-- ZONE: FREQUENCY -->
+            <div style="border-radius:14px;padding:14px 15px;{{ zoneFreq }}">
+              <div class="m" style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a8474">Frequency</div>
+              <sc-if value="{{ freqShimmer }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:12px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                    <div style="width:104px;height:36px;border-radius:9px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div>
+                    <div style="display:flex;gap:8px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div></div>
+                  </div>
+                  <div style="margin-top:14px;display:flex;gap:5px">
+                    <div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:30px;border-radius:7px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.14) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div>
+                  </div>
+                  <div style="margin-top:16px;height:1px;background:#2c2a22"></div>
+                  <div style="margin-top:14px;width:72px;height:11px;border-radius:5px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div>
+                  <div style="margin-top:11px;display:flex;gap:6px"><div style="flex:1;height:42px;border-radius:10px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.13) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:42px;border-radius:10px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.13) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:42px;border-radius:10px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.13) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="flex:1;height:42px;border-radius:10px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.13) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ freqActive }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between">
+                    <div style="display:flex;align-items:baseline;gap:9px">
+                      <div class="m" style="font-size:48px;font-weight:600;line-height:.82;color:#FBF7EE">{{ days }}</div>
+                      <div style="font-size:12.5px;color:#a39d8e;line-height:1.15">days<br>a week</div>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                      <div onClick="{{ decDays }}" style="width:40px;height:40px;border-radius:12px;border:1px solid #39362c;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#EFEBE1;font-size:24px;user-select:none">−</div>
+                      <div onClick="{{ incDays }}" style="width:40px;height:40px;border-radius:12px;border:1px solid #39362c;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#EFEBE1;font-size:21px;user-select:none">+</div>
+                    </div>
+                  </div>
+                  <div style="margin-top:14px;display:flex;gap:5px">
+                    <div style="{{ bar1 }}"></div><div style="{{ bar2 }}"></div><div style="{{ bar3 }}"></div><div style="{{ bar4 }}"></div><div style="{{ bar5 }}"></div><div style="{{ bar6 }}"></div><div style="{{ bar7 }}"></div>
+                  </div>
+                  <div style="margin-top:16px;height:1px;background:#2c2a22"></div>
+                  <div class="m" style="margin-top:14px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a8474">Commit for</div>
+                  <div style="margin-top:9px;display:flex;gap:6px">
+                    <div onClick="{{ setW1 }}" style="{{ w1 }}">1 wk</div>
+                    <div onClick="{{ setW4 }}" style="{{ w4 }}">4 wks</div>
+                    <div onClick="{{ setW8 }}" style="{{ w8 }}">8 wks</div>
+                    <div onClick="{{ setW12 }}" style="{{ w12 }}">12 wks</div>
+                  </div>
+                  <div class="m" style="margin-top:11px;font-size:11px;color:#7d7768">= {{ checkins }} check-ins over the pact</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ freqDone }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:10px;display:flex;align-items:center;gap:7px">
+                  <span class="m" style="font-size:13px;font-weight:600;color:#EFEBE1;background:rgba(239,235,225,.08);border:1px solid #39362c;border-radius:8px;padding:6px 11px">{{ daysPerWeekLabel }}</span>
+                  <span class="m" style="font-size:13px;font-weight:600;color:#EFEBE1;background:rgba(239,235,225,.08);border:1px solid #39362c;border-radius:8px;padding:6px 11px">{{ weeksLabel }}</span>
+                </div>
+              </sc-if>
+            </div>
+
+            <!-- ZONE: STAKE -->
+            <div style="margin-top:11px;border-radius:14px;padding:14px 15px;{{ zoneStake }}">
+              <div class="m" style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a8474">On the line</div>
+              <sc-if value="{{ stakeGhost }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:9px;width:150px;height:42px;border-radius:10px;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div>
+              </sc-if>
+              <sc-if value="{{ stakeActive }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div class="m" style="margin-top:6px;font-size:46px;line-height:0.9;font-weight:600;letter-spacing:-.02em;color:#FBF7EE">{{ stakeStr }}</div>
+                  <div style="margin-top:14px"><input type="range" min="10" max="1000" step="10" value="{{ stake }}" onChange="{{ onStake }}" style="width:100%"></div>
+                  <div style="margin-top:12px;display:flex;gap:6px">
+                    <div onClick="{{ setS50 }}" style="{{ p50 }}">$50</div>
+                    <div onClick="{{ setS100 }}" style="{{ p100 }}">$100</div>
+                    <div onClick="{{ setS200 }}" style="{{ p200 }}">$200</div>
+                    <div onClick="{{ setS500 }}" style="{{ p500 }}">$500</div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ stakeDone }}" hint-placeholder-val="{{ false }}">
+                <div class="m" style="margin-top:6px;font-size:40px;line-height:0.9;font-weight:600;letter-spacing:-.02em;color:#FBF7EE">{{ stakeStr }}</div>
+              </sc-if>
+            </div>
+
+            <!-- ZONE: STAMP / CHARITY -->
+            <div style="margin-top:11px;border-radius:14px;padding:14px 15px;{{ zoneStamp }}">
+              <div class="m" style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a8474">If you miss, it goes to</div>
+              <sc-if value="{{ stampGhost }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:11px;display:flex;gap:9px"><div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(100deg,rgba(239,235,225,.05) 30%,rgba(239,235,225,.16) 50%,rgba(239,235,225,.05) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div></div>
+              </sc-if>
+              <sc-if value="{{ stampActive }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="margin-top:11px;display:flex;gap:9px">
+                    <div onClick="{{ pickBooks }}" title="Books for Africa" style="{{ chBooks }}">B</div>
+                    <div onClick="{{ pickRelief }}" title="Direct Relief" style="{{ chRelief }}">D</div>
+                    <div onClick="{{ pickGive }}" title="GiveDirectly" style="{{ chGive }}">G</div>
+                    <div onClick="{{ pickTree }}" title="One Tree Planted" style="{{ chTree }}">T</div>
+                    <div onClick="{{ pickFeed }}" title="Feeding America" style="{{ chFeed }}">F</div>
+                  </div>
+                  <div style="margin-top:11px;font-size:14px;font-weight:600;color:#FBF7EE">{{ charityLabel }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ stampDone }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:9px;display:flex;align-items:center;gap:9px"><span style="width:9px;height:9px;border-radius:50%;background:{{ charityAccent }}"></span><span style="font-size:16px;font-weight:600;color:#FBF7EE">{{ charityName }}</span></div>
+              </sc-if>
+            </div>
+            </div>
+
+            <!-- footer signature -->
+            <div style="margin-top:auto;padding-top:14px;border-top:1px solid #2c2a22;display:flex;align-items:flex-end;justify-content:space-between">
+              <div style="font-family:'Caveat',cursive;font-size:30px;line-height:0.8;color:#6f6a5e">pact</div>
+              <div class="m" style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#5f5a4f">Binding once signed</div>
+            </div>
+          </div>
+
+          <!-- STAMP BADGE -->
+          <div style="position:absolute;right:22px;bottom:84px;width:74px;height:74px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:transform .5s cubic-bezier(.2,1.4,.4,1),opacity .4s ease;{{ stampBadge }}">
+            <div style="position:absolute;inset:0;border-radius:50%;border:2px dashed {{ charityAccent }};opacity:.85"></div>
+            <div style="position:absolute;inset:7px;border-radius:50%;border:1px solid {{ charityAccent }};opacity:.5"></div>
+            <div style="font-size:26px;font-weight:700;color:{{ charityAccent }};font-family:'Geist'">{{ charityInitial }}</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- carousel arrows -->
+  <div onClick="{{ cPrev }}" style="position:absolute;left:40px;top:50%;transform:translateY(-50%);z-index:55;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.7);border:1px solid rgba(22,21,15,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#16150F;opacity:{{ arrowOpacity }};transition:opacity .4s ease;box-shadow:0 6px 18px rgba(22,21,15,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M15 6l-6 6 6 6"/></svg></div>
+  <div onClick="{{ cNext }}" style="position:absolute;right:40px;top:50%;transform:translateY(-50%);z-index:55;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.7);border:1px solid rgba(22,21,15,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#16150F;opacity:{{ arrowOpacity }};transition:opacity .4s ease;box-shadow:0 6px 18px rgba(22,21,15,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M9 6l6 6-6 6"/></svg></div>
+
+  <!-- choose pill (carousel) -->
+  <div onClick="{{ chooseActive }}" style="position:absolute;left:50%;bottom:54px;transform:translateX(-50%);z-index:55;height:50px;padding:0 28px;border-radius:999px;background:#16150F;color:#fff;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:15px;font-weight:600;box-shadow:0 12px 30px rgba(22,21,15,.28);opacity:{{ chooseOpacity }};transition:opacity .4s ease;pointer-events:{{ choosePE }}">Choose this card <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M5 12h13M12 6l6 6-6 6"/></svg></div>
+
+  <!-- control bar (stages 1-3) -->
+  <div style="position:absolute;left:0;right:0;bottom:0;z-index:55;padding:18px 30px;display:flex;align-items:center;justify-content:space-between;opacity:{{ barOpacity }};transition:opacity .4s ease;pointer-events:{{ barPE }}">
+    <div class="m" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a8678">{{ stepName }}</div>
+    <div onClick="{{ next }}" style="height:48px;padding:0 26px;border-radius:12px;background:#16150F;color:#fff;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:15px;font-weight:600;box-shadow:0 10px 26px rgba(22,21,15,.26);opacity:{{ continueOpacity }}">{{ continueLabel }} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h13M12 6l6 6-6 6"/></svg></div>
+  </div>
+
+  <!-- AGENT PANEL (stage 4) -->
+  <div style="position:absolute;left:0;right:0;bottom:0;z-index:54;padding:0 40px 40px;opacity:{{ agentOpacity }};transform:translateY({{ agentShift }});transition:opacity .5s ease,transform .6s cubic-bezier(.2,.7,.2,1);pointer-events:{{ agentPE }}">
+    <div style="text-align:center;margin-bottom:18px">
+      <div style="font-size:24px;font-weight:600;letter-spacing:-.02em;color:#16150F">Who's keeping you honest?</div>
+      <div style="margin-top:5px;font-size:14px;color:#6f6a5e">Your agent verifies proof and coaches you. Pick one to seal the pact.</div>
+    </div>
+    <div style="display:flex;gap:14px;max-width:760px;margin:0 auto">
+      <div onClick="{{ pickHermes }}" style="flex:1;background:#fff;border:1px solid #E2DDD2;border-radius:16px;padding:18px;cursor:pointer;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 8px 22px rgba(22,21,15,.08)">
+        <div style="width:46px;height:46px;border-radius:13px;background:#16150F;color:#fff;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/></svg></div>
+        <div style="margin-top:11px;font-size:15.5px;font-weight:600;color:#16150F">Hermes</div>
+        <div style="margin-top:3px;font-size:12px;color:#8a857a">Your built-in coach</div>
+        <div class="m" style="margin-top:9px;font-size:9px;font-weight:500;background:#F1EFE9;color:#56524a;border-radius:6px;padding:3px 8px;text-transform:uppercase;letter-spacing:.05em">Recommended</div>
+      </div>
+      <div onClick="{{ pickClaude }}" style="flex:1;background:#fff;border:1px solid #E2DDD2;border-radius:16px;padding:18px;cursor:pointer;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 8px 22px rgba(22,21,15,.08)">
+        <div style="width:46px;height:46px;border-radius:13px;background:#F1EFE9;color:#56524a;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg></div>
+        <div style="margin-top:11px;font-size:15.5px;font-weight:600;color:#16150F">Claude Code</div>
+        <div style="margin-top:3px;font-size:12px;color:#8a857a">From your dev workflow</div>
+        <div class="m" style="margin-top:9px;font-size:9px;font-weight:500;color:#8a857a;border:1px solid #E2DDD2;border-radius:6px;padding:3px 8px;text-transform:uppercase;letter-spacing:.05em">Connect</div>
+      </div>
+      <div onClick="{{ pickBYO }}" style="flex:1;background:#fff;border:1px solid #E2DDD2;border-radius:16px;padding:18px;cursor:pointer;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 8px 22px rgba(22,21,15,.08)">
+        <div style="width:46px;height:46px;border-radius:13px;background:#F1EFE9;color:#56524a;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6M12 9v6"/></svg></div>
+        <div style="margin-top:11px;font-size:15.5px;font-weight:600;color:#16150F">Your own agent</div>
+        <div style="margin-top:3px;font-size:12px;color:#8a857a">Any MCP agent, via API</div>
+        <div class="m" style="margin-top:9px;font-size:9px;font-weight:500;color:#8a857a;border:1px solid #E2DDD2;border-radius:6px;padding:3px 8px;text-transform:uppercase;letter-spacing:.05em">Connect</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SENDING (stage 5) -->
+  <div style="position:absolute;left:0;right:0;bottom:120px;z-index:53;text-align:center;opacity:{{ sendOpacity }};transition:opacity .4s ease;pointer-events:none">
+    <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.7);border:1px solid rgba(22,21,15,.08);border-radius:999px;padding:11px 20px;backdrop-filter:blur(8px)">
+      <span class="m" style="font-size:13px;font-weight:500;color:#16150F">Handing your pact to {{ agentName }}</span>
+      <span style="display:inline-flex;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#16150F;animation:pdots 1.2s infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:#16150F;animation:pdots 1.2s infinite .2s"></span><span style="width:6px;height:6px;border-radius:50%;background:#16150F;animation:pdots 1.2s infinite .4s"></span></span>
+    </div>
+  </div>
+
+  <!-- MESSAGE (stage 6) -->
+  <div style="position:absolute;inset:0;z-index:58;display:flex;align-items:center;justify-content:center;padding:40px;opacity:{{ msgOpacity }};transition:opacity .6s ease;pointer-events:{{ msgPE }}">
+    <div style="width:480px;background:#F6F4EF;border-radius:22px;box-shadow:0 40px 90px rgba(22,21,15,.3);overflow:hidden;transform:translateY({{ msgShift }});transition:transform .6s cubic-bezier(.2,.7,.2,1)">
+      <div style="background:#16150F;padding:18px 22px;display:flex;align-items:center;gap:12px">
+        <div style="width:40px;height:40px;border-radius:11px;background:#EFEBE1;color:#16150F;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/></svg></div>
+        <div><div style="font-size:15px;font-weight:600;color:#F6F4EF">{{ agentName }}</div><div style="font-size:12px;color:#9a9488;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#7FB99B"></span>Now coaching your pact</div></div>
+      </div>
+      <div style="padding:24px 24px 26px">
+        <div style="background:#fff;border:1px solid #E6E2D8;border-radius:16px 16px 16px 5px;padding:16px 18px;font-size:15.5px;line-height:1.55;color:#27261f">Let's go — we've got a pact. {{ stakeStr }} is on the line behind <b>{{ goalNameLower }}</b>, {{ freqSummary }}. I'll get you started: your <b>first check-in is tomorrow</b>. Miss it and {{ charityName }} gets paid — so let's not.</div>
+        <div style="margin-top:18px;display:flex;gap:11px">
+          <div onClick="{{ restart }}" style="flex:1;height:50px;border-radius:12px;background:#16150F;color:#fff;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;font-size:15px;font-weight:600">Open my pact <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M5 12h13M12 6l6 6-6 6"/></svg></div>
+          <div onClick="{{ restart }}" style="height:50px;padding:0 18px;border-radius:12px;background:transparent;border:1px solid #D8D2C6;color:#56524a;display:flex;align-items:center;cursor:pointer;font-size:14px;font-weight:600">Replay</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1080,&quot;height&quot;:760}}">
+class Component extends DCLogic {
+  templates = ['Work out','Read','Ship daily','Meditate','No phone at night','Custom goal'];
+  charityMap = {
+    Books:{name:'Books for Africa', initial:'B', accent:'#D98A5C', cat:'Education · literacy'},
+    Relief:{name:'Direct Relief', initial:'D', accent:'#7FB99B', cat:'Health · emergency'},
+    Give:{name:'GiveDirectly', initial:'G', accent:'#8AB4E0', cat:'Poverty · cash aid'},
+    Tree:{name:'One Tree Planted', initial:'T', accent:'#9CC275', cat:'Climate · forests'},
+    Feed:{name:'Feeding America', initial:'F', accent:'#E0B266', cat:'Hunger · food banks'}
+  };
+  state = { stage:0, active:0, goalIndex:null, days:5, weeks:4, stake:200, charity:null, freqUp:false, zonesShown:true };
+
+  componentDidUpdate(pp, ps){
+    if(ps.active !== this.state.active && this.state.stage===0){
+      this.setState({ zonesShown:false });
+      requestAnimationFrame(()=>requestAnimationFrame(()=>this.setState({ zonesShown:true })));
+    }
+  }
+
+  tap = (i) => { if(this.state.stage!==0) return; if(i!==this.state.active) this.setState({active:i}); else this.select(i); };
+  select = (i) => { this.setState({ goalIndex:i, stage:1, freqUp:false }); clearTimeout(this._ft); this._ft = setTimeout(() => { if(this.state.stage===1) this.setState({ freqUp:true }); }, 820); };
+  chooseActive = () => this.select(this.state.active);
+  cPrev = () => this.setState(s => ({ active: Math.max(0, s.active-1) }));
+  cNext = () => this.setState(s => ({ active: Math.min(this.templates.length-1, s.active+1) }));
+  next = () => this.setState(s => ({ stage: Math.min(4, s.stage+1) }));
+  back = () => this.setState(s => ({ stage: Math.max(0, s.stage-1) }));
+  pickAgent = (name) => { this.setState({ agent:name, stage:5 }); setTimeout(() => this.setState({ stage:6 }), 1200); };
+  restart = () => this.setState({ stage:0, active:0, goalIndex:null, days:5, weeks:4, stake:200, charity:null, agent:null });
+  incDays = () => this.setState(s => ({ days: Math.min(7, s.days+1) }));
+  decDays = () => this.setState(s => ({ days: Math.max(1, s.days-1) }));
+  cardTap = () => { if(this.state.stage===0) this.select(this.state.active); };
+
+  emb(i) {
+    const s = this.state, base = 'translate(-50%,-50%)';
+    if (s.stage === 0) {
+      const off = i - s.active, a = Math.abs(off);
+      const tx = off*232, tz = -a*148, ry = off*-33, sc = Math.max(0.66, 1 - a*0.12);
+      return `transform:${base} translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg) scale(${sc});opacity:${a>2?0:1};z-index:${100-a};transition:transform .55s cubic-bezier(.32,.62,.3,1),opacity 0s;`;
+    }
+    // selected emblem vanishes quickly; the detail card grows up in its place with the shimmer fading in
+    if (i === s.goalIndex) return `transform:${base} scale(.94);opacity:0;z-index:40;pointer-events:none;transition:opacity 0s;`;
+    // side cards continue the carousel's rotation one step further outward, then fade — smooth, immediate
+    const off = i - s.goalIndex, t = off + (off>0?1:-1), a = Math.abs(t);
+    const tx = t*232, tz = -a*148, ry = t*-33, sc = Math.max(0.6, 1 - a*0.12);
+    return `transform:${base} translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg) scale(${sc});opacity:0;z-index:${20-a};pointer-events:none;transition:transform .5s cubic-bezier(.32,.62,.3,1),opacity 0s;`;
+  }
+
+  renderVals() {
+    const s = this.state, T = this.templates;
+    const SELd = 'background:#EFEBE1;border:1px solid #EFEBE1;color:#16150F;';
+    const UNd  = 'background:transparent;border:1px solid #39362c;color:#cdc7b8;';
+    const pillBase = 'flex:1;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;font-weight:600;transition:all .15s;';
+    const dpill = d => pillBase + (s.days===d?SELd:UNd);
+    const wpill = w => pillBase + 'font-size:12.5px;' + (s.weeks===w?SELd:UNd);
+    const spBase = 'flex:1;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;';
+    const sp = v => spBase + (s.stake===v?SELd:UNd);
+    const ch = this.charityMap[s.charity] || { name:'', initial:'', accent:'#8a8474', cat:'' };
+    const chipBase = 'width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-weight:700;font-family:Geist;transition:all .2s;';
+    const chip = key => {
+      const c = this.charityMap[key];
+      return chipBase + (s.charity===key
+        ? `background:${c.accent};color:#16150F;border:2px solid ${c.accent};transform:scale(1.08);`
+        : `background:rgba(239,235,225,.08);color:#a39d8e;border:1px solid #39362c;`);
+    };
+    const weeksWord = s.weeks===1 ? 'week' : 'weeks';
+    const bar = n => 'flex:1;height:30px;border-radius:7px;transition:all .25s ease;' + (s.days>=n ? 'background:#EFEBE1;border:1px solid #EFEBE1;' : 'background:rgba(239,235,225,.05);border:1px solid #2c2a22;');
+    const gidx = s.goalIndex==null ? s.active : s.goalIndex;
+    const goalName = T[gidx];
+
+    // detail card transform per stage
+    const base = 'translate(-50%,-50%)';
+    let detailStyle;
+    if (s.stage===0)      detailStyle = `transform:${base} scale(.74);opacity:0;pointer-events:none;transition:transform .55s cubic-bezier(.32,.62,.3,1),opacity .42s ease;`;
+    else if (s.stage<=3)  detailStyle = `transform:${base} scale(1);opacity:1;pointer-events:auto;transition:transform .6s cubic-bezier(.3,.68,.32,1),opacity .5s ease;`;
+    else if (s.stage===4) detailStyle = `transform:${base} translateY(-128px) scale(.76);opacity:1;pointer-events:auto;`;
+    else                  detailStyle = `transform:${base} translateY(-150px) scale(.42);opacity:0;pointer-events:none;`;
+
+    const zone = (n) => {
+      const active = s.stage===n, reached = s.stage>=n;
+      const op = reached ? 1 : 0.72;
+      const border = active ? '1px solid rgba(214,178,120,.6)' : '1px solid #2c2a22';
+      const bg = active ? 'rgba(214,178,120,.07)' : 'transparent';
+      return `opacity:${op};border:${border};background:${bg};transition:all .5s ease;`;
+    };
+    const stampOn = !!s.charity;
+
+    return {
+      // emblems
+      emb0:this.emb(0), emb1:this.emb(1), emb2:this.emb(2), emb3:this.emb(3), emb4:this.emb(4), emb5:this.emb(5),
+      tap0:()=>this.tap(0), tap1:()=>this.tap(1), tap2:()=>this.tap(2), tap3:()=>this.tap(3), tap4:()=>this.tap(4), tap5:()=>this.tap(5),
+      cPrev:this.cPrev, cNext:this.cNext, chooseActive:this.chooseActive, back:this.back, next:this.next, restart:this.restart,
+      // carousel chrome visibility
+      headingOpacity: s.stage===0?1:0,
+      arrowOpacity: s.stage===0?1:0,
+      chooseOpacity: s.stage===0?1:0, choosePE: s.stage===0?'auto':'none',
+      backOpacity: (s.stage>=1 && s.stage<=4)?1:0,
+      // detail card
+      detailStyle,
+      goalName, goalNameLower: goalName.toLowerCase(),
+      gi0:gidx===0, gi1:gidx===1, gi2:gidx===2, gi3:gidx===3, gi4:gidx===4, gi5:gidx===5,
+      // zones
+      zoneFreq: zone(1), zoneStake: zone(2), zoneStamp: zone(3),
+      freqShimmer: s.stage===1 && !s.freqUp, freqActive: s.stage===1 && s.freqUp, freqDone: s.stage>1,
+      zonesOpacity: s.zonesShown ? 1 : 0,
+      cardTap: this.cardTap,
+      stakeGhost: s.stage<2, stakeActive: s.stage===2, stakeDone: s.stage>2,
+      stampGhost: s.stage<3, stampActive: s.stage===3, stampDone: s.stage>3,
+      // frequency controls
+      d3:dpill(3), d4:dpill(4), d5:dpill(5), d6:dpill(6), d7:dpill(7),
+      setDay3:()=>this.setState({days:3}), setDay4:()=>this.setState({days:4}), setDay5:()=>this.setState({days:5}), setDay6:()=>this.setState({days:6}), setDay7:()=>this.setState({days:7}),
+      w1:wpill(1), w4:wpill(4), w8:wpill(8), w12:wpill(12),
+      setW1:()=>this.setState({weeks:1}), setW4:()=>this.setState({weeks:4}), setW8:()=>this.setState({weeks:8}), setW12:()=>this.setState({weeks:12}),
+      freqSummary: s.days + ' days/week · ' + s.weeks + ' ' + weeksWord,
+      days:s.days, weeks:s.weeks, weeksLabel: s.weeks + ' ' + weeksWord, daysPerWeekLabel: s.days + '\u00D7 / week', checkins: s.days*s.weeks,
+      incDays:this.incDays, decDays:this.decDays,
+      bar1:bar(1), bar2:bar(2), bar3:bar(3), bar4:bar(4), bar5:bar(5), bar6:bar(6), bar7:bar(7),
+      // stake
+      stake:s.stake, stakeStr:'$'+s.stake,
+      onStake:(e)=>this.setState({stake:+e.target.value}),
+      p50:sp(50), p100:sp(100), p200:sp(200), p500:sp(500),
+      setS50:()=>this.setState({stake:50}), setS100:()=>this.setState({stake:100}), setS200:()=>this.setState({stake:200}), setS500:()=>this.setState({stake:500}),
+      // charity
+      chBooks:chip('Books'), chRelief:chip('Relief'), chGive:chip('Give'), chTree:chip('Tree'), chFeed:chip('Feed'),
+      pickBooks:()=>this.setState({charity:'Books'}), pickRelief:()=>this.setState({charity:'Relief'}), pickGive:()=>this.setState({charity:'Give'}), pickTree:()=>this.setState({charity:'Tree'}), pickFeed:()=>this.setState({charity:'Feed'}),
+      charityName: ch.name, charityInitial: ch.initial, charityAccent: ch.accent,
+      charityLabel: s.charity ? (ch.name + ' · ' + ch.cat) : 'Tap a cause to stamp it on',
+      stampBadge: stampOn ? 'opacity:1;transform:rotate(-9deg) scale(1);' : 'opacity:0;transform:rotate(-9deg) scale(1.5);',
+      // control bar
+      barOpacity: (s.stage>=1 && s.stage<=3)?1:0, barPE: (s.stage>=1 && s.stage<=3)?'auto':'none',
+      stepName: s.stage===1?'Frequency':(s.stage===2?'On the line':(s.stage===3?'The stamp':'')),
+      continueLabel: s.stage===3?'Seal it':'Continue',
+      continueOpacity: (s.stage===3 && !s.charity)?0.4:1,
+      // agent panel
+      agentOpacity: s.stage===4?1:0, agentPE: s.stage===4?'auto':'none', agentShift: s.stage===4?'0px':'18px',
+      pickHermes:()=>this.pickAgent('Hermes'), pickClaude:()=>this.pickAgent('Claude Code'), pickBYO:()=>this.pickAgent('your agent'),
+      // sending + message
+      sendOpacity: s.stage===5?1:0,
+      agentName: s.agent || 'Hermes',
+      msgOpacity: s.stage===6?1:0, msgPE: s.stage===6?'auto':'none', msgShift: s.stage===6?'0px':'14px'
+    };
+  }
+}
+</script>
+</body>
+</html>
