@@ -97,6 +97,8 @@ class CreateIn(BaseModel):
     agent: str | None = None
     consent_acknowledged: bool = False
     owner: str | None = None
+    # Custom goals: the owner's own "what counts as a check-in" definition.
+    description: str | None = None
 
 
 class EnqueueTaskIn(BaseModel):
@@ -183,6 +185,7 @@ def create_app(
                 owner=body.owner or "",
                 clock=clock,
                 settings=settings,
+                description=body.description,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
