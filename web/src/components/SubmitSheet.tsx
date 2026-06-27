@@ -48,7 +48,7 @@ export function SubmitSheet({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const code = (token || "----").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "7F2A";
+  const code = token ? token.toUpperCase() : "PACT-…";
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 
   const pickFile = () => fileRef.current?.click();

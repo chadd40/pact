@@ -24,7 +24,8 @@
   border-right: 1px solid var(--pc-hair-2);
   display: flex;
   flex-direction: column;
-  padding: 22px 14px;
+  /* extra bottom padding so the profile footer clears the fixed States pill */
+  padding: 22px 14px 66px;
   z-index: 20;
 }
 .as-brand {

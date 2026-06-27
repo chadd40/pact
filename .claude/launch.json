@@ -7,6 +7,12 @@
       "runtimeArgs": ["run", "dev"],
       "port": 5173,
       "cwd": "web"
+    },
+    {
+      "name": "pact-demo",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-lc", "PACT_CLOCK_MODE=demo uv run uvicorn pact.main:app --port 8010"],
+      "port": 8010
     }
   ]
 }
