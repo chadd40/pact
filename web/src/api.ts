@@ -3,6 +3,7 @@ import type {
   CoachingMessage,
   DemoAdvanceResult,
   DemoSeedResult,
+  DonationState,
   LinkStatus,
   Pact,
   Packet,
@@ -140,6 +141,18 @@ export const api = {
   // already on the record; this just stops the agent nagging. No money moves.
   decline: (pactId: string) =>
     request<Pact>(`/api/pacts/${pactId}/decline`, { method: "POST" }),
+
+  // ── Two-phase Link donation (confirm → approve-in-app → monitor → donated) ──
+  // initiate opens the spend-request (→ awaiting_approval, no money moves);
+  // approve captures it once (the Link approval arrived); status polls the state.
+  donationInitiate: (pactId: string) =>
+    request<DonationState>(`/api/pacts/${pactId}/donation/initiate`, { method: "POST" }),
+
+  donationApprove: (pactId: string) =>
+    request<DonationState>(`/api/pacts/${pactId}/donation/approve`, { method: "POST" }),
+
+  donationStatus: (pactId: string) =>
+    request<DonationState>(`/api/pacts/${pactId}/donation/status`),
 
   packet: (pactId: string) => request<Packet>(`/api/pacts/${pactId}/packet`),
 

@@ -50,6 +50,25 @@ export interface Progress {
   milestone: number; // highest crossed of 25/50/75/100, else 0
 }
 
+// Derived weekly cadence read-model (src/pact/progress.compute_cadence). Present on
+// GET /api/pacts and /api/pacts/:id alongside `progress`.
+export interface Cadence {
+  days_per_week: number;
+  weeks: number;
+  week_number: number; // 1..weeks
+  this_week_valid: number;
+  this_week_target: number;
+}
+
+// Donation approve-and-monitor state (the two-phase Link flow).
+export type DonationStateName = "idle" | "awaiting_approval" | "donated" | "declined";
+export interface DonationState {
+  state: DonationStateName;
+  status: PactStatus;
+  stake_state: StakeState;
+  spend_request_id: string | null;
+}
+
 export interface Pact {
   id: string;
   owner: string;
@@ -60,6 +79,8 @@ export interface Pact {
   deadline_at: string;
   target_count: number;
   distinct_days: boolean;
+  days_per_week?: number | null;
+  weeks?: number | null;
   recommended_stake_cents: number;
   stake_amount_cents: number;
   currency: string;
@@ -79,6 +100,7 @@ export interface Pact {
   verdict_at: string | null;
   dispute_window_closes_at: string | null;
   progress?: Progress; // present on GET /api/pacts and /api/pacts/:id
+  cadence?: Cadence; // present on GET /api/pacts and /api/pacts/:id
 }
 
 export interface LinkStatus {

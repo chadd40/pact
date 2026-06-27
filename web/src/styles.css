@@ -36,6 +36,16 @@
   --pc-gold-soft: rgba(214, 178, 120, 0.07);
   --pc-gold-line: rgba(214, 178, 120, 0.6);
   --pc-green: #7fb99b;
+  /* App-shell palette (mockup): rust accent for risk/miss, amber for review,
+     forest green for "kept", and a cool ivory app background. */
+  --pc-accent: #b0432a; /* risk / miss / stake-due */
+  --pc-accent-soft: #e0936f; /* lighter rust, for on-dark text */
+  --pc-amber: #b8862f; /* under-review / caution */
+  --pc-kept: #2f7a55; /* kept / on-track (darker forest than --pc-green) */
+  --pc-ivory: #f6f5f2; /* app surface */
+  --pc-ivory-2: #fbfaf7; /* raised surface (sidebar, cards) */
+  --pc-hair: #e9e6df; /* hairline on ivory */
+  --pc-hair-2: #eceae3; /* softer hairline */
   /* Type */
   --pc-sans: "Geist", system-ui, sans-serif;
   --pc-mono: "Geist Mono", ui-monospace, monospace;

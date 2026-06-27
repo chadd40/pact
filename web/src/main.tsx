@@ -4,20 +4,35 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./styles.css";
 import "./components.css";
 import "./redesign.css";
+import "./screens/app.css";
 import { App } from "./App";
+import { AppShell } from "./components/AppShell";
 import { Landing } from "./screens/Landing";
-import { Dashboard } from "./screens/Dashboard";
 import { Create } from "./screens/Create";
-import { PactView } from "./screens/Pact";
+import { Home } from "./screens/Home";
+import { PactDetail } from "./screens/PactDetail";
+import { Coach } from "./screens/Coach";
+import { Charities } from "./screens/Charities";
+import { Settings } from "./screens/Settings";
 
 const router = createBrowserRouter([
   {
     element: <App />,
     children: [
+      // Full-bleed, no app shell.
       { path: "/", element: <Landing /> },
-      { path: "/dashboard", element: <Dashboard /> },
       { path: "/create", element: <Create /> },
-      { path: "/pact/:pactId", element: <PactView /> },
+      // In-app: persistent sidebar shell.
+      {
+        element: <AppShell />,
+        children: [
+          { path: "/dashboard", element: <Home /> },
+          { path: "/pact/:pactId", element: <PactDetail /> },
+          { path: "/coach", element: <Coach /> },
+          { path: "/charities", element: <Charities /> },
+          { path: "/settings", element: <Settings /> },
+        ],
+      },
     ],
   },
 ]);
