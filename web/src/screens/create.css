@@ -95,6 +95,7 @@
 }
 .pc-heading h1 {
   margin-top: 10px;
+  font-family: var(--pc-sans);
   font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -965,6 +966,15 @@
   cursor: pointer;
   font-weight: 700;
   opacity: 0.8;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0 2px;
+  font-size: inherit;
+  line-height: 1;
+}
+.pc-error .x:hover {
+  opacity: 1;
 }
 
 /* ── Keyframes ───────────────────────────────────────────────────────────────── */
@@ -1028,6 +1038,7 @@
     color: var(--pc-ink);
   }
   .pc-mobile-note h2 {
+    font-family: var(--pc-sans);
     font-size: 19px;
     font-weight: 600;
     letter-spacing: -0.02em;
