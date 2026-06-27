@@ -19,7 +19,7 @@ interface GoalCard {
 const GOALS: GoalCard[] = [
   { title: "Work out", desc: "Move your body", template: "workout", art: "/cards/workout.svg" },
   { title: "Read", desc: "Feed your mind", template: "read", art: "/cards/read.svg" },
-  { title: "Ship daily", desc: "Build in public", template: "ship_daily", art: "/cards/ship.svg" },
+  { title: "Ship something", desc: "Build in public", template: "ship_daily", art: "/cards/ship.svg" },
   { title: "Meditate", desc: "Find some quiet", template: "meditate", art: "/cards/meditate.svg" },
   { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", art: "/cards/nophone.svg" },
   { title: "Custom goal", desc: "Make your own", template: null, art: null },

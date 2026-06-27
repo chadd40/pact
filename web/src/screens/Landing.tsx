@@ -13,6 +13,19 @@ const GOALS = [
   "shipped something every day",
 ];
 
+// Ambient wishes that drift up + fade across the whole hero. Positioned in the
+// left/right margins (% → scales with the window) so they clear the centered phone.
+const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string }> = [
+  { t: "I wish I read more", pos: { left: "7%", bottom: "20%" }, d: "0s", dur: "14s" },
+  { t: "I wish I doomscrolled less", pos: { left: "18%", bottom: "9%" }, d: "2.4s", dur: "13s" },
+  { t: "I wish I called my mom", pos: { left: "10%", top: "30%" }, d: "5s", dur: "16s" },
+  { t: "I wish I drank less", pos: { left: "23%", top: "15%" }, d: "3.2s", dur: "15s" },
+  { t: "I wish I meditated more", pos: { right: "15%", bottom: "15%" }, d: "1.2s", dur: "13s" },
+  { t: "I wish I worked out more", pos: { right: "24%", bottom: "25%" }, d: "3.6s", dur: "14s" },
+  { t: "I wish I shipped more", pos: { right: "8%", top: "27%" }, d: "6s", dur: "17s" },
+  { t: "I wish I slept earlier", pos: { right: "20%", top: "13%" }, d: "4.4s", dur: "15s" },
+];
+
 export function Landing() {
   const navigate = useNavigate();
   // The link / cards all lead into the new-user onboarding (create → link agent → link Link).
@@ -43,7 +56,35 @@ export function Landing() {
     };
   }, []);
 
-  // Scroll engine: progress through the tall pinned section drives the beats.
+  // Fit the phone proportionally to BOTH viewport height and width, and collapse
+  // its wrapper to the scaled height so the flex column never overlaps or clips.
+  useEffect(() => {
+    const fit = () => {
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      // Reserve room for the fixed chrome + headline + cue so the column always
+      // clears them; also fit the width so the phone never overflows narrow windows.
+      const k = Math.max(0.5, Math.min(1, (vh - 190) / 710, (vw - 36) / 340));
+      if (bezelRef.current) bezelRef.current.style.transform = `scale(${k.toFixed(3)})`;
+      if (fitRef.current) fitRef.current.style.height = `${Math.round(k * 710)}px`;
+    };
+    fit();
+    const raf = requestAnimationFrame(fit);
+    const t1 = setTimeout(fit, 80);
+    const t2 = setTimeout(fit, 320);
+    window.addEventListener("resize", fit);
+    const ro = new ResizeObserver(fit);
+    ro.observe(document.documentElement);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener("resize", fit);
+      ro.disconnect();
+    };
+  }, []);
+
+  // Scroll: progress through the tall pinned section drives the conversation beats.
   useEffect(() => {
     let raf = 0;
     const onScroll = () => {
@@ -51,34 +92,19 @@ export function Landing() {
       raf = requestAnimationFrame(() => {
         raf = 0;
         const pin = pinRef.current;
+        if (!pin) return;
         const vh = window.innerHeight;
         const y = window.scrollY || 0;
-        if (pin) {
-          const p = Math.min(
-            1,
-            Math.max(0, (y - pin.offsetTop) / Math.max(1, pin.offsetHeight - vh))
-          );
-          const b = p < 0.1 ? 0 : p < 0.4 ? 1 : p < 0.68 ? 2 : 3;
-          beatRef.current = b;
-          setBeat(b);
-          if (cueRef.current) cueRef.current.style.opacity = y > 30 || p > 0.02 ? "0" : "1";
-        }
-        if (bezelRef.current && fitRef.current) {
-          // Reserve room for the headline + cue, then collapse the wrapper to the
-          // scaled height so the flex column always fits without overlap.
-          const k = Math.min(1, Math.max(0.55, (vh - 150) / 710));
-          bezelRef.current.style.transform = `scale(${k.toFixed(3)})`;
-          fitRef.current.style.height = `${Math.round(k * 710)}px`;
-        }
+        const p = Math.min(1, Math.max(0, (y - pin.offsetTop) / Math.max(1, pin.offsetHeight - vh)));
+        const b = p < 0.1 ? 0 : p < 0.4 ? 1 : p < 0.68 ? 2 : 3;
+        beatRef.current = b;
+        setBeat(b);
+        if (cueRef.current) cueRef.current.style.opacity = y > 30 || p > 0.02 ? "0" : "1";
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
     onScroll();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Cycle the wish only while we're at the top (beat 0) and the bubble is up.
@@ -118,24 +144,21 @@ export function Landing() {
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}
       <div className="lp-pin" ref={pinRef}>
         <div className="lp-sticky">
-          {/* ambient drifting wishes */}
+          {/* ambient drifting wishes (scale with the window) */}
           <div className="lp-field" aria-hidden="true">
-            <span className="lp-drift" style={{ left: "15%", bottom: "20%", animationDelay: "0s" }}>
-              I wish I read more
-            </span>
-            <span className="lp-drift" style={{ left: "30%", bottom: "11%", animationDelay: "2.4s" }}>
-              I wish I doomscrolled less
-            </span>
-            <span className="lp-drift" style={{ right: "18%", bottom: "15%", animationDelay: "1.2s" }}>
-              I wish I meditated more
-            </span>
-            <span className="lp-drift" style={{ right: "28%", bottom: "24%", animationDelay: "3.6s" }}>
-              I wish I worked out more
-            </span>
-            <span className="lp-drift lp-sparkle" style={{ left: "22%", top: "24%", animationDelay: "1.8s" }}>
+            {DRIFT.map((w, i) => (
+              <span
+                key={i}
+                className="lp-drift"
+                style={{ ...w.pos, animationDelay: w.d, animationDuration: w.dur }}
+              >
+                {w.t}
+              </span>
+            ))}
+            <span className="lp-drift lp-sparkle" style={{ left: "15%", top: "22%", animationDelay: "1.8s" }}>
               ✦
             </span>
-            <span className="lp-drift lp-sparkle" style={{ right: "23%", top: "30%", animationDelay: "4.2s" }}>
+            <span className="lp-drift lp-sparkle" style={{ right: "14%", top: "34%", animationDelay: "4.2s" }}>
               ✦
             </span>
           </div>

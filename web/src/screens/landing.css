@@ -22,6 +22,7 @@
   font-family: var(--pc-sans);
   color: var(--l-ink);
   background: radial-gradient(120% 90% at 50% 0%, #f7f0e0 0%, #efe6d3 60%, #ece2cd 100%);
+  overflow-x: hidden;
 }
 .landing .m {
   font-family: var(--pc-mono);
@@ -37,7 +38,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 34px;
+  padding: clamp(16px, 2.4vw, 22px) clamp(18px, 3vw, 34px);
   pointer-events: none;
 }
 .lp-logo {
@@ -91,14 +92,14 @@
 }
 .lp-drift {
   position: absolute;
-  font-size: 15px;
-  color: rgba(21, 20, 15, 0.15);
+  font-size: clamp(12px, 1.1vw, 16px);
+  color: rgba(21, 20, 15, 0.14);
   white-space: nowrap;
   animation: pactFloat 13s linear infinite;
 }
 .lp-sparkle {
   color: rgba(176, 67, 42, 0.2);
-  font-size: 17px;
+  font-size: clamp(13px, 1.3vw, 18px);
 }
 
 /* Headline above the phone */
@@ -108,12 +109,12 @@
   flex: none;
   text-align: center;
   padding: 0 24px;
-  font-size: 20px;
+  font-size: clamp(16px, 0.9vw + 9px, 23px);
   line-height: 1.4;
   font-weight: 500;
   letter-spacing: -0.01em;
   color: rgba(21, 20, 15, 0.7);
-  max-width: 460px;
+  max-width: min(460px, 90vw);
   pointer-events: none;
 }
 
@@ -539,7 +540,7 @@
 }
 .lp-sec-title {
   margin: 16px 0 0;
-  font-size: 40px;
+  font-size: clamp(27px, 3.2vw, 42px);
   line-height: 1.08;
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -557,7 +558,7 @@
 
 /* How-it-works bento */
 .lp-how {
-  padding: 120px 40px 96px;
+  padding: clamp(70px, 9vw, 120px) clamp(20px, 5vw, 40px) clamp(56px, 7vw, 96px);
 }
 .lp-sec-head {
   text-align: center;
@@ -570,7 +571,7 @@
 .lp-bento {
   margin-top: 52px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 16px;
 }
 .lp-bento-card {
@@ -638,7 +639,7 @@
 
 /* Coaching spotlight */
 .lp-coach-sec {
-  padding: 20px 40px 110px;
+  padding: 20px clamp(20px, 5vw, 40px) clamp(70px, 9vw, 110px);
 }
 .lp-coach-grid {
   display: grid;
@@ -708,7 +709,7 @@
 
 /* Deck placeholder */
 .lp-deck-sec {
-  padding: 20px 40px 120px;
+  padding: 20px clamp(20px, 5vw, 40px) clamp(80px, 9vw, 120px);
   overflow: hidden;
 }
 .lp-deck-head .lp-coach-lede {
@@ -802,7 +803,7 @@
 /* Final CTA + footer */
 .lp-final {
   text-align: center;
-  padding: 110px 24px 60px;
+  padding: clamp(70px, 9vw, 110px) clamp(20px, 5vw, 24px) 60px;
 }
 .lp-final-spark {
   color: var(--l-accent);
@@ -810,7 +811,7 @@
 }
 .lp-final-title {
   margin: 14px 0 0;
-  font-size: 44px;
+  font-size: clamp(28px, 3.6vw, 46px);
   font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--l-ink);
@@ -941,18 +942,11 @@
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 860px) {
-  .lp-bento {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .lp-coach-grid {
     grid-template-columns: 1fr;
     gap: 28px;
   }
   .lp-deck-fan {
     flex-wrap: wrap;
-  }
-  .lp-sec-title,
-  .lp-final-title {
-    font-size: 32px;
   }
 }
