@@ -359,8 +359,20 @@ export function Create() {
       <div className="pc-stage">
         <div className="pc-vignette" />
 
-        {/* Brand wordmark */}
-        <div className="pc-brand">pact</div>
+        {/* Brand lockup — pact mark (two cards bound by a wax seal) + wordmark */}
+        <div className="pc-brand" aria-label="Pact">
+          <svg className="pc-brand-mark" viewBox="0 0 104 80" fill="none" aria-hidden="true">
+            <rect x="3" y="6" width="46" height="68" rx="16" fill="currentColor" />
+            <rect x="62" y="32" width="39" height="42" rx="13" fill="currentColor" />
+            <circle cx="55" cy="42" r="15.5" fill="#9b3a27" />
+            <circle cx="55" cy="42" r="15.5" fill="none" stroke="#6d2315" strokeWidth="1.7" />
+            <path
+              d="M55 31.2 L57.6 39.4 L65.8 42 L57.6 44.6 L55 52.8 L52.4 44.6 L44.2 42 L52.4 39.4 Z"
+              fill="#f1ebde"
+            />
+          </svg>
+          <span className="pc-brand-word">pact</span>
+        </div>
 
         {/* Back */}
         <button

@@ -44,28 +44,19 @@
   pointer-events: none;
 }
 .lp-logo {
-  height: 24px;
-  width: auto;
-  pointer-events: auto;
-}
-.lp-start {
-  pointer-events: auto;
-  height: 38px;
-  padding: 0 18px;
-  border: none;
-  border-radius: 10px;
-  background: var(--l-ink);
-  color: var(--l-cream);
-  font-family: var(--pc-sans);
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  pointer-events: auto;
 }
-.lp-spark {
-  color: var(--l-accent-2);
+.lp-logo-mark {
+  display: block;
+}
+.lp-logo-word {
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #15140f;
 }
 
 /* ── Pinned hero ────────────────────────────────────────────────────────────── */
