@@ -5,6 +5,7 @@ from pact.clock import Clock
 from pact.coaching import generate_coach_message, should_nudge
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, settle
+from pact.link import is_owner_connected
 from pact.models import PactStatus, Profile
 from pact.payment import PaymentProvider
 from pact.profile import record_outcome
@@ -67,13 +68,18 @@ def tick(
     # verdict, no money) until the window has actually closed, and is idempotent
     # once the donation has executed.
     for pact in repo.list_pacts():
-        if pact.status != PactStatus.failed:
+        # `donation_pending` is included so a pact deferred for a missing funding
+        # source fires its donation on a later tick, once the owner connects Link.
+        if pact.status not in (PactStatus.failed, PactStatus.donation_pending):
             continue
         proofs = repo.list_proofs(pact.id)
         # Snapshot before calling — close_dispute_window mutates pact in place,
         # so checking pact.status after the call would always be equal.
-        was_failed = pact.status == PactStatus.failed
-        updated, verdict = close_dispute_window(pact, proofs, clock, payment, settings)
+        was_failed = pact.status in (PactStatus.failed, PactStatus.donation_pending)
+        updated, verdict = close_dispute_window(
+            pact, proofs, clock, payment, settings,
+            link_connected=is_owner_connected(repo, pact.owner),
+        )
         if was_failed and updated.status == PactStatus.donated:
             # The window just closed on this tick: persist, record the failure,
             # and report it as donated.

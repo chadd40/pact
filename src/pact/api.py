@@ -29,6 +29,7 @@ from pact.lifecycle import (
     transition,
 )
 from pact.images import save_proof_image, strip_exif
+from pact.link import connect_account, is_owner_connected, new_account
 from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
@@ -103,6 +104,10 @@ class ClaimTaskIn(BaseModel):
 
 class TaskResultIn(BaseModel):
     result: dict
+
+
+class LinkConnectIn(BaseModel):
+    owner: str
 
 
 def create_app(
@@ -323,10 +328,12 @@ def create_app(
     def settle_pact(pact_id: str):
         pact = _require(pact_id)
         proofs_list = repo.list_proofs(pact_id)
-        if pact.status == PactStatus.failed:
-            # Already failed: try to close the dispute window (no-op if still open).
+        if pact.status in (PactStatus.failed, PactStatus.donation_pending):
+            # Already failed (or deferred for Link): try to close the dispute window.
+            # The donation fires only if the owner has connected a funding source.
             pact, verdict = close_dispute_window(
-                pact, proofs_list, clock, payment, settings
+                pact, proofs_list, clock, payment, settings,
+                link_connected=is_owner_connected(repo, pact.owner),
             )
         else:
             pact, verdict = settle(pact, proofs_list, clock, payment, settings)
@@ -419,6 +426,20 @@ def create_app(
             prof = Profile(owner=owner)
             repo.save_profile(prof)
         return prof.model_dump(mode="json")
+
+    @app.get("/api/link/status")
+    def link_status(owner: str):
+        acct = repo.get_link_account(owner) or new_account(owner)
+        return {"owner": owner, "connected": acct.connected, "funding_ref": acct.funding_ref}
+
+    @app.post("/api/link/connect")
+    def link_connect(body: LinkConnectIn):
+        # Safe local-first stub: registers a deterministic TEST funding source so
+        # charge-on-fail is permitted. Never touches a real card or moves money.
+        acct = repo.get_link_account(body.owner) or new_account(body.owner)
+        acct = connect_account(acct, clock)
+        repo.save_link_account(acct)
+        return {"owner": acct.owner, "connected": acct.connected, "funding_ref": acct.funding_ref}
 
     @app.post("/demo/seed")
     def demo_seed_endpoint():

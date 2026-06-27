@@ -403,12 +403,19 @@ def close_dispute_window(
     clock: Clock,
     payment: PaymentProvider,
     settings: Settings,
+    link_connected: bool = True,
 ) -> tuple[Pact, Verdict]:
     """Execute the deferred donation once the dispute window has closed.
 
     Money moves here, not in settle. Guarded by spend_request_id so a second
     close (e.g. a restart re-sweep) moves no additional money. A pact that was
     overturned to success inside the window never reaches the donation branch.
+
+    `link_connected` gates the charge: Pact is charge-on-fail, but a charge can
+    only fire if the owner has connected a funding source (see link.py). When it
+    is not connected, the donation is deferred — the pact parks at
+    `donation_pending` (no money path) and a later close (after the user
+    connects Link) fires it. Defaults True so every existing caller is unchanged.
     """
     now = clock.now()
     valid = _valid_count(pact, proofs)
@@ -420,15 +427,23 @@ def close_dispute_window(
             PaymentAction.donation_executed, pact.spend_request_id,
         )
 
-    # Only a still-failing pact past its closed window with no prior donation and a
-    # genuine shortfall executes the deferred donation.
+    # A still-failing pact past its closed window with no prior donation and a
+    # genuine shortfall owes the deferred donation. `donation_pending` is included
+    # so a pact deferred for a missing funding source re-fires on a later close.
     window = pact.dispute_window_closes_at
     if (
-        pact.status == PactStatus.failed
+        pact.status in (PactStatus.failed, PactStatus.donation_pending)
         and window is not None
         and now >= window
         and valid < pact.target_count
     ):
+        if not link_connected:
+            # No funding source connected: park at donation_pending, move no money.
+            # The web/agent prompt the owner to connect Link; the next close fires.
+            pact.status = PactStatus.donation_pending
+            return pact, _build_verdict(
+                pact, proofs, valid, PactStatus.failed, PaymentAction.none, None
+            )
         pact.status = PactStatus.donation_pending
         result = payment.create_donation(pact, f"{pact.id}:donation")
         pact.spend_request_id = result.provider_ref

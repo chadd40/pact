@@ -30,3 +30,12 @@ def connect_account(acct: LinkAccount, clock: Clock) -> LinkAccount:
             "connected_at": clock.now(),
         }
     )
+
+
+def is_owner_connected(repo, owner: str | None) -> bool:
+    """True iff this owner has a connected funding source. Settlement callers use
+    this to decide whether the charge-on-fail donation may fire."""
+    if not owner:
+        return False
+    acct = repo.get_link_account(owner)
+    return bool(acct and acct.connected)

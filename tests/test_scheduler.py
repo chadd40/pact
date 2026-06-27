@@ -5,6 +5,7 @@ import pytest
 from pact.charities import CHARITIES
 from pact.clock import FixedClock
 from pact.config import Settings
+from pact.link import connect_account, new_account
 from pact.models import (
     CoachingMessage,
     Modality,
@@ -79,6 +80,9 @@ def test_ghosted_pact_ends_donated_after_deadline_plus_grace_and_profile_fails()
     repo = _repo()
     payment = TestLinkProvider()
     settings = _settings()
+
+    # Owner has connected Link, so the deferred charge-on-fail is allowed to fire.
+    repo.save_link_account(connect_account(new_account(OWNER), clock))
 
     deadline = start + timedelta(days=3)
     pact = _active_pact("pact_ghost", start, deadline)
