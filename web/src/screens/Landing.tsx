@@ -232,10 +232,8 @@ export function Landing() {
                 {beat >= 3 && (
                   <>
                     <div className="lp-card-wrap">
-                      <div className="lp-card-ring" aria-hidden="true" />
                       <button className="lp-richlink" onClick={onboard}>
                         <div className="lp-richlink-hero">
-                          <div className="lp-richlink-sheen" aria-hidden="true" />
                           <img src="/pact_icon.png" alt="" className="lp-richlink-icon" />
                         </div>
                         <div className="lp-richlink-foot">
@@ -243,9 +241,6 @@ export function Landing() {
                           <div className="lp-richlink-url">pact.new</div>
                         </div>
                       </button>
-                      <div className="lp-tap" aria-hidden="true">
-                        Tap to open <span>↗</span>
-                      </div>
                     </div>
                     <div className="lp-msg lp-in lp-after">
                       put money on it. then you'll actually show up 💪
