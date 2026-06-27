@@ -18,6 +18,7 @@ from pact.lifecycle import (
     cancel,
     close_dispute_window,
     confirm_and_start,
+    create_pact_structured,
     draft_pact,
     execute_forfeit_donation,
     new_pact_id,
@@ -77,6 +78,18 @@ class CoachIn(BaseModel):
     message: str
 
 
+class CreateIn(BaseModel):
+    goal_title: str
+    goal_template: str | None = None
+    days_per_week: int
+    weeks: int
+    stake_amount_cents: int
+    charity_id: str
+    agent: str | None = None
+    consent_acknowledged: bool = False
+    owner: str | None = None
+
+
 class EnqueueTaskIn(BaseModel):
     type: TaskType
     input: dict
@@ -121,6 +134,27 @@ def create_app(
         try:
             pact = draft_pact(body.prompt, provider, clock, settings)
         except PactRefused as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        repo.save_pact(pact)
+        return pact.model_dump(mode="json")
+
+    @app.post("/api/pacts/create")
+    def create_structured(body: CreateIn):
+        try:
+            pact = create_pact_structured(
+                goal_title=body.goal_title,
+                goal_template=body.goal_template,
+                days_per_week=body.days_per_week,
+                weeks=body.weeks,
+                stake_amount_cents=body.stake_amount_cents,
+                charity_id=body.charity_id,
+                agent=body.agent,
+                consent_acknowledged=body.consent_acknowledged,
+                owner=body.owner or "",
+                clock=clock,
+                settings=settings,
+            )
+        except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         repo.save_pact(pact)
         return pact.model_dump(mode="json")
