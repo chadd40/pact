@@ -6,66 +6,79 @@ import type { Charity, Pact } from "../types";
 import "./create.css";
 
 // ── Goal deck ─────────────────────────────────────────────────────────────────
-// The 5 named templates carry a title + a template key; "Custom goal" reveals a
-// free-text title input and sends a null template.
+// Five named templates each carry the painterly front art (with its title baked
+// in) + a template key. The sixth card is "Create your own": a dashed front that
+// reveals a free-text title input and sends a null template.
 interface GoalCard {
   title: string;
   desc: string;
   template: string | null;
-  icon: JSX.Element;
+  art: string | null; // public path to the front-card SVG; null = custom
 }
 
-const ICON = {
-  workout: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="28" height="28">
-      <path d="M3 9v6M6 7.5v9M18 7.5v9M21 9v6M6 12h12" />
-    </svg>
-  ),
-  read: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="27" height="27">
-      <path d="M5 4a1 1 0 0 1 1-1h12v16H6a1 1 0 0 0-1 1Z" />
-      <path d="M18 3v16" />
-    </svg>
-  ),
-  ship: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="27" height="27">
-      <path d="M13 3 5 13h6l-1 8 8-10h-6l1-8Z" />
-    </svg>
-  ),
-  meditate: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="27" height="27">
-      <path d="M5 19c8 1 14-5 14-14 0 0-13-1-13 8a6 6 0 0 0 2 6Z" />
-    </svg>
-  ),
-  phone: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="27" height="27">
-      <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />
-    </svg>
-  ),
-  custom: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="27" height="27">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  ),
-};
-
 const GOALS: GoalCard[] = [
-  { title: "Work out", desc: "Move your body", template: "workout", icon: ICON.workout },
-  { title: "Read", desc: "Feed your mind", template: "read", icon: ICON.read },
-  { title: "Ship daily", desc: "Build in public", template: "ship_daily", icon: ICON.ship },
-  { title: "Meditate", desc: "Find some quiet", template: "meditate", icon: ICON.meditate },
-  { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", icon: ICON.phone },
-  { title: "Custom goal", desc: "Make your own", template: null, icon: ICON.custom },
+  { title: "Work out", desc: "Move your body", template: "workout", art: "/cards/workout.svg" },
+  { title: "Read", desc: "Feed your mind", template: "read", art: "/cards/read.svg" },
+  { title: "Ship daily", desc: "Build in public", template: "ship_daily", art: "/cards/ship.svg" },
+  { title: "Meditate", desc: "Find some quiet", template: "meditate", art: "/cards/meditate.svg" },
+  { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", art: "/cards/nophone.svg" },
+  { title: "Custom goal", desc: "Make your own", template: null, art: null },
 ];
 const CUSTOM_INDEX = GOALS.length - 1;
 
-// Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 sending · 6 message
+// The person sealing the pact — shown in the signature line on the card back.
+const OWNER_NAME = "Cole Haddad";
+
+// Agents the card can be "kept honest by".
+interface AgentDef {
+  key: string;
+  name: string; // as written on the card back
+  blurb: string;
+  avatar: string | null; // image, else a glyph tile
+  tag: "rec" | "connect";
+  glyph?: JSX.Element;
+}
+const AGENTS: AgentDef[] = [
+  { key: "Hermes", name: "Hermes Agent", blurb: "Your built-in coach", avatar: "/agents/hermes.png", tag: "rec" },
+  {
+    key: "Claude Code",
+    name: "Claude Code",
+    blurb: "From your dev workflow",
+    avatar: null,
+    tag: "connect",
+    glyph: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+        <path d="M8 7l-5 5 5 5M16 7l5 5-5 5" />
+      </svg>
+    ),
+  },
+  {
+    key: "your agent",
+    name: "Your own agent",
+    blurb: "Any MCP agent, via API",
+    avatar: null,
+    tag: "connect",
+    glyph: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+        <rect x="4" y="4" width="16" height="16" rx="4" />
+        <path d="M9 12h6M12 9v6" />
+      </svg>
+    ),
+  },
+];
+
+// Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 sealing · 6 message
 type Stage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 const WEEK_OPTIONS = [1, 4, 8, 12];
 const STAKE_PRESETS = [50, 100, 200, 500];
 const STAKE_MIN = 10;
 const STAKE_MAX = 500;
+
+// Fixed prototype world; scaled to fit the viewport.
+const STAGE_W = 1080;
+const STAGE_H = 760;
+const DECK_SCALE = 0.72;
 
 const Arrow = ({ size = 16 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
@@ -89,15 +102,16 @@ export function Create() {
 
   const [stage, setStage] = useState<Stage>(0);
   const [active, setActive] = useState(0); // carousel focus index
-  const [goalIndex, setGoalIndex] = useState<number | null>(null);
+  const [goalIndex, setGoalIndex] = useState<number | null>(null); // chosen card
   const [customTitle, setCustomTitle] = useState("");
   const [days, setDays] = useState(5);
   const [weeks, setWeeks] = useState(4);
   const [stake, setStake] = useState(200);
   const [charityId, setCharityId] = useState<string | null>(null);
-  const [agent, setAgent] = useState<string | null>(null);
-  const [freqUp, setFreqUp] = useState(false); // shimmer → active reveal
-  const [zonesShown, setZonesShown] = useState(true);
+  const [agentKey, setAgentKey] = useState<string | null>(null);
+  // Reveal beat: after the flip lands, the card "loads" — title + frequency
+  // resolve out of the skeleton and the editor rail comes alive.
+  const [editorReady, setEditorReady] = useState(false);
 
   const [charities, setCharities] = useState<Charity[]>([]);
   const [created, setCreated] = useState<Pact | null>(null);
@@ -118,15 +132,13 @@ export function Create() {
     };
   }, []);
 
-  // Responsive scale: fit the fixed 1080×760 world into the viewport.
+  // Responsive scale: fit the fixed world into the viewport.
   const rootRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    const STAGE_W = 1080;
-    const STAGE_H = 760;
     const apply = () => {
-      const pad = 32;
+      const pad = 28;
       const w = el.clientWidth - pad;
       const h = el.clientHeight - pad;
       const scale = Math.min(w / STAGE_W, h / STAGE_H, 1);
@@ -138,34 +150,31 @@ export function Create() {
     return () => ro.disconnect();
   }, []);
 
-  // Re-trigger the zones fade when the carousel focus changes on the deck.
-  useEffect(() => {
-    if (stage !== 0) return;
-    setZonesShown(false);
-    const id = requestAnimationFrame(() =>
-      requestAnimationFrame(() => setZonesShown(true))
-    );
-    return () => cancelAnimationFrame(id);
-  }, [active, stage]);
-
   const selectedGoal = goalIndex ?? active;
   const isCustom = selectedGoal === CUSTOM_INDEX;
   const goalCard = GOALS[selectedGoal];
-  const goalName = isCustom ? customTitle.trim() || "Custom goal" : goalCard.title;
+  const goalName = isCustom ? customTitle.trim() || "Your goal" : goalCard.title;
 
   const charity = charities.find((c) => c.id === charityId) || null;
+  const agentDef = AGENTS.find((a) => a.key === agentKey) || null;
 
   const checkins = days * weeks;
   const weeksWord = weeks === 1 ? "week" : "weeks";
 
+  const sealedDate = new Date()
+    .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    .toUpperCase();
+
   // ── Transitions ───────────────────────────────────────────────────────────
   const select = (i: number) => {
     setGoalIndex(i);
+    setActive(i);
     setStage(1);
-    setFreqUp(false);
+    setEditorReady(false);
+    // Let the flip land, then "load" the first section.
     window.setTimeout(() => {
-      if (stageRef.current === 1) setFreqUp(true);
-    }, 820);
+      if (stageRef.current === 1) setEditorReady(true);
+    }, 760);
   };
 
   const tap = (i: number) => {
@@ -179,17 +188,26 @@ export function Create() {
 
   const back = () => {
     setError(null);
-    setStage((s) => Math.max(0, (s - 1) as Stage) as Stage);
+    if (stage === 1) {
+      // Flip back to the deck.
+      setStage(0);
+      setEditorReady(false);
+      window.setTimeout(() => {
+        if (stageRef.current === 0) setGoalIndex(null);
+      }, 520);
+      return;
+    }
+    setStage((s) => Math.max(1, (s - 1) as Stage) as Stage);
   };
 
   const advance = () => {
-    if (stage === 3 && !charityId) return; // Seal it disabled until a charity is picked
+    if (stage === 1 && isCustom && !customTitle.trim()) return;
+    if (stage === 3 && !charityId) return;
     setStage((s) => Math.min(4, (s + 1) as Stage) as Stage);
   };
 
-  const pickAgent = async (name: string) => {
-    if (!charityId) return;
-    setAgent(name);
+  const seal = async () => {
+    if (!charityId || !agentKey) return;
     setError(null);
     setStage(5);
     try {
@@ -200,19 +218,17 @@ export function Create() {
         weeks,
         stake_amount_cents: stake * 100,
         charity_id: charityId,
-        agent: name,
+        agent: agentKey,
         consent_acknowledged: true,
         owner: DEMO_OWNER,
       });
       setCreated(pact);
       signalChange();
-      // Brief "handing to agent" beat before the message bubble.
-      window.setTimeout(() => setStage(6), 1100);
+      window.setTimeout(() => setStage(6), 1300);
     } catch (e) {
-      const detail =
-        e instanceof ApiError ? e.detail : "Could not seal the pact. Try again.";
+      const detail = e instanceof ApiError ? e.detail : "Could not seal the pact. Try again.";
       setError(detail);
-      setStage(4); // back to the agent panel so they can retry
+      setStage(4);
     }
   };
 
@@ -229,101 +245,92 @@ export function Create() {
     setWeeks(4);
     setStake(200);
     setCharityId(null);
-    setAgent(null);
+    setAgentKey(null);
+    setEditorReady(false);
     setCreated(null);
     setError(null);
   };
 
-  // ── Carousel / detail transforms (ported from prototype emb()/detailStyle) ──
-  const embStyle = (i: number): React.CSSProperties => {
-    const base = "translate(-50%,-50%)";
+  // ── Card slot / flip transforms ─────────────────────────────────────────────
+  const slotTransform = (a: number, b: number, c: number, ry: number, s: number) =>
+    `translate(-50%,-50%) translateX(${a}px) translateY(${b}px) translateZ(${c}px) rotateY(${ry}deg) scale(${s})`;
+
+  const slotStyle = (i: number): React.CSSProperties => {
     if (stage === 0) {
       const off = i - active;
       const a = Math.abs(off);
-      const tx = off * 232;
-      const tz = -a * 148;
-      const ry = off * -33;
-      const sc = Math.max(0.66, 1 - a * 0.12);
+      const s = DECK_SCALE * Math.max(0.74, 1 - a * 0.12);
       return {
-        transform: `${base} translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg) scale(${sc})`,
+        transform: slotTransform(off * 250, 0, -a * 150, off * -32, s),
         opacity: a > 2 ? 0 : 1,
         zIndex: 100 - a,
-        transition: "transform .55s cubic-bezier(.32,.62,.3,1),opacity 0s",
+        transition: "transform .6s cubic-bezier(.32,.62,.3,1), opacity .5s ease",
       };
     }
-    const gi = goalIndex ?? active;
-    if (i === gi) {
+    // hero (chosen card)
+    if (i === goalIndex) {
+      const exiting = stage >= 5;
       return {
-        transform: `${base} scale(.94)`,
-        opacity: 0,
-        zIndex: 40,
-        pointerEvents: "none",
-        transition: "opacity 0s",
+        transform: slotTransform(-258, exiting ? 44 : 0, 60, 0, exiting ? 0.86 : 1),
+        opacity: stage === 6 ? 0 : 1,
+        zIndex: 200,
+        transition: "transform .72s cubic-bezier(.34,.72,.26,1), opacity .55s ease",
       };
     }
-    const off = i - gi;
-    const t = off + (off > 0 ? 1 : -1);
-    const a = Math.abs(t);
-    const tx = t * 232;
-    const tz = -a * 148;
-    const ry = t * -33;
-    const sc = Math.max(0.6, 1 - a * 0.12);
+    // fly away
+    const off = i - (goalIndex ?? 0);
+    const dir = off >= 0 ? 1 : -1;
+    const a = Math.abs(off);
     return {
-      transform: `${base} translateX(${tx}px) translateZ(${tz}px) rotateY(${ry}deg) scale(${sc})`,
+      transform: slotTransform(dir * (700 + a * 46), 0, -300, dir * -50, 0.64),
       opacity: 0,
-      zIndex: 20 - a,
+      zIndex: 20,
       pointerEvents: "none",
-      transition: "transform .5s cubic-bezier(.32,.62,.3,1),opacity 0s",
+      transition: "transform .62s cubic-bezier(.4,.5,.3,1), opacity .55s ease",
     };
   };
 
-  const detailStyle = (): React.CSSProperties => {
-    const base = "translate(-50%,-50%)";
-    if (stage === 0)
-      return {
-        transform: `${base} scale(.74)`,
-        opacity: 0,
-        pointerEvents: "none",
-        transition: "transform .55s cubic-bezier(.32,.62,.3,1),opacity .42s ease",
-      };
-    if (stage <= 3)
-      return {
-        transform: `${base} scale(1)`,
-        opacity: 1,
-        pointerEvents: "auto",
-        transition: "transform .6s cubic-bezier(.3,.68,.32,1),opacity .5s ease",
-      };
-    if (stage === 4)
-      return {
-        transform: `${base} translateY(-128px) scale(.76)`,
-        opacity: 1,
-        pointerEvents: "auto",
-      };
+  const flipStyle = (i: number): React.CSSProperties => {
+    const flipped = stage >= 1 && i === goalIndex;
     return {
-      transform: `${base} translateY(-150px) scale(.42)`,
-      opacity: 0,
-      pointerEvents: "none",
+      transform: `rotateY(${flipped ? 180 : 0}deg)`,
+      transition: "transform .85s cubic-bezier(.2,.72,.26,1) .1s",
     };
   };
 
-  // Zone visual state (active glow / reached opacity), per prototype zone(n).
-  const zoneClass = (n: number) =>
-    `pc-zone ${stage === n ? "active" : ""} ${stage >= n ? "" : "dim"}`;
+  // ── Card-back section resolution (skeleton → live → locked) ──────────────────
+  const titleReady = stage >= 1 && (editorReady || stage > 1);
+  const freqReady = stage > 1 || (stage === 1 && editorReady);
+  const stakeReady = stage >= 2;
+  const charityReady = stage >= 3 && !!charity;
+  const agentReady = stage >= 4 && !!agentDef;
+  const signed = stage >= 5;
+  const zoneState = (n: number) => (stage === n ? "active" : stage > n ? "done" : "pending");
 
-  const chooseVisible = stage === 0;
-  const barVisible = stage >= 1 && stage <= 3;
-  const stepName =
-    stage === 1 ? "Frequency" : stage === 2 ? "On the line" : stage === 3 ? "The stamp" : "";
+  const deckMode = stage === 0;
+  const editing = stage >= 1 && stage <= 4;
 
-  const agentName = agent || "Hermes";
-  const freqSummary = `${days} days/week · ${weeks} ${weeksWord}`;
+  // ── Editor rail step copy ────────────────────────────────────────────────────
+  const stepMeta =
+    stage === 1
+      ? { n: 1, head: isCustom ? "Name it & set the pace" : "Set the pace" }
+      : stage === 2
+      ? { n: 2, head: "Put it on the line" }
+      : stage === 3
+      ? { n: 3, head: "Choose the cause" }
+      : stage === 4
+      ? { n: 4, head: "Pick your keeper" }
+      : { n: 0, head: "" };
+
+  const canContinue =
+    stage === 1 ? !isCustom || !!customTitle.trim() : stage === 3 ? !!charityId : true;
 
   return (
     <div className="pc-root" ref={rootRef}>
       <div className="pc-stage">
         <div className="pc-vignette" />
 
-        {/* Brand wordmark (Caveat) */}
+        {/* Brand wordmark */}
         <div className="pc-brand">pact</div>
 
         {/* Back */}
@@ -331,8 +338,8 @@ export function Create() {
           className="pc-back"
           onClick={back}
           style={{
-            opacity: stage >= 1 && stage <= 4 ? 1 : 0,
-            pointerEvents: stage >= 1 && stage <= 4 ? "auto" : "none",
+            opacity: editing ? 1 : 0,
+            pointerEvents: editing ? "auto" : "none",
           }}
         >
           <Chevron dir="l" size={15} />
@@ -340,258 +347,70 @@ export function Create() {
         </div>
 
         {/* Carousel heading */}
-        <div className="pc-heading" style={{ opacity: stage === 0 ? 1 : 0 }}>
+        <div className="pc-heading" style={{ opacity: deckMode ? 1 : 0 }}>
           <div className="m eyebrow">New pact · Step 1</div>
           <h1>What are you committing to?</h1>
           <div className="sub">Browse the deck. Click a card to choose it.</div>
         </div>
 
-        {/* 3D world */}
+        {/* 3D world of flip cards */}
         <div className="pc-world">
           <div className="pc-world-inner">
-            {GOALS.map((g, i) => (
-              <div
-                key={g.title}
-                className={`pc-emblem ${i === CUSTOM_INDEX ? "custom" : ""}`}
-                style={embStyle(i)}
-                onClick={() => tap(i)}
-              >
-                {i !== CUSTOM_INDEX && <div className="glow" />}
-                <div className="body">
-                  <div className="ic">{g.icon}</div>
-                  <div style={{ marginTop: "auto" }}>
-                    <div className="title">{g.title}</div>
-                    <div className="desc">{g.desc}</div>
-                  </div>
-                  <div className="foot">
-                    <div className="m">pact</div>
-                    <div className="m">
-                      {i === CUSTOM_INDEX ? "+" : String(i + 1).padStart(2, "0")}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {/* Detail / pact card */}
-            <div className="pc-detail-wrap">
-              <div
-                className="pc-detail"
-                style={detailStyle()}
-                onClick={() => {
-                  if (stage === 0) select(active);
-                }}
-              >
-                <div className="texture" />
-                <div className="inner">
-                  {/* header */}
-                  <div className="head">
-                    <div className="left">
-                      <div className="ic">{goalCard.icon}</div>
-                      <div>
-                        <div className="goal-name">{goalName}</div>
-                        <div className="goal-no m">Pact · No. 001</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pc-divider" />
-
-                  <div className="pc-zones" style={{ opacity: zonesShown ? 1 : 0 }}>
-                    {/* ZONE: FREQUENCY */}
-                    <div className={zoneClass(1)}>
-                      <div className="pc-zone-label">Frequency</div>
-
-                      {stage === 1 && !freqUp && <FreqShimmer />}
-
-                      {stage === 1 && freqUp && (
-                        <div>
-                          {isCustom && (
-                            <input
-                              className="pc-custom-input"
-                              placeholder="Name your goal…"
-                              value={customTitle}
-                              autoFocus
-                              maxLength={60}
-                              onChange={(e) => setCustomTitle(e.target.value)}
-                            />
-                          )}
-                          <div className="pc-freq-top">
-                            <div className="pc-freq-num">
-                              <div className="n m">{days}</div>
-                              <div className="u">
-                                days
-                                <br />a week
-                              </div>
-                            </div>
-                            <div className="pc-step-btns">
-                              <div
-                                className="pc-step-btn minus"
-                                onClick={() => setDays((d) => Math.max(1, d - 1))}
-                              >
-                                −
-                              </div>
-                              <div
-                                className="pc-step-btn plus"
-                                onClick={() => setDays((d) => Math.min(7, d + 1))}
-                              >
-                                +
-                              </div>
-                            </div>
+            {GOALS.map((g, i) => {
+              const isHero = i === goalIndex;
+              return (
+                <div key={g.title} className="pc-slot" style={slotStyle(i)} onClick={() => tap(i)}>
+                  <div className="pc-flip" style={flipStyle(i)}>
+                    {/* FRONT */}
+                    <div className="pc-face pc-front">
+                      {g.art ? (
+                        <img className="pc-art" src={g.art} alt={g.title} draggable={false} />
+                      ) : (
+                        <div className="pc-custom-front">
+                          <div className="cf-plus">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="30" height="30">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
                           </div>
-                          <div className="pc-bars">
-                            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                              <div
-                                key={n}
-                                className={`pc-bar ${days >= n ? "on" : ""}`}
-                              />
-                            ))}
+                          <div className="cf-text">
+                            <div className="cf-title">Create your own</div>
+                            <div className="cf-sub">Start from a blank card</div>
                           </div>
-                          <div className="pc-divider" style={{ margin: "16px 0 0" }} />
-                          <div className="pc-sub-label m">Commit for</div>
-                          <div className="pc-week-pills">
-                            {WEEK_OPTIONS.map((w) => (
-                              <div
-                                key={w}
-                                className={`pc-pill ${weeks === w ? "sel" : ""}`}
-                                onClick={() => setWeeks(w)}
-                              >
-                                {w} {w === 1 ? "wk" : "wks"}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="pc-checkins m">
-                            = {checkins} check-ins over the pact
+                          <div className="cf-foot m">
+                            <span>pact</span>
+                            <span>+</span>
                           </div>
                         </div>
                       )}
-
-                      {stage > 1 && (
-                        <div className="pc-done-tags">
-                          <span className="pc-done-tag m">{days}× / week</span>
-                          <span className="pc-done-tag m">
-                            {weeks} {weeksWord}
-                          </span>
-                        </div>
-                      )}
                     </div>
 
-                    {/* ZONE: STAKE */}
-                    <div className={zoneClass(2)}>
-                      <div className="pc-zone-label">On the line</div>
-
-                      {stage < 2 && (
-                        <div
-                          className="pc-sk"
-                          style={{ marginTop: 9, width: 150, height: 42, borderRadius: 10 }}
+                    {/* BACK — only the chosen card needs the editorial face */}
+                    <div className="pc-face pc-back-face">
+                      {isHero && (
+                        <CardBack
+                          goalName={goalName}
+                          days={days}
+                          weeks={weeks}
+                          weeksWord={weeksWord}
+                          stake={stake}
+                          charity={charity}
+                          agent={agentDef}
+                          owner={OWNER_NAME}
+                          sealedDate={sealedDate}
+                          titleReady={titleReady}
+                          freqReady={freqReady}
+                          stakeReady={stakeReady}
+                          charityReady={charityReady}
+                          agentReady={agentReady}
+                          signed={signed}
+                          zoneState={zoneState}
                         />
                       )}
-
-                      {stage === 2 && (
-                        <div>
-                          <div className="pc-stake-amt m">${stake}</div>
-                          <div className="pc-slider">
-                            <input
-                              type="range"
-                              min={STAKE_MIN}
-                              max={STAKE_MAX}
-                              step={10}
-                              value={stake}
-                              onChange={(e) => setStake(Number(e.target.value))}
-                            />
-                          </div>
-                          <div className="pc-preset-pills">
-                            {STAKE_PRESETS.map((v) => (
-                              <div
-                                key={v}
-                                className={`pc-pill ${stake === v ? "sel" : ""}`}
-                                onClick={() => setStake(v)}
-                              >
-                                ${v}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {stage > 2 && <div className="pc-stake-done m">${stake}</div>}
-                    </div>
-
-                    {/* ZONE: CHARITY / STAMP */}
-                    <div className={zoneClass(3)}>
-                      <div className="pc-zone-label">If you miss, it goes to</div>
-
-                      {stage < 3 && (
-                        <div className="pc-chips">
-                          {[0, 1, 2, 3, 4].map((i) => (
-                            <div
-                              key={i}
-                              className="pc-sk"
-                              style={{ width: 36, height: 36, borderRadius: "50%" }}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {stage === 3 && (
-                        <div>
-                          <div className="pc-chips pc-chips-stamps">
-                            {charities.map((c) => {
-                              const sel = charityId === c.id;
-                              return (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  className={`pc-chip-stamp${sel ? " sel" : ""}`}
-                                  title={c.name}
-                                  onClick={() => setCharityId(c.id)}
-                                  aria-pressed={sel}
-                                >
-                                  <img src={c.stamp} alt={c.name} loading="lazy" />
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <div className="pc-charity-label">
-                            {charity
-                              ? `${charity.name} · ${charity.category.replace(/_/g, " ")}`
-                              : "Tap a cause to stamp it on"}
-                          </div>
-                        </div>
-                      )}
-
-                      {stage > 3 && charity && (
-                        <div className="pc-charity-done">
-                          <img className="pc-done-stamp" src={charity.stamp} alt={charity.name} />
-                          <span className="nm">{charity.name}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
-
-                  {/* footer signature */}
-                  <div className="pc-sig">
-                    <div className="pact">pact</div>
-                    <div className="binding m">Binding once signed</div>
-                  </div>
                 </div>
-
-                {/* Wax stamp badge — the selected charity's real stamp */}
-                <div
-                  className="pc-stamp"
-                  style={{
-                    opacity: charity ? 1 : 0,
-                    transform: charity
-                      ? "rotate(-9deg) scale(1)"
-                      : "rotate(-9deg) scale(1.5)",
-                  }}
-                >
-                  {charity && (
-                    <img className="pc-stamp-img" src={charity.stamp} alt={charity.name} />
-                  )}
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
 
@@ -600,7 +419,7 @@ export function Create() {
           className="pc-arrow prev"
           onClick={prev}
           disabled={active === 0}
-          style={{ opacity: stage === 0 ? 1 : 0, pointerEvents: stage === 0 ? "auto" : "none" }}
+          style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
           aria-label="Previous card"
         >
           <Chevron dir="l" />
@@ -609,7 +428,7 @@ export function Create() {
           className="pc-arrow next"
           onClick={next}
           disabled={active === GOALS.length - 1}
-          style={{ opacity: stage === 0 ? 1 : 0, pointerEvents: stage === 0 ? "auto" : "none" }}
+          style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
           aria-label="Next card"
         >
           <Chevron dir="r" />
@@ -619,125 +438,195 @@ export function Create() {
         <button
           className="pc-choose"
           onClick={() => select(active)}
-          style={{
-            opacity: chooseVisible ? 1 : 0,
-            pointerEvents: chooseVisible ? "auto" : "none",
-          }}
+          style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
         >
           Choose this card <Arrow size={17} />
         </button>
 
-        {/* Control bar (stages 1–3) */}
+        {/* ── Editor rail (stages 1–4) ─────────────────────────────────────────── */}
         <div
-          className="pc-bar"
-          style={{ opacity: barVisible ? 1 : 0, pointerEvents: barVisible ? "auto" : "none" }}
-        >
-          <div className="step m">{stepName}</div>
-          <button
-            className="pc-continue"
-            onClick={advance}
-            disabled={stage === 3 && !charityId}
-          >
-            {stage === 3 ? "Seal it" : "Continue"} <Arrow />
-          </button>
-        </div>
-
-        {/* Agent panel (stage 4) */}
-        <div
-          className="pc-agents"
+          className="pc-rail"
           style={{
-            opacity: stage === 4 ? 1 : 0,
-            transform: stage === 4 ? "translateY(0)" : "translateY(18px)",
-            pointerEvents: stage === 4 ? "auto" : "none",
+            opacity: editing ? 1 : 0,
+            transform: editing ? "translate(0,-50%)" : "translate(24px,-50%)",
+            pointerEvents: editing ? "auto" : "none",
           }}
         >
-          <div className="ahead">
-            <h2>Who's keeping you honest?</h2>
-            <p>Your agent verifies proof and coaches you. Pick one to seal the pact.</p>
+          <div className="pc-rail-head">
+            <div className="m step">Step {stepMeta.n} of 4</div>
+            <h2>{stepMeta.head}</h2>
           </div>
-          <div className="pc-agent-grid">
-            <div className="pc-agent" onClick={() => pickAgent("Hermes")}>
-              <div className="ic dark">
-                <Spark />
+
+          <div className="pc-rail-body">
+            {/* FREQUENCY */}
+            {stage === 1 && (
+              <div className="pc-panel">
+                {isCustom && (
+                  <input
+                    className="pc-name-input"
+                    placeholder="Name your goal…"
+                    value={customTitle}
+                    autoFocus
+                    maxLength={60}
+                    onChange={(e) => setCustomTitle(e.target.value)}
+                  />
+                )}
+                <div className="pc-freq-top">
+                  <div className="pc-freq-num">
+                    <span className="n m">{days}</span>
+                    <span className="u">days<br />a week</span>
+                  </div>
+                  <div className="pc-step-btns">
+                    <button className="pc-step-btn" onClick={() => setDays((d) => Math.max(1, d - 1))} aria-label="Fewer days">−</button>
+                    <button className="pc-step-btn" onClick={() => setDays((d) => Math.min(7, d + 1))} aria-label="More days">+</button>
+                  </div>
+                </div>
+                <div className="pc-bars">
+                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                    <div key={n} className={`pc-bar ${days >= n ? "on" : ""}`} />
+                  ))}
+                </div>
+                <div className="pc-sub-label m">Commit for</div>
+                <div className="pc-week-pills">
+                  {WEEK_OPTIONS.map((w) => (
+                    <button key={w} className={`pc-pill ${weeks === w ? "sel" : ""}`} onClick={() => setWeeks(w)}>
+                      {w} {w === 1 ? "wk" : "wks"}
+                    </button>
+                  ))}
+                </div>
+                <div className="pc-checkins m">= {checkins} check-ins over the pact</div>
               </div>
-              <div className="nm">Hermes</div>
-              <div className="dn">Your built-in coach</div>
-              <div className="tag rec m">Recommended</div>
-            </div>
-            <div className="pc-agent" onClick={() => pickAgent("Claude Code")}>
-              <div className="ic light">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-                  <path d="M8 7l-5 5 5 5M16 7l5 5-5 5" />
-                </svg>
+            )}
+
+            {/* STAKE */}
+            {stage === 2 && (
+              <div className="pc-panel">
+                <div className="pc-stake-amt m">${stake}</div>
+                <div className="pc-slider">
+                  <input
+                    type="range"
+                    min={STAKE_MIN}
+                    max={STAKE_MAX}
+                    step={10}
+                    value={stake}
+                    onChange={(e) => setStake(Number(e.target.value))}
+                  />
+                </div>
+                <div className="pc-preset-pills">
+                  {STAKE_PRESETS.map((v) => (
+                    <button key={v} className={`pc-pill ${stake === v ? "sel" : ""}`} onClick={() => setStake(v)}>
+                      ${v}
+                    </button>
+                  ))}
+                </div>
+                <div className="pc-help m">If you miss a check-in, this is what you forfeit to your cause.</div>
               </div>
-              <div className="nm">Claude Code</div>
-              <div className="dn">From your dev workflow</div>
-              <div className="tag connect m">Connect</div>
-            </div>
-            <div className="pc-agent" onClick={() => pickAgent("your agent")}>
-              <div className="ic light">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-                  <rect x="4" y="4" width="16" height="16" rx="4" />
-                  <path d="M9 12h6M12 9v6" />
-                </svg>
+            )}
+
+            {/* CHARITY */}
+            {stage === 3 && (
+              <div className="pc-panel">
+                <div className="pc-chips pc-chips-stamps">
+                  {charities.map((c) => {
+                    const sel = charityId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`pc-chip-stamp${sel ? " sel" : ""}`}
+                        title={c.name}
+                        onClick={() => setCharityId(c.id)}
+                        aria-pressed={sel}
+                      >
+                        <img src={c.stamp} alt={c.name} loading="lazy" />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pc-charity-label">
+                  {charity ? `${charity.name} · ${charity.category.replace(/_/g, " ")}` : "Tap a cause to stamp it on"}
+                </div>
               </div>
-              <div className="nm">Your own agent</div>
-              <div className="dn">Any MCP agent, via API</div>
-              <div className="tag connect m">Connect</div>
-            </div>
+            )}
+
+            {/* AGENT */}
+            {stage === 4 && (
+              <div className="pc-panel">
+                <div className="pc-agent-list">
+                  {AGENTS.map((a) => {
+                    const sel = agentKey === a.key;
+                    return (
+                      <button
+                        key={a.key}
+                        type="button"
+                        className={`pc-agent-opt${sel ? " sel" : ""}`}
+                        onClick={() => setAgentKey(a.key)}
+                        aria-pressed={sel}
+                      >
+                        <span className="ao-ic">
+                          {a.avatar ? <img src={a.avatar} alt="" /> : a.glyph}
+                        </span>
+                        <span className="ao-text">
+                          <span className="ao-name">{a.name}</span>
+                          <span className="ao-blurb">{a.blurb}</span>
+                        </span>
+                        <span className={`ao-tag m ${a.tag}`}>{a.tag === "rec" ? "Recommended" : "Connect"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="pc-rail-foot">
+            {stage < 4 ? (
+              <button className="pc-continue" onClick={advance} disabled={!canContinue}>
+                Continue <Arrow />
+              </button>
+            ) : (
+              <button className="pc-continue seal" onClick={seal} disabled={!agentKey}>
+                Seal the pact <Arrow />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Sending (stage 5) */}
+        {/* Sealing (stage 5) */}
         <div className="pc-sending" style={{ opacity: stage === 5 ? 1 : 0 }}>
           <div className="pill">
-            <span className="txt m">Handing your pact to {agentName}</span>
-            <span className="pc-dots">
-              <span />
-              <span />
-              <span />
-            </span>
+            <span className="txt m">Sealing your pact with {agentDef?.name || "your agent"}</span>
+            <span className="pc-dots"><span /><span /><span /></span>
           </div>
         </div>
 
         {/* Message (stage 6) */}
         <div
           className="pc-msg"
-          style={{
-            opacity: stage === 6 ? 1 : 0,
-            pointerEvents: stage === 6 ? "auto" : "none",
-          }}
+          style={{ opacity: stage === 6 ? 1 : 0, pointerEvents: stage === 6 ? "auto" : "none" }}
         >
-          <div
-            className="card"
-            style={{ transform: stage === 6 ? "translateY(0)" : "translateY(14px)" }}
-          >
+          <div className="card" style={{ transform: stage === 6 ? "translateY(0)" : "translateY(14px)" }}>
             <div className="head">
               <div className="ic">
-                <Spark size={22} />
+                {agentDef?.avatar ? <img src={agentDef.avatar} alt="" /> : <Spark size={22} />}
               </div>
               <div>
-                <div className="nm">{agentName}</div>
-                <div className="status">
-                  <span className="dot" />
-                  Now coaching your pact
-                </div>
+                <div className="nm">{agentDef?.name || "Hermes Agent"}</div>
+                <div className="status"><span className="dot" />Now coaching your pact</div>
               </div>
             </div>
             <div className="body">
               <div className="bubble">
                 Let's go — we've got a pact. <b>${stake}</b> is on the line behind{" "}
-                <b>{goalName.toLowerCase()}</b>, {freqSummary}. I'll get you started: your{" "}
-                <b>first check-in is tomorrow</b>. Miss it and{" "}
+                <b>{goalName.toLowerCase()}</b>, {days} days/week for {weeks} {weeksWord}. I'll get you
+                started: your <b>first check-in is tomorrow</b>. Miss it and{" "}
                 {charity?.name || "your charity"} gets paid — so let's not.
               </div>
               <div className="actions">
                 <button className="open" onClick={openPact}>
                   Open my pact <Arrow />
                 </button>
-                <button className="replay" onClick={restart}>
-                  Replay
-                </button>
+                <button className="replay" onClick={restart}>Replay</button>
               </div>
             </div>
           </div>
@@ -747,9 +636,7 @@ export function Create() {
         {error && (
           <div className="pc-error">
             <span>{error}</span>
-            <span className="x" onClick={() => setError(null)}>
-              ✕
-            </span>
+            <span className="x" onClick={() => setError(null)}>✕</span>
           </div>
         )}
       </div>
@@ -757,28 +644,96 @@ export function Create() {
   );
 }
 
-// Frequency shimmer skeleton — mirrors the prototype's loading reveal.
-function FreqShimmer() {
+// ── The editorial card back ────────────────────────────────────────────────────
+// Mirrors the workout_card_back.svg layout: commitment → on the line → cause →
+// keeper → signature. Each section fades from a shimmer skeleton into its value
+// as the user fills the pact out.
+interface CardBackProps {
+  goalName: string;
+  days: number;
+  weeks: number;
+  weeksWord: string;
+  stake: number;
+  charity: Charity | null;
+  agent: AgentDef | null;
+  owner: string;
+  sealedDate: string;
+  titleReady: boolean;
+  freqReady: boolean;
+  stakeReady: boolean;
+  charityReady: boolean;
+  agentReady: boolean;
+  signed: boolean;
+  zoneState: (n: number) => string;
+}
+
+function CardBack(p: CardBackProps) {
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div className="pc-sk" style={{ width: 104, height: 36 }} />
-        <div style={{ display: "flex", gap: 8 }}>
-          <div className="pc-sk" style={{ width: 40, height: 40, borderRadius: 12 }} />
-          <div className="pc-sk" style={{ width: 40, height: 40, borderRadius: 12 }} />
-        </div>
+    <div className="cb">
+      <div className="cb-top">
+        <div className="cb-eyebrow m">The commitment</div>
+        {p.titleReady ? (
+          <div className="cb-title">{p.goalName}</div>
+        ) : (
+          <div className="pc-sk cb-sk-title" />
+        )}
+        {p.freqReady ? (
+          <div className={`cb-freq ${p.zoneState(1)}`}>
+            {p.days} days a week for {p.weeks} {p.weeksWord}
+          </div>
+        ) : (
+          <div className="pc-sk cb-sk-freq" />
+        )}
       </div>
-      <div style={{ marginTop: 14, display: "flex", gap: 5 }}>
-        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="pc-sk" style={{ flex: 1, height: 30, borderRadius: 7 }} />
-        ))}
+
+      <div className="cb-rule" />
+
+      <div className="cb-section">
+        <div className="cb-eyebrow m">On the line</div>
+        {p.stakeReady ? (
+          <div className={`cb-stake m ${p.zoneState(2)}`}>${p.stake}</div>
+        ) : (
+          <div className="pc-sk cb-sk-stake" />
+        )}
       </div>
-      <div style={{ marginTop: 16, height: 1, background: "var(--pc-card-line)" }} />
-      <div className="pc-sk" style={{ marginTop: 14, width: 72, height: 11, borderRadius: 5 }} />
-      <div style={{ marginTop: 11, display: "flex", gap: 6 }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="pc-sk" style={{ flex: 1, height: 42, borderRadius: 10 }} />
-        ))}
+
+      <div className="cb-section">
+        <div className="cb-eyebrow m">If you fail, it funds</div>
+        {p.charityReady && p.charity ? (
+          <div className={`cb-row ${p.zoneState(3)}`}>
+            <img className="cb-seal" src={p.charity.stamp} alt="" />
+            <span className="cb-row-name m">{p.charity.name}</span>
+          </div>
+        ) : (
+          <div className="cb-row">
+            <div className="pc-sk cb-sk-seal" />
+            <div className="pc-sk cb-sk-name" />
+          </div>
+        )}
+      </div>
+
+      <div className="cb-section">
+        <div className="cb-eyebrow m">Kept honest by</div>
+        {p.agentReady && p.agent ? (
+          <div className={`cb-row ${p.zoneState(4)}`}>
+            <span className="cb-avatar">
+              {p.agent.avatar ? <img src={p.agent.avatar} alt="" /> : p.agent.glyph}
+            </span>
+            <span className="cb-row-name m">{p.agent.name}</span>
+          </div>
+        ) : (
+          <div className="cb-row">
+            <div className="pc-sk cb-sk-avatar" />
+            <div className="pc-sk cb-sk-name" />
+          </div>
+        )}
+      </div>
+
+      <div className="cb-rule" />
+
+      <div className={`cb-sign ${p.signed ? "in" : ""}`}>
+        <div className="cb-sign-name">{p.owner}</div>
+        <div className="cb-sign-date m">{p.signed ? `SIGNED · ${p.sealedDate}` : "AWAITING SIGNATURE"}</div>
       </div>
     </div>
   );

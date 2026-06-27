@@ -125,41 +125,40 @@ export function App() {
 
   return (
     <DemoContext.Provider value={ctx}>
-      <div className={`demobar${isLanding ? " demobar-minimal" : ""}`}>
-        <div className="demobar-inner">
-          <Link to={isLanding ? "/" : "/dashboard"} className="brand">
-            <img src="/pact_wordmark.png" alt="Pact" className="brand-wordmark" />
-          </Link>
-          {!isLanding && (
-            <>
-              <span className="demobar-tag mono-label">Demo console</span>
-              <div className="demobar-spacer" />
-              <span className="demobar-clock data">
-                <span className="mono-label" style={{ letterSpacing: "0.12em" }}>
-                  CLOCK
-                </span>{" "}
-                {nowIso ? formatDateTime(nowIso) : "—"}
-              </span>
-              <button className="btn btn-ghost btn-sm" onClick={doSeed} disabled={!!busy}>
-                {busy === "seed" ? <span className="spin" /> : null}
-                Seed demo
-              </button>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={doAdvance}
-                disabled={!!busy || !nowIso}
-              >
-                {busy === "advance" ? <span className="spin" /> : null}
-                Advance day
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={doReset} disabled={!!busy}>
-                {busy === "reset" ? <span className="spin" /> : null}
-                Reset
-              </button>
-            </>
-          )}
+      {/* The landing owns its own full-bleed chrome; everywhere else gets the demo console. */}
+      {!isLanding && (
+        <div className="demobar">
+          <div className="demobar-inner">
+            <Link to="/dashboard" className="brand">
+              <img src="/pact_wordmark.png" alt="Pact" className="brand-wordmark" />
+            </Link>
+            <span className="demobar-tag mono-label">Demo console</span>
+            <div className="demobar-spacer" />
+            <span className="demobar-clock data">
+              <span className="mono-label" style={{ letterSpacing: "0.12em" }}>
+                CLOCK
+              </span>{" "}
+              {nowIso ? formatDateTime(nowIso) : "—"}
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={doSeed} disabled={!!busy}>
+              {busy === "seed" ? <span className="spin" /> : null}
+              Seed demo
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={doAdvance}
+              disabled={!!busy || !nowIso}
+            >
+              {busy === "advance" ? <span className="spin" /> : null}
+              Advance day
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={doReset} disabled={!!busy}>
+              {busy === "reset" ? <span className="spin" /> : null}
+              Reset
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <main key={location.pathname} className="page-fade">
         <Outlet />
