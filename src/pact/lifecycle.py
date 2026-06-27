@@ -445,7 +445,20 @@ def close_dispute_window(
                 pact, proofs, valid, PactStatus.failed, PaymentAction.none, None
             )
         pact.status = PactStatus.donation_pending
-        result = payment.create_donation(pact, f"{pact.id}:donation")
+        try:
+            result = payment.create_donation(pact, f"{pact.id}:donation")
+        except Exception:
+            # Provider raised mid-charge: do NOT leave the pact re-enterable. A
+            # None spend_request_id would re-trigger create_donation on the next
+            # sweep and risk a double-donation. Park it at terminal donation_failed
+            # (no money moved here) so a human can investigate/retry deliberately.
+            pact.status = PactStatus.donation_failed
+            pact.stake_state = StakeState.error
+            pact.verdict_at = now
+            return pact, _build_verdict(
+                pact, proofs, valid, PactStatus.failed,
+                PaymentAction.donation_failed, None,
+            )
         pact.spend_request_id = result.provider_ref
         pact.stake_state = StakeState.executed
         pact.status = PactStatus.donated
@@ -500,7 +513,16 @@ def execute_forfeit_donation(
     if pact.spend_request_id is not None:
         return pact
 
-    result = payment.create_donation(pact, f"{pact.id}:donation")
+    try:
+        result = payment.create_donation(pact, f"{pact.id}:donation")
+    except Exception:
+        # Provider raised: mark terminal donation_failed rather than leaving the
+        # pact re-enterable (which would risk a second charge on retry). No money
+        # moved (spend_request_id stays None).
+        pact = transition(pact, PactStatus.donation_failed)
+        pact.stake_state = StakeState.error
+        pact.verdict_at = clock.now()
+        return pact
     pact.spend_request_id = result.provider_ref
     pact.stake_state = StakeState.executed
     pact = transition(pact, PactStatus.donated)

@@ -17,7 +17,7 @@ const DECLINED = new Set(["donation_declined", "canceled_forfeit"]);
 
 export function PactDetail() {
   const { pactId } = useParams();
-  const { nowMs, signalChange } = useDemo();
+  const { nowMs, bump, signalChange } = useDemo();
   const navigate = useNavigate();
 
   const [pact, setPact] = useState<Pact | null>(null);
@@ -48,7 +48,10 @@ export function PactDetail() {
     }
   }, [pactId]);
 
-  useEffect(() => { load(); }, [load, nowMs]);
+  // Refetch on mount, pact change, and explicit data signals (demo advance,
+  // actions, overlay resolutions) — NOT on every 1Hz nowMs tick. nowMs stays for
+  // the live dispute-window countdown in render only.
+  useEffect(() => { load(); }, [load, bump]);
 
   const sendCoach = async (text: string) => {
     if (!pact) return;

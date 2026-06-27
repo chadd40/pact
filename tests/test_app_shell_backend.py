@@ -16,7 +16,7 @@ from pact.api import create_app
 from pact.clock import FixedClock
 from pact.config import Settings, load_settings
 from pact.demo import _showcase_pact, seed, seed_states
-from pact.lifecycle import create_pact_structured
+from pact.lifecycle import create_pact_structured, execute_forfeit_donation
 from pact.models import (
     Modality,
     Pact,
@@ -195,6 +195,31 @@ async def test_donation_initiate_rejects_non_pending(tmp_path):
     async with _client(app) as client:
         r = await client.post("/api/pacts/pact-active/donation/initiate")
         assert r.status_code == 409, r.text
+
+
+class _ThrowingProvider:
+    """A payment provider that raises mid-charge (simulates a real provider outage)."""
+
+    def create_donation(self, pact, idempotency_key):  # noqa: ARG002
+        raise RuntimeError("provider down")
+
+
+def test_donation_capture_provider_error_is_terminal_not_retriable():
+    """If the provider raises during capture, the pact must NOT be left re-enterable
+    (which would risk a second charge on retry). It parks at terminal donation_failed
+    with no spend_request_id, and a retry is a no-op (single-fire money invariant)."""
+    clock = _clock()
+    pact = _donation_pending_pact("pact-err")
+
+    out = execute_forfeit_donation(pact, clock, _ThrowingProvider())
+    assert out.status == PactStatus.donation_failed
+    assert out.spend_request_id is None  # provably no money moved
+    assert out.stake_state == StakeState.error
+
+    # Retry does not re-enter the charge path (not donation_pending anymore).
+    again = execute_forfeit_donation(out, clock, _ThrowingProvider())
+    assert again.status == PactStatus.donation_failed
+    assert again.spend_request_id is None
 
 
 @pytest.mark.anyio
