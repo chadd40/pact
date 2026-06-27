@@ -84,7 +84,7 @@ Since the charge can't be made un-stoppable (§6), the commitment pressure is no
 **The model:**
 - **Connect Link = readiness**, not a charge. `link-cli auth login` (device flow) + a payment method on file. In the backend: `link.py` `connect_account` sets `LinkAccount.connected` (today a safe test stub; live wiring gated). Prompted after the first pact.
 - **No money on success.** Nothing is held; nothing moves if you keep your word.
-- **On failure, at the deadline:** settlement reaches `donation_pending`; the agent/backend creates the spend-request; **the user approves the donation in their Link app** (or it times out → no donation, but the failure is still recorded). Gated on `is_owner_connected(owner)`; idempotent via `spend_request_id` so it fires at most once.
+- **On failure — nag until resolved (locked 2026-06-27):** the miss is recorded at verdict finalization (streak resets) **regardless** of payment. The donation then sits at `donation_pending` and the **agent keeps nudging until the user resolves it** — either **approves** it in their Link app (→ `donated`) or **explicitly declines** while looking at the failure evidence (→ `donation_declined`). **No silent timeout** — it stays open and resurfaced. Gated on `is_owner_connected(owner)`; idempotent via `spend_request_id` so it fires at most once.
 - **Safety:** `TestLinkProvider` is the default (no real money); `LinkCliProvider` (live) is behind explicit config and never auto-runs; charity URLs checked against a host-suffix **allowlist** (`is_allowed_url`).
 
 ---
@@ -93,14 +93,13 @@ Since the charge can't be made un-stoppable (§6), the commitment pressure is no
 
 1. **Landing (pact.com)** — Pact mark + a centered simulated iPhone running an iMessage thread (contact "friend"); a bubble flies in *"I wish I worked out more"*, the goal cycling in a vertical carousel. A scroll cue invites continuation. *(No backend.)*
 2. **Scroll → Deck** — the same page becomes the deck: *"what are you committing to?"* Pick a card (or custom).
-3. **Build** — frequency (days×weeks → `target_count`, `deadline`), stake ($10–$500), charity (from `GET /api/charities`). 
-4. **Connect agent** — pick Hermes / Claude / custom (nemoclaw coming soon); first-timers do the one-time setup (§4).
-5. **Seal** — `POST /api/pacts/create` → active pact; the agent handoff greeting seeds the coaching thread.
-6. **Connect Link** — prompted (readiness; §6) after the first pact.
-7. **Live** — `/pact/:id`: progress ring, photo proof (`proof-token` → `proofs/image`), coaching thread, milestones, loss-framing when behind, cancel.
-8. **Deadline → verdict** — settle → kept (streak++) or failed → dispute window → on a real miss, the human-approved donation.
+3. **Build (no commitment yet)** — frequency (days×weeks → `target_count`, `deadline`), stake ($10–$500), charity (from `GET /api/charities`). The whole pact is previewed before any agent/account ask. **(Agent choice is deferred to seal — locked 2026-06-27.)**
+4. **Seal** — *now* pick the agent (Hermes / Claude / custom; nemoclaw coming soon); first-timers do the one-time setup (§4); consent → `POST /api/pacts/create` → active pact + the agent handoff greeting seeds the coaching thread.
+5. **Connect Link** — prompted (readiness; §6) **after the first pact** is sealed and handed off.
+6. **Live** — `/pact/:id`: progress ring, photo proof (`proof-token` → `proofs/image`), coaching thread, milestones, loss-framing when behind, cancel.
+7. **Deadline → verdict** — settle → kept (streak++) or failed → dispute window → on a real miss, the **nag-until-resolved** donation (§6).
 
-Returning users land on the **dashboard** (record + active pacts + history). The **agent door** skips 1–4: the skill builds + activates the pact directly.
+Returning users land on the **dashboard** (record + active pacts + history). The **agent door** skips 1–4: the skill builds + activates the pact directly (the agent is already chosen — it's the one running the skill).
 
 ---
 
@@ -134,9 +133,12 @@ Returning users land on the **dashboard** (record + active pacts + history). The
 
 ---
 
-## 10. Open decisions remaining
+## 10. Decisions — resolved 2026-06-27
 
-- **nemoclaw** — what it actually is (placeholder for now).
-- **Default agent in the UI** — Hermes shown as the recommended/easiest, others "connect"?
-- **Link-connect timing** — keep "after first pact," or move into the seal step?
-- **Deadline reachability** — if the user is asleep at the deadline, the donation can't be approved; do we widen the approval window (agent retries over N hours) or just record the miss?
+- **Agent choice = deferred to seal.** The user builds/previews the entire pact first; the agent is picked (and first-time setup done) only at the seal step. The Create flow already orders it this way.
+- **Link-connect = after the first pact.** Seal → handed to agent → then prompt to connect Link (readiness). Build flow stays frictionless.
+- **Deadline miss = nag until resolved.** No silent timeout; the agent keeps resurfacing the donation until the user approves (→ `donated`) or explicitly declines (→ `donation_declined`). The miss + streak loss are recorded at verdict finalization regardless. (See §6.)
+
+**Still open (not blocking):**
+- **nemoclaw** — identity TBD; "coming soon" icon only.
+- **Nag cadence/medium** — how often and through which channel the agent re-nudges a pending donation (tune during build).
