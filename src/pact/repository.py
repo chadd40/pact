@@ -5,6 +5,7 @@ import threading
 from datetime import datetime
 
 from pact.models import (
+    AccountLink,
     CoachingMessage,
     LinkAccount,
     Pact,
@@ -92,6 +93,13 @@ class Repository:
                 owner TEXT PRIMARY KEY,
                 data TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS account_links (
+                owner TEXT PRIMARY KEY,
+                token TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_account_links_token ON account_links(token);
 
             CREATE TABLE IF NOT EXISTS coaching_messages (
                 id TEXT PRIMARY KEY,
@@ -273,6 +281,26 @@ class Repository:
         if row is None:
             return None
         return LinkAccount.model_validate_json(row["data"])
+
+    # --- AccountLink (agent ↔ account token) ---
+
+    def save_account_link(self, link: AccountLink) -> None:
+        with self._write_lock:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO account_links (owner, token, data) VALUES (?, ?, ?)",
+                (link.owner, link.token, link.model_dump_json()),
+            )
+            self.conn.commit()
+
+    def get_account_link(self, owner: str) -> AccountLink | None:
+        row = self._one("SELECT data FROM account_links WHERE owner = ?", (owner,))
+        if row is None:
+            return None
+        return AccountLink.model_validate_json(row["data"])
+
+    def owner_for_token(self, token: str) -> str | None:
+        row = self._one("SELECT owner FROM account_links WHERE token = ?", (token,))
+        return row["owner"] if row is not None else None
 
     # --- CoachingMessage ---
 

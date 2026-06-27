@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pact.charities import get_charity
 from pact.clock import Clock
-from pact.coaching import generate_coach_message, should_nudge
+from pact.coaching import donation_nag_message, generate_coach_message, should_nudge
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, settle
 from pact.link import is_owner_connected
@@ -54,6 +54,7 @@ def tick(
     settled_ids: list[str] = []
     donated_ids: list[str] = []
     nudged_ids: list[str] = []
+    nagged_ids: list[str] = []
 
     # ── Pass 1: reconcile due active pacts (settle opens windows). ──────────────
     for pact in repo.due_active_pacts(now):
@@ -80,15 +81,17 @@ def tick(
             pact, proofs, clock, payment, settings,
             link_connected=is_owner_connected(repo, pact.owner),
         )
-        if was_failed and updated.status == PactStatus.donated:
-            # The window just closed on this tick: persist, record the failure,
-            # and report it as donated.
+        if was_failed and updated.status in (PactStatus.donated, PactStatus.donation_pending):
+            # The window closed: persist + record the failure (idempotent) at
+            # finalization, regardless of whether the human-approved donation has
+            # executed yet. Only report it as donated if money actually moved.
             repo.update_pact(updated)
             repo.save_verdict(verdict)
             profile = repo.get_profile(updated.owner) or Profile(owner=updated.owner)
             profile = record_outcome(profile, updated, clock)
             repo.save_profile(profile)
-            donated_ids.append(updated.id)
+            if updated.status == PactStatus.donated:
+                donated_ids.append(updated.id)
 
     # ── Pass 3: emit at-most-one coach nudge per active pact. ───────────────────
     provider = _get_fallback_provider()
@@ -107,11 +110,27 @@ def tick(
         repo.save_coaching_message(msg)
         nudged_ids.append(pact.id)
 
+    # ── Pass 4: nag unresolved donations until approved or declined. ────────────
+    # While a missed pact sits at donation_pending, keep one standing reminder in
+    # the outbox. Don't pile up: skip if an undelivered donation_pending nudge is
+    # already queued — once the agent relays + marks it delivered, the next tick
+    # re-arms it. Resolves when the owner approves (donated) or declines.
+    for pact in repo.list_pacts():
+        if pact.status != PactStatus.donation_pending:
+            continue
+        existing = repo.list_coaching_messages(pact.id)
+        if any(m.trigger == "donation_pending" and m.delivered_at is None for m in existing):
+            continue
+        msg = donation_nag_message(pact, clock, _charity_name(pact.charity_id))
+        repo.save_coaching_message(msg)
+        nagged_ids.append(pact.id)
+
     return {
         "now": now.isoformat(),
         "settled": settled_ids,
         "donated": donated_ids,
         "nudged": nudged_ids,
+        "nagged": nagged_ids,
     }
 
 

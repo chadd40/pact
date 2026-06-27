@@ -8,6 +8,10 @@ from pact.models import Pact, PactStatus, Profile
 # (see ALLOWED_TRANSITIONS and _TERMINAL_STATUSES in src/pact/lifecycle.py).
 _FAILURE_STATUSES = {
     PactStatus.failed,
+    # A FINALIZED miss whose donation is still being resolved (nag-until-resolved):
+    # the streak loss lands now, regardless of whether the human ever approves the
+    # charge. Idempotent with the later donated/declined record.
+    PactStatus.donation_pending,
     PactStatus.donated,
     PactStatus.donation_failed,
     PactStatus.donation_declined,
