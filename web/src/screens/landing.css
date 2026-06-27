@@ -245,13 +245,8 @@
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(160deg, #c9c9ce, #8e8e93);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 23px;
-  font-weight: 500;
+  object-fit: cover;
+  display: block;
 }
 .lp-imname {
   margin-top: 5px;
