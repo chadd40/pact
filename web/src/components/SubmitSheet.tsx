@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { useFocusTrap } from "./useFocusTrap";
 import type { Pact, ProofStatus } from "../types";
 
 type Stage = "nonce" | "capture" | "judging" | "result";
@@ -25,6 +26,8 @@ export function SubmitSheet({
   const [result, setResult] = useState<ProofStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(sheetRef, onClose);
 
   useEffect(() => {
     let alive = true;
@@ -41,14 +44,19 @@ export function SubmitSheet({
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  // ESC to close
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const code = token ? token.toUpperCase() : "PACT-…";
+  const announce =
+    stage === "judging"
+      ? `${pact.agent ?? "Hermes"} is checking your proof`
+      : stage === "result"
+      ? result === "passed"
+        ? "Proof verified"
+        : result === "failed"
+        ? "Could not verify your proof"
+        : "Proof sent for human review"
+      : stage === "capture"
+      ? "Capture your proof"
+      : "Proof code ready";
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 
   const pickFile = () => fileRef.current?.click();
@@ -84,9 +92,10 @@ export function SubmitSheet({
   };
 
   return (
-    <div className="ov" role="dialog" aria-modal="true">
+    <div className="ov" role="dialog" aria-modal="true" aria-label="Submit evidence">
       <div className="ov-backdrop" onClick={onClose} />
-      <div className="ov-sheet">
+      <div className="ov-sheet" ref={sheetRef} tabIndex={-1}>
+        <div className="sr-only" role="status" aria-live="polite">{announce}</div>
         <div className="ov-sheet-head">
           <div>
             <div className="ov-sheet-title">Submit evidence</div>

@@ -109,7 +109,7 @@ export function Landing() {
         const vh = window.innerHeight;
         const y = window.scrollY || 0;
         const p = Math.min(1, Math.max(0, (y - pin.offsetTop) / Math.max(1, pin.offsetHeight - vh)));
-        const b = p < 0.1 ? 0 : p < 0.4 ? 1 : p < 0.68 ? 2 : 3;
+        const b = p < 0.14 ? 0 : p < 0.42 ? 1 : p < 0.7 ? 2 : 3;
         beatRef.current = b;
         setBeat(b);
         if (cueRef.current) cueRef.current.style.opacity = y > 30 || p > 0.02 ? "0" : "1";
@@ -173,8 +173,14 @@ export function Landing() {
             </span>
           </div>
 
-          {/* headline — sits just below the chrome (logo + Start a pact) */}
-          <div className="lp-headline">Everyone has a list of things they wish they did.</div>
+          {/* headline — swaps to the payoff line once the last message lands */}
+          <div className="lp-headline">
+            <span key={beat >= 3 ? "after" : "before"} className="lp-headline-text">
+              {beat >= 3
+                ? "Now your agent can keep you accountable with a pact."
+                : "Everyone has a list of things they wish they did."}
+            </span>
+          </div>
 
           {/* phone scene — scales as one unit to fill the space below the headline */}
           <div className="lp-stagewrap" ref={stageWrapRef}>

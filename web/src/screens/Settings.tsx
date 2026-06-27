@@ -7,6 +7,7 @@ export function Settings() {
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
     setLink(await api.linkStatus(DEMO_OWNER).catch(() => null));
@@ -19,7 +20,11 @@ export function Settings() {
   };
   const mint = async () => {
     setBusy("token");
-    try { const r = await api.mintAgentToken(DEMO_OWNER); setToken(r.token); } finally { setBusy(null); }
+    try { const r = await api.mintAgentToken(DEMO_OWNER); setToken(r.token); setCopied(false); } finally { setBusy(null); }
+  };
+  const copyToken = async () => {
+    if (!token) return;
+    try { await navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
   };
 
   return (
@@ -62,10 +67,22 @@ export function Settings() {
             <div className="set-v">Bring your own agent, install the <span className="m">/pact</span> skill, and paste this token to link it to your account.</div>
           </div>
           <button className="ov-btn sm" onClick={mint} disabled={busy === "token"}>
-            {busy === "token" ? "…" : "Generate token"}
+            {busy === "token" ? "…" : token ? "Regenerate" : "Generate token"}
           </button>
         </div>
-        {token && <div className="set-token m">{token}</div>}
+        {token && (
+          <>
+            <div className="set-token-row">
+              <code className="set-token m">{token}</code>
+              <button className="set-copy" onClick={copyToken}>{copied ? "Copied ✓" : "Copy"}</button>
+            </div>
+            <ol className="set-steps">
+              <li>Bring your agent (Hermes is near-built-in; Claude Code = drop the <span className="m">/pact</span> skill file).</li>
+              <li>Install the <span className="m">/pact</span> skill.</li>
+              <li>Paste this token so it claims your pacts and relays coaching.</li>
+            </ol>
+          </>
+        )}
       </div>
 
       <div className="set-card muted-card">

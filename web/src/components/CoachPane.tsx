@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "./useFocusTrap";
 import type { CoachingMessage, Pact } from "../types";
 
 // Slide-in coaching pane: the agent's nudges + the user's check-ins, with a composer.
@@ -16,13 +17,10 @@ export function CoachPane({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   const agent = pact.agent ?? "Hermes";
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useFocusTrap(paneRef, onClose);
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -36,9 +34,9 @@ export function CoachPane({
   };
 
   return (
-    <div className="ov" role="dialog" aria-modal="true">
+    <div className="ov" role="dialog" aria-modal="true" aria-label={`Chat with ${agent}`}>
       <div className="ov-backdrop" onClick={onClose} />
-      <div className="ov-pane">
+      <div className="ov-pane" ref={paneRef} tabIndex={-1}>
         <div className="cp-head">
           <div className="cp-head-left">
             <div className="cp-av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="20" height="20"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" /></svg></div>
