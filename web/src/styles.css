@@ -17,6 +17,7 @@
   --pc-bg-grad-2: #e4dfd4;
   --pc-bg-grad-3: #dad4c7;
   --pc-card: #16150f; /* dark ink "pact card" */
+  --pc-card-2: #181818; /* the designed card/back surface (matches front-card art) */
   --pc-card-border: #2c2a22;
   --pc-card-line: #2c2a22;
   --pc-card-line-2: #39362c;
@@ -29,7 +30,7 @@
   --pc-muted-2: #8a8678;
   --pc-on-card: #efebe1;
   --pc-on-card-dim: #a39d8e;
-  --pc-on-card-faint: #7d7768;
+  --pc-on-card-faint: #948d7c;
   /* Accents */
   --pc-gold: rgba(214, 178, 120, 1);
   --pc-gold-soft: rgba(214, 178, 120, 0.07);

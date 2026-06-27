@@ -147,7 +147,7 @@
   overflow: hidden;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  background: #181818;
+  background: var(--pc-card-2);
   box-shadow: 0 42px 84px -30px rgba(20, 18, 12, 0.62), 0 6px 18px -8px rgba(20, 18, 12, 0.4);
 }
 .pc-front {
@@ -218,13 +218,13 @@
   padding: 34px 34px 30px;
   display: flex;
   flex-direction: column;
-  background: #181818;
+  background: var(--pc-card-2);
 }
 .cb-eyebrow {
   font-size: 11px;
   letter-spacing: 0.17em;
   text-transform: uppercase;
-  color: #7d7768;
+  color: var(--pc-on-card-faint);
 }
 .cb-title {
   margin-top: 11px;
@@ -250,7 +250,7 @@
 }
 .cb-rule {
   height: 1px;
-  background: #2c2a22;
+  background: var(--pc-card-border);
   margin: 20px 0;
 }
 .cb-section + .cb-section {
@@ -263,6 +263,7 @@
   line-height: 0.88;
   letter-spacing: -0.01em;
   color: var(--pc-cream-bright);
+  transition: color 0.4s ease;
 }
 .cb-row {
   margin-top: 10px;
@@ -284,10 +285,12 @@
   border-radius: 9px;
   overflow: hidden;
   flex: 0 0 auto;
-  background: #f1efe9;
-  color: #16150f;
+  background: var(--pc-cream);
+  color: var(--pc-ink);
   display: grid;
   place-items: center;
+  border: 1px solid rgba(239, 235, 225, 0.18);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.4);
 }
 .cb-avatar img {
   width: 100%;
@@ -299,12 +302,18 @@
   font-size: 17px;
   font-weight: 500;
   color: var(--pc-cream);
+  transition: color 0.4s ease;
 }
-/* Active section gets a faint lift while it's being filled */
+/* Section states: pending (skeleton) → active (current, bright) → done (locked, calm) */
 .cb-freq.active,
 .cb-stake.active,
 .cb-row.active .cb-row-name {
   color: #fff;
+}
+.cb-freq.done,
+.cb-stake.done,
+.cb-row.done .cb-row-name {
+  color: var(--pc-cream);
 }
 
 .cb-foot {
@@ -331,7 +340,7 @@
   margin-top: 6px;
   font-size: 10px;
   letter-spacing: 0.16em;
-  color: #6c6757;
+  color: #8a8576;
 }
 
 /* Card-back skeletons (sized to match the resolved content, so nothing jumps) */
@@ -351,7 +360,7 @@
   top: 50%;
   width: 452px;
   z-index: 120;
-  background: var(--pc-card);
+  background: var(--pc-card-2);
   border: 1px solid var(--pc-card-border);
   border-radius: 24px;
   padding: 26px 28px 24px;
@@ -682,7 +691,7 @@
   border-radius: 11px;
   flex: 0 0 auto;
   overflow: hidden;
-  background: #f1efe9;
+  background: var(--pc-cream);
   color: var(--pc-ink);
   display: grid;
   place-items: center;
@@ -976,7 +985,71 @@
   to { opacity: 1; transform: translateY(0) rotate(0); }
 }
 
+/* ── Focus-visible (keyboard) on the dark-rail + deck controls ───────────────── */
+.pc-slot:focus-visible,
+.pc-pill:focus-visible,
+.pc-step-btn:focus-visible,
+.pc-chip-stamp:focus-visible,
+.pc-agent-opt:focus-visible,
+.pc-continue:focus-visible,
+.pc-arrow:focus-visible,
+.pc-choose:focus-visible,
+.pc-back:focus-visible,
+.pc-rail-head h2:focus-visible {
+  outline: 2px solid var(--pc-gold);
+  outline-offset: 3px;
+}
+.pc-slot:focus-visible {
+  border-radius: var(--card-radius);
+}
+
+/* ── Small-screen fallback ───────────────────────────────────────────────────
+   The create flow is a fixed 1080×760 stage; below ~720px it would scale to an
+   illegible, clipped sliver. Show a graceful notice instead. */
+.pc-mobile-note {
+  display: none;
+}
+@media (max-width: 720px) {
+  .pc-stage {
+    display: none;
+  }
+  .pc-mobile-note {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 320px;
+    padding: 28px;
+    text-align: center;
+  }
+  .pc-mobile-note .mn-mark {
+    font-family: var(--pc-script);
+    font-size: 40px;
+    line-height: 1;
+    color: var(--pc-ink);
+  }
+  .pc-mobile-note h2 {
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--pc-ink);
+  }
+  .pc-mobile-note p {
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: var(--pc-muted);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pc-sk { animation: none; }
-  .pc-flip, .pc-slot { transition-duration: 0.001s !important; }
+  .pc-root *,
+  .pc-root *::before,
+  .pc-root *::after {
+    transition-duration: 0.001s !important;
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+  }
+  .pc-sk {
+    animation: none;
+    background: rgba(239, 235, 225, 0.1);
+  }
 }

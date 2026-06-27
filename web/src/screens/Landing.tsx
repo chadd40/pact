@@ -32,8 +32,7 @@ export function Landing() {
   const onboard = () => navigate("/create");
 
   const pinRef = useRef<HTMLDivElement>(null);
-  const bezelRef = useRef<HTMLDivElement>(null);
-  const fitRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const beatRef = useRef(0);
@@ -56,17 +55,15 @@ export function Landing() {
     };
   }, []);
 
-  // Fit the phone proportionally to BOTH viewport height and width, and collapse
-  // its wrapper to the scaled height so the flex column never overlaps or clips.
+  // Scale the whole hero (headline + phone + cue) as ONE fixed-size design stage
+  // to fit the window — uniform zoom, like the Create flow's stage. Everything
+  // scales together instead of reflowing.
   useEffect(() => {
+    const STAGE_W = 480;
+    const STAGE_H = 840;
     const fit = () => {
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
-      // Reserve room for the fixed chrome + headline + cue so the column always
-      // clears them; also fit the width so the phone never overflows narrow windows.
-      const k = Math.max(0.5, Math.min(1, (vh - 190) / 710, (vw - 36) / 340));
-      if (bezelRef.current) bezelRef.current.style.transform = `scale(${k.toFixed(3)})`;
-      if (fitRef.current) fitRef.current.style.height = `${Math.round(k * 710)}px`;
+      const s = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H, 1.25);
+      if (stageRef.current) stageRef.current.style.transform = `scale(${s.toFixed(3)})`;
     };
     fit();
     const raf = requestAnimationFrame(fit);
@@ -163,12 +160,11 @@ export function Landing() {
             </span>
           </div>
 
-          {/* headline above the phone */}
-          <div className="lp-headline">Everyone has a list of things they wish they did.</div>
+          {/* hero stage — headline + phone + cue scale together as one unit */}
+          <div className="lp-stage" ref={stageRef}>
+            <div className="lp-headline">Everyone has a list of things they wish they did.</div>
 
-          {/* the phone */}
-          <div className="lp-phonefit" ref={fitRef}>
-            <div className="lp-bezel" ref={bezelRef}>
+            <div className="lp-bezel">
               <div className="lp-screen">
               <div className="lp-statusbar">
                 <span className="lp-time">9:41</span>
@@ -262,12 +258,13 @@ export function Landing() {
               <div className="lp-homebar" />
             </div>
           </div>
-          </div>
 
           <div className="lp-cue" ref={cueRef}>
             <span className="m">Scroll</span>
             <span className="lp-cue-arrow">↓</span>
           </div>
+          </div>
+
         </div>
       </div>
 

@@ -77,10 +77,23 @@
   height: 100vh;
   overflow: hidden;
   display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The hero as a fixed-size design stage, scaled to fit the window as one unit. */
+.lp-stage {
+  position: relative;
+  z-index: 5;
+  flex: none;
+  width: 480px;
+  height: 840px;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 14px;
+  transform-origin: center;
 }
 
 /* Ambient drifting wishes */
@@ -102,33 +115,24 @@
   font-size: clamp(13px, 1.3vw, 18px);
 }
 
-/* Headline above the phone */
+/* Headline (inside the stage, scales with it) */
 .lp-headline {
-  position: relative;
-  z-index: 2;
   flex: none;
   text-align: center;
-  padding: 0 24px;
-  font-size: clamp(16px, 0.9vw + 9px, 23px);
+  padding: 0 10px;
+  font-size: 21px;
   line-height: 1.4;
   font-weight: 500;
   letter-spacing: -0.01em;
   color: rgba(21, 20, 15, 0.7);
-  max-width: min(460px, 90vw);
+  max-width: 460px;
   pointer-events: none;
 }
 
-/* The phone — wrapper collapses to the scaled height so the column always fits. */
-.lp-phonefit {
-  flex: none;
-  z-index: 5;
-  height: 710px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-}
+/* The phone — fixed size; the stage scales it. */
 .lp-bezel {
   position: relative;
+  flex: none;
   width: 340px;
   height: 710px;
   border-radius: 54px;
@@ -136,7 +140,6 @@
   padding: 11px;
   box-shadow: 0 50px 90px -28px rgba(21, 20, 15, 0.5), 0 14px 30px -10px rgba(21, 20, 15, 0.3),
     inset 0 0 0 1.5px rgba(255, 255, 255, 0.08);
-  transform-origin: top center;
 }
 .lp-screen {
   position: relative;
@@ -497,13 +500,9 @@
   z-index: 8;
 }
 
-/* Scroll cue */
+/* Scroll cue (inside the stage) */
 .lp-cue {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 8;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
