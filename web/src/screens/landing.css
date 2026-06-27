@@ -132,6 +132,7 @@
   z-index: 6;
   text-align: center;
   padding: 0 18px;
+  margin-bottom: clamp(30px, 5vh, 56px);
   font-size: clamp(16px, 1.3vw + 8px, 22px);
   line-height: 1.4;
   font-weight: 500;
