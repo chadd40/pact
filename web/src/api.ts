@@ -71,6 +71,7 @@ export const api = {
     agent: string | null;
     consent_acknowledged: boolean;
     owner: string;
+    description?: string | null; // custom goals: owner's "what counts" definition
   }) => request<Pact>("/api/pacts/create", { json: payload }),
 
   confirmPact: (

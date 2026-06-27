@@ -588,6 +588,7 @@ def create_pact_structured(
     clock: Clock,
     settings: Settings,
     original_prompt: str = "",
+    description: str | None = None,
 ) -> Pact:
     """Build an ACTIVE pact directly from structured UI inputs.
 
@@ -643,13 +644,18 @@ def create_pact_structured(
         f"Complete the committed action {target_count} times on {target_count} "
         f"distinct days over {weeks} week{'s' if weeks != 1 else ''}{template_note}."
     )
+    # For custom goals the owner defines what a valid check-in looks like; weave it
+    # into the goal so the coaching/judging agent reads the owner's own bar.
+    desc = (description or "").strip()
+    if desc:
+        goal = f"{goal} What counts: {desc}"
 
     pact_id = new_pact_id(goal_title + now.isoformat() + owner)
 
     return Pact(
         id=pact_id,
         owner=owner,
-        original_prompt=original_prompt or goal_title,
+        original_prompt=original_prompt or desc or goal_title,
         title=goal_title,
         goal=goal,
         timezone="America/Los_Angeles",

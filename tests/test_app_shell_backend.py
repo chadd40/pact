@@ -68,6 +68,19 @@ def test_create_structured_stores_cadence():
     assert pact.target_count == 20
 
 
+def test_create_structured_custom_description_threads_into_goal():
+    # Custom goals carry the owner's own "what counts" into the pact's goal +
+    # original_prompt so the coaching/judging agent reads their bar.
+    pact = create_pact_structured(
+        goal_title="Practice guitar", goal_template=None, days_per_week=4, weeks=2,
+        stake_amount_cents=10000, charity_id=_CHARITY, agent="Hermes",
+        consent_acknowledged=True, owner="u@e.com", clock=_clock(), settings=Settings(),
+        description="30 minutes, show the practice log",
+    )
+    assert "What counts: 30 minutes, show the practice log" in pact.goal
+    assert pact.original_prompt == "30 minutes, show the practice log"
+
+
 @pytest.mark.anyio
 async def test_api_pact_exposes_cadence_block(tmp_path):
     app, repo, clock = _build(tmp_path)

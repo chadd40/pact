@@ -106,6 +106,7 @@ export function Create() {
   const [active, setActive] = useState(0); // carousel focus index
   const [goalIndex, setGoalIndex] = useState<number | null>(null); // chosen card
   const [customTitle, setCustomTitle] = useState("");
+  const [customDesc, setCustomDesc] = useState(""); // custom goals: "what counts"
   const [days, setDays] = useState(5);
   const [weeks, setWeeks] = useState(4);
   const [stake, setStake] = useState(200);
@@ -194,6 +195,7 @@ export function Create() {
     setStake(200);
     setCharityId(null);
     setAgentKey(null);
+    setCustomDesc("");
     if (i !== CUSTOM_INDEX) setCustomTitle("");
     setGoalIndex(i);
     setActive(i);
@@ -250,6 +252,7 @@ export function Create() {
         agent: agentKey,
         consent_acknowledged: true,
         owner: DEMO_OWNER,
+        description: isCustom ? customDesc.trim() || undefined : undefined,
       });
       setCreated(pact);
       signalChange();
@@ -275,6 +278,7 @@ export function Create() {
     setStake(200);
     setCharityId(null);
     setAgentKey(null);
+    setCustomDesc("");
     setEditorReady(false);
     setCreated(null);
     setError(null);
@@ -527,15 +531,26 @@ export function Create() {
             {stage === 1 && (
               <div className="pc-panel">
                 {isCustom && (
-                  <input
-                    className="pc-name-input"
-                    placeholder="Name your goal…"
-                    aria-label="Name your goal"
-                    value={customTitle}
-                    autoFocus
-                    maxLength={60}
-                    onChange={(e) => setCustomTitle(e.target.value)}
-                  />
+                  <>
+                    <input
+                      className="pc-name-input"
+                      placeholder="Name your goal…"
+                      aria-label="Name your goal"
+                      value={customTitle}
+                      autoFocus
+                      maxLength={60}
+                      onChange={(e) => setCustomTitle(e.target.value)}
+                    />
+                    <textarea
+                      className="pc-desc-input"
+                      placeholder="What counts as a check-in? (optional — your agent judges against this)"
+                      aria-label="What counts as a check-in"
+                      value={customDesc}
+                      maxLength={140}
+                      rows={2}
+                      onChange={(e) => setCustomDesc(e.target.value)}
+                    />
+                  </>
                 )}
                 <div className="pc-freq-top">
                   <div

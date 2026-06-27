@@ -467,6 +467,29 @@
   border-color: var(--pc-gold-line);
   box-shadow: 0 0 0 3px rgba(214, 178, 120, 0.12);
 }
+.pc-desc-input {
+  width: 100%;
+  margin-bottom: 16px;
+  background: rgba(239, 235, 225, 0.06);
+  border: 1px solid var(--pc-card-line-2);
+  border-radius: 11px;
+  padding: 11px 14px;
+  color: var(--pc-cream-bright);
+  font-family: var(--pc-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  resize: none;
+}
+.pc-desc-input::placeholder {
+  color: var(--pc-on-card-faint);
+  opacity: 1;
+}
+.pc-desc-input:focus {
+  outline: none;
+  border-color: var(--pc-gold-line);
+  box-shadow: 0 0 0 3px rgba(214, 178, 120, 0.12);
+}
 
 /* Frequency controls */
 .pc-freq-top {
