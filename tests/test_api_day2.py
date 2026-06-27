@@ -112,10 +112,11 @@ async def test_coach_post_returns_inbound_and_outbound_and_get_shows_thread(tmp_
     async with _client(app) as client:
         pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
 
-        # Empty thread to start.
+        # Thread opens with the agent's handoff greeting (seeded when the pact
+        # went live); the user's reply pair is appended after it.
         r = await client.get(f"/api/pacts/{pact_id}/coach")
         assert r.status_code == 200, r.text
-        assert r.json() == []
+        assert [m["trigger"] for m in r.json()] == ["handoff"]
 
         r = await client.post(
             f"/api/pacts/{pact_id}/coach",
@@ -134,10 +135,12 @@ async def test_coach_post_returns_inbound_and_outbound_and_get_shows_thread(tmp_
         r = await client.get(f"/api/pacts/{pact_id}/coach")
         assert r.status_code == 200, r.text
         thread = r.json()
-        assert len(thread) == 2
-        assert thread[0]["direction"] == "inbound"
-        assert thread[1]["direction"] == "outbound"
-        assert {m["id"] for m in thread} == {body["inbound"]["id"], body["outbound"]["id"]}
+        assert thread[0]["trigger"] == "handoff"
+        replies = [m for m in thread if m["trigger"] == "reply"]
+        assert len(replies) == 2
+        assert replies[0]["direction"] == "inbound"
+        assert replies[1]["direction"] == "outbound"
+        assert {m["id"] for m in replies} == {body["inbound"]["id"], body["outbound"]["id"]}
 
 
 @pytest.mark.asyncio
@@ -158,9 +161,12 @@ async def test_coach_log_appears_in_packet(tmp_path):
         assert r.status_code == 200, r.text
         packet = r.json()
         assert "coaching_log" in packet
-        assert len(packet["coaching_log"]) == 2
-        assert packet["coaching_log"][0]["direction"] == "inbound"
-        assert packet["coaching_log"][1]["direction"] == "outbound"
+        # Handoff greeting + the user's reply pair.
+        assert any(m["trigger"] == "handoff" for m in packet["coaching_log"])
+        replies = [m for m in packet["coaching_log"] if m["trigger"] == "reply"]
+        assert len(replies) == 2
+        assert replies[0]["direction"] == "inbound"
+        assert replies[1]["direction"] == "outbound"
 
 
 @pytest.mark.asyncio
