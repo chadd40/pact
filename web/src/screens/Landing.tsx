@@ -134,18 +134,7 @@ export function Landing() {
     <div className="landing">
       {/* ── Fixed chrome ─────────────────────────────────────────────────── */}
       <div className="lp-chrome">
-        <div className="lp-logo" aria-label="Pact">
-          <svg className="lp-logo-mark" viewBox="0 0 100 100" width="32" height="32" aria-hidden="true">
-            <rect x="16" y="21" width="40" height="60" rx="15" fill="#15140f" />
-            <rect x="62" y="43" width="25" height="31" rx="11" fill="#15140f" />
-            <circle cx="57" cy="53" r="10.5" fill="#8a2e1d" />
-            <path
-              d="M57 45 l2.2 5.6 5.6 2.2 -5.6 2.2 -2.2 5.6 -2.2 -5.6 -5.6 -2.2 5.6 -2.2 z"
-              fill="#f1e7d4"
-            />
-          </svg>
-          <span className="lp-logo-word">pact</span>
-        </div>
+        <img src="/primary_logo.svg" alt="Pact" className="lp-logo" />
       </div>
 
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}

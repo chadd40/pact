@@ -44,19 +44,10 @@
   pointer-events: none;
 }
 .lp-logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  pointer-events: auto;
-}
-.lp-logo-mark {
+  height: 30px;
+  width: auto;
   display: block;
-}
-.lp-logo-word {
-  font-size: 25px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  color: #15140f;
+  pointer-events: auto;
 }
 
 /* ── Pinned hero ────────────────────────────────────────────────────────────── */
