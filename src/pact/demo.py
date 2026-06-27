@@ -22,7 +22,7 @@ from pact.repository import Repository
 _TIMEZONE = "America/Los_Angeles"
 _CHARITY_ID = "world_central_kitchen"
 _CHARITY_URL = "https://wck.org/donate"
-_STAKE_CENTS = 500
+_STAKE_CENTS = 1000
 
 
 def _rubric() -> Rubric:

@@ -6,8 +6,8 @@ from typing import Mapping
 class Settings:
     reasoning_mode: str = "hybrid"
     payment_mode: str = "test_link"
-    min_stake_cents: int = 500
-    max_stake_cents: int = 2000
+    min_stake_cents: int = 1000
+    max_stake_cents: int = 50000
     default_freezes: int = 1
     freeze_extension_hours: int = 24
     dispute_grace_hours: int = 24
@@ -62,8 +62,8 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     return Settings(
         reasoning_mode=_str(env, "PACT_REASONING_MODE", "hybrid"),
         payment_mode=_str(env, "PACT_PAYMENT_MODE", "test_link"),
-        min_stake_cents=_int(env, "PACT_MIN_STAKE_CENTS", 500),
-        max_stake_cents=_int(env, "PACT_MAX_STAKE_CENTS", 2000),
+        min_stake_cents=_int(env, "PACT_MIN_STAKE_CENTS", 1000),
+        max_stake_cents=_int(env, "PACT_MAX_STAKE_CENTS", 50000),
         default_freezes=_int(env, "PACT_DEFAULT_FREEZES", 1),
         freeze_extension_hours=_int(env, "PACT_FREEZE_EXTENSION_HOURS", 24),
         dispute_grace_hours=_int(env, "PACT_DISPUTE_GRACE_HOURS", 24),
