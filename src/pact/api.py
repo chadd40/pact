@@ -5,9 +5,9 @@ from pydantic import BaseModel
 
 from pact import broker
 from pact.anticheat import TokenStore
-from pact.charities import CHARITIES
+from pact.charities import CHARITIES, get_charity
 from pact.clock import Clock, FixedClock
-from pact.coaching import user_reply
+from pact.coaching import generate_coach_message, user_reply
 from pact.config import Settings
 from pact.demo import advance_day as demo_advance_day
 from pact.demo import reset as demo_reset
@@ -135,6 +135,19 @@ def create_app(
         profile = record_outcome(profile, pact, clock)
         repo.save_profile(profile)
 
+    def _seed_handoff(pact: Pact) -> None:
+        """When a pact goes live, the assigned agent greets the owner with an
+        opening coaching message — surfaced in both the web thread and the agent
+        outbox. Idempotent: skipped if a handoff already exists for this pact."""
+        if any(m.trigger == "handoff" for m in repo.list_coaching_messages(pact.id)):
+            return
+        charity = get_charity(pact.charity_id)
+        msg = generate_coach_message(
+            pact, repo.list_proofs(pact.id), "handoff", provider, clock,
+            charity["name"] if charity else "charity",
+        )
+        repo.save_coaching_message(msg)
+
     @app.post("/api/pacts/draft")
     def draft(body: DraftIn):
         try:
@@ -163,6 +176,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         repo.save_pact(pact)
+        _seed_handoff(pact)
         return pact.model_dump(mode="json")
 
     @app.post("/api/pacts")
@@ -181,6 +195,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc))
         # confirm_and_start already activates; persist as-is.
         repo.update_pact(pact)
+        _seed_handoff(pact)
         return pact.model_dump(mode="json")
 
     @app.post("/api/pacts/{pact_id}/owner")
