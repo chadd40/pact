@@ -49,7 +49,7 @@ def _pact(
         target_count=target,
         recommended_stake_cents=1000,
         stake_amount_cents=1000,
-        charity_id="world_central_kitchen",
+        charity_id="against_malaria_foundation",
         charity_url="https://example.org/donate",
         rubric=_rubric(),
         status=status,

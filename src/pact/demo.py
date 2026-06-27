@@ -20,8 +20,8 @@ from pact.payment import PaymentProvider, TestLinkProvider
 from pact.repository import Repository
 
 _TIMEZONE = "America/Los_Angeles"
-_CHARITY_ID = "world_central_kitchen"
-_CHARITY_URL = "https://wck.org/donate"
+_CHARITY_ID = "against_malaria_foundation"
+_CHARITY_URL = "https://againstmalaria.com/donate"
 _STAKE_CENTS = 1000
 
 

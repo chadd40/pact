@@ -133,6 +133,7 @@ export interface Charity {
   category: string;
   default_amounts: number[];
   checkout_kind: string;
+  stamp: string;
 }
 
 // Packet shape (built by src/pact/packet.py + coaching_log merged in api.py).
