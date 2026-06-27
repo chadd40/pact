@@ -8,7 +8,7 @@
    Warm parchment + dark-ink-card system. Geist / Geist Mono / Caveat.
    Namespaced under --pc-* so it can be adopted app-wide screen by screen without
    colliding with the existing contract palette above. */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Caveat:wght@600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Caveat:wght@600&display=swap");
 
 :root {
   /* Surfaces */

@@ -51,8 +51,21 @@
   top: 18px;
   left: 28px;
   z-index: 60;
-  font-family: var(--pc-script);
-  font-size: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--pc-ink);
+}
+.pc-brand-mark {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+.pc-brand-word {
+  font-family: var(--pc-sans);
+  font-weight: 800;
+  font-size: 27px;
+  letter-spacing: -0.045em;
   line-height: 1;
   color: var(--pc-ink);
 }
