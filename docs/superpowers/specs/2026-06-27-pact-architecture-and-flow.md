@@ -111,7 +111,7 @@ Returning users land on the **dashboard** (record + active pacts + history). The
 | **Deck / Create** | `GET /api/charities`; `POST /api/pacts/create` | builds the active pact (goal, stake, charity, agent, consent) |
 | **Connect-Agent** | *(setup; broker is agent-side)* | one-time skill install + account link |
 | **Connect-Link** | `GET /api/link/status`, `POST /api/link/connect` | funding readiness flag |
-| **Dashboard (`/`)** | `GET /api/profile`, `GET /api/pacts?owner=` | streak/record + live progress cards + history; Link banner |
+| **Dashboard (`/dashboard`)** | `GET /api/profile`, `GET /api/pacts?owner=` | streak/record + live progress cards + history; Link banner |
 | **Living Pact (`/pact/:id`)** | `GET /api/pacts/{id}` (incl. `progress`), `GET /api/pacts/{id}/proofs`, `GET/POST /api/pacts/{id}/coach`, `POST /api/pacts/{id}/proof-token`, `POST /api/pacts/{id}/proofs/image`, `POST /api/pacts/{id}/cancel` | progress, proof, coaching, cancel |
 | **Verdict (state of `/pact/:id`)** | `POST /api/pacts/{id}/settle`, `POST /api/pacts/{id}/dispute`, `GET /api/pacts/{id}/packet` | verdict, dispute window, donation status |
 | **Demo console** | `POST /demo/seed|advance-day|reset`, `POST /api/tick` | demo clock + scheduler sweep |
@@ -124,12 +124,16 @@ Returning users land on the **dashboard** (record + active pacts + history). The
 
 **Built:** the whole backend engine (storage, lifecycle, proof + anti-cheat, settle/dispute, profile), the broker + outbox + `/pact` skill + `pact serve` worker, `test_llm` fallback, the charge-on-fail path + `link.py` connect/gate, the redesigned web surfaces (dashboard + living pact, paused per this session). 395 backend tests green.
 
-**Not yet built / to finish:**
-1. **Repository read-path locking** (the parallel-read race; helpers added, conversion pending).
-2. **Account-link token** (multi-user auth so a real user's agent claims their tasks).
-3. **Landing page** (iMessage hero → scroll → deck).
-4. **Live Link wiring** (`LinkCliProvider` real `auth login` + spend-request; stays gated).
-5. **nemoclaw** — icon + "coming soon" only.
+**Done since (2026-06-27):**
+- **Repository read-path locking** — all access serialized through an RLock; the parallel-read race is gone.
+- **Nag-until-resolved** — miss recorded at finalization, `POST /api/pacts/{id}/decline`, scheduler nag pass.
+- **Account-link token (stub)** — `POST /api/account/agent-token`, `GET /api/account/resolve`; the connect-your-agent seam.
+- **Landing page** — iMessage hero → scroll → deck at `/`; dashboard moved to `/dashboard`.
+
+**Still not built:**
+1. **Real multi-user agent auth** (the token stub exists; per-owner task filtering + real secrets don't).
+2. **Live Link wiring** (`LinkCliProvider` real `auth login` + spend-request; stays gated).
+3. **nemoclaw** — icon + "coming soon" only.
 
 ---
 
