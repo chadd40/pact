@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
+import { AppDataContext, type AppData } from "../data";
 import { dollars } from "../lib";
-import type { Pact } from "../types";
+import type { Charity, Pact } from "../types";
 
 // Sidebar nav definition. Coach/Charities/Settings are real pages.
 const NAV = [
@@ -43,19 +44,41 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [pacts, setPacts] = useState<Pact[]>([]);
+  const [pactsLoaded, setPactsLoaded] = useState(false);
+  const [charities, setCharities] = useState<Charity[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Pacts refresh on the demo `bump` signal (shared with Home/Coach via context).
   useEffect(() => {
     let alive = true;
-    api.listPacts(DEMO_OWNER).then((p) => alive && setPacts(p)).catch(() => {});
+    api.listPacts(DEMO_OWNER)
+      .then((p) => { if (alive) { setPacts(p); setPactsLoaded(true); } })
+      .catch(() => { if (alive) setPactsLoaded(true); });
     return () => { alive = false; };
   }, [bump]);
+
+  // Charities are quasi-static: fetch once, cache for every screen.
+  useEffect(() => {
+    let alive = true;
+    api.charities().then((c) => alive && setCharities(c)).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const activeCount = useMemo(
     () => pacts.filter((p) => p.status === "active" || p.status === "evaluating" || p.status === "needs_review").length,
     [pacts]
   );
   const pending = useMemo(() => pacts.find((p) => p.status === "donation_pending"), [pacts]);
+
+  const appData = useMemo<AppData>(
+    () => ({
+      pacts,
+      pactsLoaded,
+      charities,
+      charityById: Object.fromEntries(charities.map((c) => [c.id, c])),
+    }),
+    [pacts, pactsLoaded, charities]
+  );
 
   const isActive = (to: string) =>
     to === "/dashboard"
@@ -65,6 +88,7 @@ export function AppShell() {
   const jump = useCallback((to: string) => { setMenuOpen(false); navigate(to); }, [navigate]);
 
   return (
+    <AppDataContext.Provider value={appData}>
     <div className="as-root">
       {/* ── Sidebar ── */}
       <aside className="as-side">
@@ -144,5 +168,6 @@ export function AppShell() {
         </button>
       </div>
     </div>
+    </AppDataContext.Provider>
   );
 }

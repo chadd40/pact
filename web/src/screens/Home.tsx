@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
+import { useAppData } from "../data";
 import { dollars, formatDate, pactNo } from "../lib";
 import type { Charity, Pact, Profile } from "../types";
 
@@ -38,11 +39,10 @@ function greeting(nowMs: number): string {
 }
 
 export function Home() {
-  const { bump, nowMs } = useDemo();
+  const { bump, nowIso } = useDemo();
+  const { pacts: allPacts, pactsLoaded, charityById } = useAppData();
   const navigate = useNavigate();
-  const [pacts, setPacts] = useState<Pact[] | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [charities, setCharities] = useState<Record<string, Charity>>({});
 
   // carousel state
   const [active, setActive] = useState(0);
@@ -51,20 +51,11 @@ export function Home() {
   const suppressClick = useRef(false);
   const tiltRef = useRef<HTMLDivElement>(null);
 
+  // Pacts + charities come from the shared AppData (fetched once by AppShell).
+  // Only the profile is Home-specific; refresh it on the demo bump.
   useEffect(() => {
     let alive = true;
-    (async () => {
-      const [p, prof, cats] = await Promise.all([
-        api.listPacts(DEMO_OWNER).catch(() => [] as Pact[]),
-        api.profile(DEMO_OWNER).catch(() => null),
-        api.charities().catch(() => [] as Charity[]),
-      ]);
-      if (!alive) return;
-      p.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-      setPacts(p);
-      setProfile(prof);
-      setCharities(Object.fromEntries(cats.map((c) => [c.id, c])));
-    })();
+    api.profile(DEMO_OWNER).then((p) => alive && setProfile(p)).catch(() => {});
     return () => { alive = false; };
   }, [bump]);
 
@@ -94,7 +85,7 @@ export function Home() {
     return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
   }, []);
 
-  const all = pacts ?? [];
+  const all = [...allPacts].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
   const carousel = all.filter((p) => CAROUSEL.has(p.status));
   const ledger = all.filter((p) => !CAROUSEL.has(p.status) && p.status !== "draft");
   const cardCount = useRef(0);
@@ -165,7 +156,7 @@ export function Home() {
     <div className="home">
       <div className="home-head">
         <div>
-          <div className="home-eyebrow m">{greeting(nowMs)}</div>
+          <div className="home-eyebrow m">{greeting(nowIso ? new Date(nowIso).getTime() : Date.now())}</div>
           <div className="home-headline">{headline}</div>
         </div>
         <div className="home-stats">
@@ -264,12 +255,12 @@ export function Home() {
           <div className="home-ledger-sub m">{ledger.length} closed{winRate != null ? ` · ${winRate}% kept` : ""}</div>
         </div>
         <div className="home-ledger-list">
-          {pacts === null ? (
+          {!pactsLoaded ? (
             <div className="home-empty">Loading…</div>
           ) : ledger.length === 0 ? (
             <div className="home-empty">Nothing closed yet — your finished pacts will line up here.</div>
           ) : (
-            ledger.map((p) => <LedgerRow key={p.id} pact={p} charity={charities[p.charity_id]} onClick={() => navigate(`/pact/${p.id}`)} />)
+            ledger.map((p) => <LedgerRow key={p.id} pact={p} charity={charityById[p.charity_id]} onClick={() => navigate(`/pact/${p.id}`)} />)
           )}
         </div>
       </div>

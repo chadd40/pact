@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "./api";
 
@@ -9,7 +9,6 @@ import { api, DEMO_OWNER } from "./api";
 // the app shell's States menu.
 interface DemoCtx {
   nowIso: string | null;
-  nowMs: number;
   setNow: (iso: string) => void;
   refreshNow: () => Promise<void>;
   bump: number; // increments to signal a data refresh across screens
@@ -26,6 +25,12 @@ export const useDemo = () => {
   if (!ctx) throw new Error("useDemo outside provider");
   return ctx;
 };
+
+// Live demo clock, split into its own context so the 1 Hz tick only re-renders
+// the components that actually show a live countdown (PactDetail's dispute window)
+// — not the whole tree (sidebar, carousel, ledger).
+const ClockContext = createContext<number>(0);
+export const useClock = () => useContext(ClockContext);
 
 export function App() {
   const [nowIso, setNowIso] = useState<string | null>(null);
@@ -117,16 +122,21 @@ export function App() {
     }
   }, [navigate, signalChange]);
 
-  const ctx: DemoCtx = {
-    nowIso, nowMs, setNow, refreshNow, bump, signalChange,
-    busy, doSeed, doAdvance, doReset,
-  };
+  // Stable demo context: its identity only changes when nowIso/bump/busy change
+  // (the callbacks are useCallback-stable), so the per-second clock tick does NOT
+  // re-render DemoContext consumers (sidebar, carousel, ledger, etc.).
+  const demoCtx = useMemo<DemoCtx>(
+    () => ({ nowIso, setNow, refreshNow, bump, signalChange, busy, doSeed, doAdvance, doReset }),
+    [nowIso, setNow, refreshNow, bump, signalChange, busy, doSeed, doAdvance, doReset]
+  );
 
   // Landing (/) and Create (/create) own their own full-bleed chrome and render
   // bare here; the in-app routes are wrapped by <AppShell> (see main.tsx).
   return (
-    <DemoContext.Provider value={ctx}>
-      <Outlet />
+    <DemoContext.Provider value={demoCtx}>
+      <ClockContext.Provider value={nowMs}>
+        <Outlet />
+      </ClockContext.Provider>
     </DemoContext.Provider>
   );
 }
