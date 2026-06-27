@@ -4,6 +4,43 @@
    Palette + type are committed; do not drift to generic SaaS.
    ════════════════════════════════════════════════════════════════════════════ */
 
+/* ── New design direction (Pact Create redesign) ────────────────────────────────
+   Warm parchment + dark-ink-card system. Geist / Geist Mono / Caveat.
+   Namespaced under --pc-* so it can be adopted app-wide screen by screen without
+   colliding with the existing contract palette above. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Caveat:wght@600&display=swap");
+
+:root {
+  /* Surfaces */
+  --pc-bg: #ded9cf;
+  --pc-bg-grad-1: #f4f1ea;
+  --pc-bg-grad-2: #e4dfd4;
+  --pc-bg-grad-3: #dad4c7;
+  --pc-card: #16150f; /* dark ink "pact card" */
+  --pc-card-border: #2c2a22;
+  --pc-card-line: #2c2a22;
+  --pc-card-line-2: #39362c;
+  /* Creams / inks */
+  --pc-cream: #efebe1;
+  --pc-cream-bright: #fbf7ee;
+  --pc-ink: #16150f;
+  --pc-ink-soft: #56524a;
+  --pc-muted: #6f6a5e;
+  --pc-muted-2: #8a8678;
+  --pc-on-card: #efebe1;
+  --pc-on-card-dim: #a39d8e;
+  --pc-on-card-faint: #7d7768;
+  /* Accents */
+  --pc-gold: rgba(214, 178, 120, 1);
+  --pc-gold-soft: rgba(214, 178, 120, 0.07);
+  --pc-gold-line: rgba(214, 178, 120, 0.6);
+  --pc-green: #7fb99b;
+  /* Type */
+  --pc-sans: "Geist", system-ui, sans-serif;
+  --pc-mono: "Geist Mono", ui-monospace, monospace;
+  --pc-script: "Caveat", cursive;
+}
+
 :root {
   --paper: #f4efe6;
   --paper-2: #efe8dc; /* slightly deeper panel fill */
