@@ -26,6 +26,13 @@ const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string
   { t: "I wish I slept earlier", pos: { right: "20%", top: "13%" }, d: "4.4s", dur: "15s" },
 ];
 
+// The iPhone status-bar clock — the viewer's local time, iOS-style (h:mm, no AM/PM).
+function phoneTime(): string {
+  const d = new Date();
+  const h = d.getHours() % 12 || 12;
+  return `${h}:${d.getMinutes().toString().padStart(2, "0")}`;
+}
+
 export function Landing() {
   const navigate = useNavigate();
   // The link / cards all lead into the new-user onboarding (create → link agent → link Link).
@@ -42,6 +49,13 @@ export function Landing() {
   const [showTyping, setShowTyping] = useState(false);
   const [showYou, setShowYou] = useState(false);
   const [goal, setGoal] = useState(0);
+  const [clock, setClock] = useState(phoneTime);
+
+  // Keep the phone clock on the viewer's current local time.
+  useEffect(() => {
+    const id = setInterval(() => setClock(phoneTime()), 15000);
+    return () => clearInterval(id);
+  }, []);
 
   // Intro: "you" type for a beat, then the wish bubble lands.
   useEffect(() => {
@@ -168,7 +182,7 @@ export function Landing() {
               <div className="lp-bezel">
                 <div className="lp-screen">
               <div className="lp-statusbar">
-                <span className="lp-time">9:41</span>
+                <span className="lp-time">{clock}</span>
                 <span className="lp-status-right">
                   <span className="lp-signal">
                     <i /> <i /> <i /> <i />
@@ -183,7 +197,7 @@ export function Landing() {
 
               <div className="lp-imhead">
                 <span className="lp-imback">‹</span>
-                <span className="lp-imavatar">f</span>
+                <img src="/alfie.png" alt="friend" className="lp-imavatar" />
                 <span className="lp-imname">
                   friend <span className="lp-imchevron">›</span>
                 </span>
@@ -191,7 +205,7 @@ export function Landing() {
 
               <div className="lp-thread" ref={threadRef}>
                 <div className="lp-daystamp">
-                  <b>Today</b> 9:41 AM
+                  <b>Today</b> {clock} {new Date().getHours() < 12 ? "AM" : "PM"}
                 </div>
 
                 <div className="lp-msg lp-in">how'd the week actually go 👀</div>
