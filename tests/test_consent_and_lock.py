@@ -176,8 +176,10 @@ def test_repository_has_write_lock():
     os.close(fd)
     try:
         repo = Repository.connect(path)
-        # A guard lock must exist on the repository instance.
-        assert isinstance(repo._write_lock, type(threading.Lock()))
+        # A reentrant guard lock must exist on the repository instance. It now
+        # serializes ALL connection access (reads + writes) so parallel reads
+        # from FastAPI's threadpool can't race the shared sqlite cursor.
+        assert isinstance(repo._write_lock, type(threading.RLock()))
     finally:
         os.remove(path)
 
