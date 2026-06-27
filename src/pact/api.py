@@ -4,6 +4,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from pact import broker
+from pact.accounts import link_for
 from pact.anticheat import TokenStore
 from pact.charities import CHARITIES, get_charity
 from pact.clock import Clock, FixedClock
@@ -19,6 +20,7 @@ from pact.lifecycle import (
     close_dispute_window,
     confirm_and_start,
     create_pact_structured,
+    decline_donation,
     draft_pact,
     execute_forfeit_donation,
     new_pact_id,
@@ -47,6 +49,10 @@ from pact.scheduler import tick as scheduler_tick
 # states below are reached only after the window closes. Mirrors scheduler.tick.
 _TERMINAL_STATUSES = {
     PactStatus.succeeded,
+    # donation_pending is reached only AFTER the dispute window closes (no more
+    # overturns), so it's a finalized miss: record the failure now even though the
+    # human-approved donation is still being nagged toward resolution.
+    PactStatus.donation_pending,
     PactStatus.donated,
     PactStatus.donation_failed,
     PactStatus.donation_declined,
@@ -108,6 +114,10 @@ class TaskResultIn(BaseModel):
 
 
 class LinkConnectIn(BaseModel):
+    owner: str
+
+
+class AccountTokenIn(BaseModel):
     owner: str
 
 
@@ -377,6 +387,20 @@ def create_app(
         _record_terminal(pact)
         return verdict.model_dump(mode="json")
 
+    @app.post("/api/pacts/{pact_id}/decline")
+    def decline(pact_id: str):
+        """Owner explicitly declines a pending donation (the nag-until-resolved
+        exit). The miss was already recorded at finalization; this resolves the
+        open donation so the agent stops nagging."""
+        pact = _require(pact_id)
+        try:
+            pact = decline_donation(pact, clock)
+        except TransitionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        repo.update_pact(pact)
+        _record_terminal(pact)
+        return pact.model_dump(mode="json")
+
     @app.get("/api/pacts/{pact_id}/packet")
     def packet(pact_id: str):
         pact = _require(pact_id)
@@ -462,6 +486,21 @@ def create_app(
         acct = connect_account(acct, clock)
         repo.save_link_account(acct)
         return {"owner": acct.owner, "connected": acct.connected, "funding_ref": acct.funding_ref}
+
+    @app.post("/api/account/agent-token")
+    def mint_agent_token(body: AccountTokenIn):
+        # Connect-your-agent seam: mint the token the user pastes into their agent
+        # so it claims this account's pacts. STUB (deterministic per owner).
+        link = link_for(body.owner, clock)
+        repo.save_account_link(link)
+        return {"owner": link.owner, "token": link.token}
+
+    @app.get("/api/account/resolve")
+    def resolve_agent_token(token: str):
+        owner = repo.owner_for_token(token)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="unknown token")
+        return {"owner": owner}
 
     @app.post("/demo/seed")
     def demo_seed_endpoint():

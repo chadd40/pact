@@ -528,6 +528,10 @@
   align-items: center;
   gap: 10px;
 }
+.pv-linkreq-actions {
+  display: flex;
+  gap: 10px;
+}
 .pv-linkreq-title {
   font-size: 15px;
   font-weight: 600;

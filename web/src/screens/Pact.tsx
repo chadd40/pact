@@ -237,34 +237,48 @@ export function PactView() {
             </div>
           )}
 
-          {linkRequired ? (
+          {pact.status === "donation_pending" ? (
             <div className="pv-linkreq">
-              <div className="pv-linkreq-title">Link required to complete</div>
+              <div className="pv-linkreq-title">Resolve your donation</div>
               <div className="pv-linkreq-text">
-                You missed, so {dollars(pact.stake_amount_cents)} goes to{" "}
-                {charity?.name ?? "your charity"} — connect a funding source to complete it.
+                You missed, so {dollars(pact.stake_amount_cents)} is owed to{" "}
+                {charity?.name ?? "your charity"}.{" "}
+                {linkRequired
+                  ? "Connect Link and approve it, or decline."
+                  : "Approve it in your Link app, or decline."}{" "}
+                It stays here until you resolve it.
               </div>
-              <button
-                className="pc-btn"
-                disabled={busy === "link"}
-                onClick={() =>
-                  act("link", async () => {
-                    await api.linkConnect(DEMO_OWNER);
-                    await api.settle(pact.id);
-                  })
-                }
-              >
-                {busy === "link" ? "Connecting…" : "Connect Link & complete"}
-              </button>
+              <div className="pv-linkreq-actions">
+                <button
+                  className="pc-btn"
+                  disabled={busy === "link"}
+                  onClick={() =>
+                    act("link", async () => {
+                      if (linkRequired) await api.linkConnect(DEMO_OWNER);
+                      await api.settle(pact.id);
+                    })
+                  }
+                >
+                  {busy === "link"
+                    ? "…"
+                    : linkRequired
+                    ? "Connect Link & approve"
+                    : "Approve donation"}
+                </button>
+                <button
+                  className="pc-btn ghost"
+                  disabled={busy === "decline"}
+                  onClick={() => act("decline", () => api.decline(pact.id))}
+                >
+                  {busy === "decline" ? "…" : "Decline"}
+                </button>
+              </div>
             </div>
           ) : (
-            !kept && (
+            !kept &&
+            pact.status === "donated" && (
               <div className="pv-donation m">
-                {pact.status === "donated"
-                  ? `Donated ${dollars(pact.stake_amount_cents)} to ${charity?.name ?? "charity"}.`
-                  : pact.status === "donation_pending"
-                  ? "Donation processing…"
-                  : ""}
+                Donated {dollars(pact.stake_amount_cents)} to {charity?.name ?? "charity"}.
               </div>
             )
           )}

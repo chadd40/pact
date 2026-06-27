@@ -462,6 +462,23 @@ def close_dispute_window(
     return pact, _build_verdict(pact, proofs, valid, verdict_status, PaymentAction.none, None)
 
 
+def decline_donation(pact: Pact, clock: Clock) -> Pact:
+    """The owner explicitly declines a pending donation while looking at the
+    failure evidence (the 'nag until resolved' exit). Only valid from
+    `donation_pending`; idempotent if already declined. The miss itself was
+    already recorded at finalization — this only resolves the open donation so
+    the agent stops nagging. No money moves.
+    """
+    if pact.status == PactStatus.donation_declined:
+        return pact
+    if pact.status != PactStatus.donation_pending:
+        raise TransitionError(f"cannot decline a donation from status {pact.status.value}")
+    pact.status = PactStatus.donation_declined
+    pact.stake_state = StakeState.declined
+    pact.verdict_at = clock.now()
+    return pact
+
+
 def execute_forfeit_donation(
     pact: Pact,
     clock: Clock,
