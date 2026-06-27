@@ -123,6 +123,20 @@
   max-width: 540px;
   pointer-events: none;
 }
+.lp-headline-text {
+  display: inline-block;
+  animation: lpHeadlineIn 0.5s ease;
+}
+@keyframes lpHeadlineIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 /* The phone — fixed size; the stage scales it. */
 .lp-bezel {
