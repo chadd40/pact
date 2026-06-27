@@ -108,6 +108,12 @@ async def test_fail_flow_defers_then_donates_after_window(tmp_path):
     async with _client(app) as client:
         pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
 
+        # Owner + connected Link so the deferred charge-on-fail is allowed to fire.
+        p0 = repo.get_pact(pact_id)
+        p0.owner = "colehaddad40@gmail.com"
+        repo.update_pact(p0)
+        await client.post("/api/link/connect", json={"owner": "colehaddad40@gmail.com"})
+
         for _ in range(4):
             await _submit_valid_proof(client, pact_id)
             clock.advance(days=1)
