@@ -26,8 +26,10 @@ const GOALS: GoalCard[] = [
 ];
 const CUSTOM_INDEX = GOALS.length - 1;
 
-// The person sealing the pact — shown in the signature line on the card back.
-const OWNER_NAME = "Cole Haddad";
+// Shown as the signature line on the card back. Until accounts exist, the signer's
+// real name isn't known at creation time — show a placeholder. Swap to the
+// registered user's name here once that's available.
+const OWNER_NAME = "Your Name";
 
 // Agents the card can be "kept honest by".
 interface AgentDef {
