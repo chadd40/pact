@@ -50,8 +50,8 @@ def _pact(**overrides) -> Pact:
         target_count=5,
         recommended_stake_cents=2000,
         stake_amount_cents=2000,
-        charity_id="world_central_kitchen",
-        charity_url="https://wck.org/donate",
+        charity_id="against_malaria_foundation",
+        charity_url="https://againstmalaria.com/donate",
         rubric=_rubric(),
         created_at=_utc(2026, 6, 24, 18, 0, 0),
     )

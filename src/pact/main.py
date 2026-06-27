@@ -79,6 +79,14 @@ def _mount_spa(app: FastAPI, settings: Settings) -> None:
 
         if ("/" + full_path).startswith(_RESERVED_PREFIXES):
             raise HTTPException(status_code=404, detail="not found")
+        # Serve a real dist file when the path matches one (favicon, wordmark,
+        # charity stamps, etc. that vite copied from web/public/). Guard against
+        # path traversal, then fall back to the SPA shell for client-side routes.
+        if full_path:
+            dist_root = dist.resolve()
+            candidate = (dist_root / full_path).resolve()
+            if candidate.is_file() and candidate.is_relative_to(dist_root):
+                return FileResponse(str(candidate))
         return FileResponse(str(index))
 
 

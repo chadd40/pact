@@ -7,7 +7,7 @@ from pact.payment import PaymentResult, TestLinkProvider
 def _make_pact(
     pact_id: str = "pact_abc123",
     stake_amount_cents: int = 2000,
-    charity_id: str = "world_central_kitchen",
+    charity_id: str = "against_malaria_foundation",
 ) -> Pact:
     created = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
     rubric = Rubric(
@@ -28,7 +28,7 @@ def _make_pact(
         recommended_stake_cents=2000,
         stake_amount_cents=stake_amount_cents,
         charity_id=charity_id,
-        charity_url="https://wck.org/donate",
+        charity_url="https://againstmalaria.com/donate",
         rubric=rubric,
         created_at=created,
     )
@@ -91,13 +91,13 @@ def test_payload_carries_charity_amount_and_idempotency_key():
     pact = _make_pact(
         pact_id="pact_abc123",
         stake_amount_cents=2000,
-        charity_id="world_central_kitchen",
+        charity_id="against_malaria_foundation",
     )
 
     result = provider.create_donation(pact, idempotency_key="pact_abc123:donation")
 
     assert result.payload == {
-        "charity_id": "world_central_kitchen",
+        "charity_id": "against_malaria_foundation",
         "amount_cents": 2000,
         "idempotency_key": "pact_abc123:donation",
         "mode": "test",

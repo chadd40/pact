@@ -57,12 +57,12 @@ def test_confirm_and_start_requires_consent():
 
     # No acknowledgment (default False) -> refuse to start.
     with pytest.raises(ValueError):
-        confirm_and_start(pact, 1000, "world_central_kitchen", clock, settings)
+        confirm_and_start(pact, 1000, "against_malaria_foundation", clock, settings)
 
     # Explicit False -> still refused.
     with pytest.raises(ValueError):
         confirm_and_start(
-            pact, 1000, "world_central_kitchen", clock, settings,
+            pact, 1000, "against_malaria_foundation", clock, settings,
             consent_acknowledged=False,
         )
 
@@ -74,7 +74,7 @@ def test_confirm_and_start_with_consent_activates():
     pact = draft_pact("work out 5x this week or $20 to charity", provider, clock, settings)
 
     started = confirm_and_start(
-        pact, 1000, "world_central_kitchen", clock, settings,
+        pact, 1000, "against_malaria_foundation", clock, settings,
         consent_acknowledged=True,
     )
     assert started.status == PactStatus.active
@@ -102,7 +102,7 @@ async def test_api_confirm_without_consent_is_422(tmp_path):
             json={
                 "pact_id": pact_id,
                 "stake_amount_cents": 1500,
-                "charity_id": "world_central_kitchen",
+                "charity_id": "against_malaria_foundation",
             },
         )
         assert r.status_code == 422, r.text
@@ -129,7 +129,7 @@ async def test_api_confirm_with_consent_activates(tmp_path):
             json={
                 "pact_id": pact_id,
                 "stake_amount_cents": 1500,
-                "charity_id": "world_central_kitchen",
+                "charity_id": "against_malaria_foundation",
                 "consent_acknowledged": True,
             },
         )
@@ -154,8 +154,8 @@ def _pact(idx: int) -> Pact:
         target_count=5,
         recommended_stake_cents=500,
         stake_amount_cents=500,
-        charity_id="world_central_kitchen",
-        charity_url="https://wck.org/donate",
+        charity_id="against_malaria_foundation",
+        charity_url="https://againstmalaria.com/donate",
         rubric=Rubric(
             modality=Modality.photo,
             require_token=True,
