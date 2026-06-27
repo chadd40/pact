@@ -13,6 +13,7 @@ from pact.config import Settings
 from pact.demo import advance_day as demo_advance_day
 from pact.demo import reset as demo_reset
 from pact.demo import seed as demo_seed
+from pact.demo import seed_states as demo_seed_states
 from pact.lifecycle import (
     PactRefused,
     TransitionError,
@@ -35,7 +36,7 @@ from pact.link import connect_account, is_owner_connected, new_account
 from pact.models import Modality, Pact, PactStatus, Profile, StakeState, TaskType
 from pact.packet import build_packet
 from pact.payment import PaymentProvider
-from pact.progress import compute_progress
+from pact.progress import compute_cadence, compute_progress
 from pact.profile import record_outcome
 from pact.reasoning import ReasoningProvider
 from pact.repository import Repository
@@ -228,9 +229,12 @@ def create_app(
         return pact.model_dump(mode="json")
 
     def _with_progress(pact: Pact) -> dict:
-        """Pact JSON augmented with the derived `progress` block both surfaces use."""
+        """Pact JSON augmented with the derived `progress` + `cadence` blocks both surfaces use."""
         d = pact.model_dump(mode="json")
-        d["progress"] = compute_progress(pact, repo.list_proofs(pact.id), clock.now())
+        proofs_list = repo.list_proofs(pact.id)
+        now = clock.now()
+        d["progress"] = compute_progress(pact, proofs_list, now)
+        d["cadence"] = compute_cadence(pact, proofs_list, now)
         return d
 
     @app.get("/api/pacts/{pact_id}")
@@ -401,6 +405,80 @@ def create_app(
         _record_terminal(pact)
         return pact.model_dump(mode="json")
 
+    # ── Two-phase Link donation (confirm → approve-in-app → monitor → donated) ──
+    def _donation_state(pact: Pact) -> dict:
+        """Derived donation state for the UI's approve-and-monitor flow.
+
+        state ∈ {idle, awaiting_approval, donated, declined}.
+        - donation_pending + stake_state committed  → idle (owed, not initiated)
+        - donation_pending + stake_state executing  → awaiting_approval (spend
+          request opened; waiting for the human Link approval)
+        - donated                                   → donated (captured, once)
+        - donation_declined                         → declined
+        """
+        if pact.status == PactStatus.donated:
+            state = "donated"
+        elif pact.status == PactStatus.donation_declined:
+            state = "declined"
+        elif pact.status == PactStatus.donation_pending:
+            state = (
+                "awaiting_approval"
+                if pact.stake_state == StakeState.executing
+                else "idle"
+            )
+        else:
+            state = "idle"
+        return {
+            "state": state,
+            "status": pact.status.value,
+            "stake_state": pact.stake_state.value,
+            "spend_request_id": pact.spend_request_id,
+        }
+
+    @app.post("/api/pacts/{pact_id}/donation/initiate")
+    def donation_initiate(pact_id: str):
+        """Open the Link spend-request and move to 'awaiting approval'. No money
+        moves here — the human approves in their Link app, then /approve captures.
+        Ensures a (test-safe) funding source is registered so capture can proceed."""
+        pact = _require(pact_id)
+        if pact.status != PactStatus.donation_pending:
+            raise HTTPException(
+                status_code=409,
+                detail=f"donation not pending (status {pact.status.value})",
+            )
+        acct = repo.get_link_account(pact.owner) or new_account(pact.owner)
+        if not acct.connected:
+            acct = connect_account(acct, clock)
+            repo.save_link_account(acct)
+        # Only open the approval if it hasn't already fired/opened.
+        if pact.spend_request_id is None and pact.stake_state != StakeState.executed:
+            pact.stake_state = StakeState.executing
+            repo.update_pact(pact)
+        return _donation_state(pact)
+
+    @app.post("/api/pacts/{pact_id}/donation/approve")
+    def donation_approve(pact_id: str):
+        """The Link approval arrived (real: agent detected it; demo: simulated) —
+        capture the donation exactly once. Idempotent on spend_request_id."""
+        pact = _require(pact_id)
+        if pact.status == PactStatus.donated:
+            return _donation_state(pact)
+        if pact.status != PactStatus.donation_pending:
+            raise HTTPException(
+                status_code=409,
+                detail=f"donation not pending (status {pact.status.value})",
+            )
+        # Reuse the single, idempotent capture path (charge-once on spend_request_id).
+        pact = execute_forfeit_donation(pact, clock, payment)
+        repo.update_pact(pact)
+        _record_terminal(pact)
+        return _donation_state(pact)
+
+    @app.get("/api/pacts/{pact_id}/donation/status")
+    def donation_status(pact_id: str):
+        """Poll the donation state while the UI waits for the Link approval."""
+        return _donation_state(_require(pact_id))
+
     @app.get("/api/pacts/{pact_id}/packet")
     def packet(pact_id: str):
         pact = _require(pact_id)
@@ -504,7 +582,11 @@ def create_app(
 
     @app.post("/demo/seed")
     def demo_seed_endpoint():
-        return demo_seed(repo, clock, settings)
+        ids = demo_seed(repo, clock, settings)
+        # Layer the showcase pacts (every Detail state + a fuller carousel/ledger)
+        # for the live demo. Side-effect only — the response stays {win,fail,live}.
+        demo_seed_states(repo, clock, settings)
+        return ids
 
     @app.post("/demo/advance-day")
     def demo_advance_day_endpoint():
@@ -522,7 +604,9 @@ def create_app(
                 status_code=409,
                 detail="reset requires demo clock mode (FixedClock)",
             )
-        return demo_reset(repo, clock, settings)
+        ids = demo_reset(repo, clock, settings)
+        demo_seed_states(repo, clock, settings)
+        return ids
 
     @app.post("/api/pacts/{pact_id}/reasoning-tasks")
     def enqueue_reasoning_task(pact_id: str, body: EnqueueTaskIn):

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from pact.anticheat import day_bucket
+from pact.charities import get_charity
 from pact.clock import Clock, FixedClock
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, reconcile_on_startup, settle
@@ -11,6 +12,7 @@ from pact.models import (
     Modality,
     Pact,
     PactStatus,
+    Profile,
     Proof,
     ProofStatus,
     Rubric,
@@ -18,6 +20,8 @@ from pact.models import (
 )
 from pact.payment import PaymentProvider, TestLinkProvider
 from pact.repository import Repository
+
+_OWNER = "demo@pact.local"
 
 _TIMEZONE = "America/Los_Angeles"
 _CHARITY_ID = "against_malaria_foundation"
@@ -255,3 +259,186 @@ def reset(repo: Repository, clock: Clock, settings: Settings) -> dict:
     if isinstance(clock, FixedClock):
         clock.set(datetime.fromisoformat(settings.demo_seed_iso))
     return seed(repo, clock, settings)
+
+
+# ─── Showcase seeds (app-shell demo) ──────────────────────────────────────────
+# Layered on by the /demo endpoints AFTER seed()/reset() so the live app exercises
+# every Home + Detail state: a fuller active carousel, an under-review pact, a
+# donation-pending pact (drives the nag banner + the Link approval flow), a failed
+# pact with an open dispute window, and a closed ledger. Kept OUT of seed()/reset()
+# so the unit-tested "exactly three pacts" contract is untouched. Stable ids →
+# repeatable across reseeds.
+
+
+def _rubric_for(target: int) -> Rubric:
+    mdd = min(max(target - 1, 1), max(target, 1))
+    return Rubric(
+        modality=Modality.photo,
+        require_token=True,
+        must_show=["clear evidence the committed action was performed"],
+        reject_if=["stock/watermark", "pure UI screenshot", "missing token"],
+        min_distinct_days=mdd,
+        count_target=target,
+        rest_if_injured_counts=True,
+        rigor_floor={"require_token": True, "min_distinct_days": mdd},
+    )
+
+
+def _ambiguous_proof(pact_id: str, idx: int, received_at: datetime) -> Proof:
+    return Proof(
+        id=f"proof-{pact_id}-{idx}",
+        pact_id=pact_id,
+        modality=Modality.photo,
+        received_at=received_at,
+        day_bucket=day_bucket(received_at, _TIMEZONE),
+        token_issued=f"PACT-{idx:02d}",
+        token_ok=True,
+        status=ProofStatus.ambiguous,
+        judge_reason="Token verified but content is a judgment call — sent for review.",
+        judge_checklist={"token": True, "content": None, "not_dup": True},
+    )
+
+
+def _showcase_pact(
+    pact_id: str,
+    title: str,
+    status: PactStatus,
+    *,
+    dpw: int,
+    weeks: int,
+    stake: int,
+    charity_id: str,
+    created: datetime,
+    deadline: datetime,
+    stake_state: StakeState = StakeState.committed,
+    spend_request_id: str | None = None,
+    dispute_window_closes_at: datetime | None = None,
+    verdict_at: datetime | None = None,
+) -> Pact:
+    charity = get_charity(charity_id)
+    charity_url = charity["donation_url"] if charity else ""
+    target = dpw * weeks
+    return Pact(
+        id=pact_id,
+        owner=_OWNER,
+        original_prompt=title,
+        title=title,
+        goal=f"Complete the committed action {target} times across {target} distinct days.",
+        timezone=_TIMEZONE,
+        deadline_at=deadline,
+        target_count=target,
+        distinct_days=True,
+        days_per_week=dpw,
+        weeks=weeks,
+        recommended_stake_cents=stake,
+        stake_amount_cents=stake,
+        charity_id=charity_id,
+        charity_url=charity_url,
+        agent="Hermes",
+        rubric=_rubric_for(target),
+        status=status,
+        stake_state=stake_state,
+        spend_request_id=spend_request_id,
+        created_at=created,
+        started_at=created,
+        verdict_at=verdict_at,
+        dispute_window_closes_at=dispute_window_closes_at,
+    )
+
+
+def seed_states(repo: Repository, clock: Clock, settings: Settings) -> dict:
+    """Persist the showcase pacts that exercise every app-shell state. Returns the
+    map of state -> pact_id (the States/Demo menu deep-links to these)."""
+    now = clock.now()
+    out: dict[str, str] = {}
+
+    def _passes(pact_id: str, n: int, end: datetime) -> None:
+        for i in range(n):
+            repo.save_proof(_passed_proof(pact_id, i, end - timedelta(days=n - i, hours=3)))
+
+    # ── Active carousel pacts (besides the LIVE one from seed()) ───────────────
+    actives = [
+        # id, title, dpw, weeks, stake, charity, created_days_ago, deadline_in_days, passed
+        ("pact-read", "Read 20 minutes", 5, 2, 7500, "donorschoose", 5, 9, 4),
+        ("pact-meditate", "Meditate", 4, 3, 6000, "charity_water", 3, 18, 3),
+        ("pact-phone", "No phone after 10pm", 6, 2, 5000, "feeding_america", 6, 8, 2),
+    ]
+    for pid, title, dpw, weeks, stake, charity, cago, din, passed in actives:
+        p = _showcase_pact(
+            pid, title, PactStatus.active, dpw=dpw, weeks=weeks, stake=stake,
+            charity_id=charity, created=now - timedelta(days=cago),
+            deadline=now + timedelta(days=din),
+        )
+        repo.save_pact(p)
+        _passes(pid, passed, now)
+    out["active"] = "pact-read"
+
+    # ── Under review: shortfall with an ambiguous proof that could still lift ──
+    review = _showcase_pact(
+        "pact-review", "Cold plunge", PactStatus.needs_review, dpw=5, weeks=1,
+        stake=9000, charity_id="unicef", created=now - timedelta(days=6),
+        deadline=now - timedelta(hours=1), verdict_at=now - timedelta(hours=1),
+    )
+    repo.save_pact(review)
+    for i in range(3):
+        repo.save_proof(_passed_proof("pact-review", i, now - timedelta(days=5 - i, hours=3)))
+    repo.save_proof(_ambiguous_proof("pact-review", 3, now - timedelta(hours=2)))
+    out["review"] = "pact-review"
+
+    # ── Donation pending: window already closed, no money moved → Link flow. ───
+    donate = _showcase_pact(
+        "pact-donate", "Wake at 6am", PactStatus.donation_pending, dpw=5, weeks=1,
+        stake=20000, charity_id="save_the_children", created=now - timedelta(days=8),
+        deadline=now - timedelta(days=2), verdict_at=now - timedelta(days=1),
+        dispute_window_closes_at=now - timedelta(days=1),
+    )
+    repo.save_pact(donate)
+    for i in range(2):
+        repo.save_proof(_passed_proof("pact-donate", i, now - timedelta(days=7 - i, hours=3)))
+    out["donation"] = "pact-donate"
+
+    # ── Failed with an OPEN dispute window → verdict-failed + live countdown. ──
+    miss = _showcase_pact(
+        "pact-miss", "Write daily", PactStatus.failed, dpw=5, weeks=1,
+        stake=12000, charity_id="feeding_america", created=now - timedelta(days=6),
+        deadline=now - timedelta(hours=1), verdict_at=now - timedelta(hours=1),
+        dispute_window_closes_at=now + timedelta(hours=2),
+    )
+    repo.save_pact(miss)
+    for i in range(3):
+        repo.save_proof(_passed_proof("pact-miss", i, now - timedelta(days=5 - i, hours=3)))
+    out["failed"] = "pact-miss"
+
+    # ── Closed ledger: kept (succeeded) + missed (donated). ────────────────────
+    closed = [
+        # id, title, status, stake, charity, ended_days_ago, stake_state, spend_request_id
+        ("pact-10k", "Ran a 10K", PactStatus.succeeded, 15000, "charity_water", 40, StakeState.released, None),
+        ("pact-dryjan", "Dry January", PactStatus.succeeded, 30000, "feeding_america", 30, StakeState.released, None),
+        ("pact-sketch", "Sketch daily", PactStatus.succeeded, 7500, "donorschoose", 20, StakeState.released, None),
+        ("pact-sugar", "No sugar", PactStatus.donated, 20000, "feeding_america", 25, StakeState.executed, "test_sr_pact-sugar_20000"),
+        ("pact-inbox", "Inbox zero by 6", PactStatus.donated, 15000, "unicef", 18, StakeState.executed, "test_sr_pact-inbox_15000"),
+    ]
+    for pid, title, status, stake, charity, dago, sstate, spend in closed:
+        deadline = now - timedelta(days=dago)
+        p = _showcase_pact(
+            pid, title, status, dpw=5, weeks=1, stake=stake, charity_id=charity,
+            created=deadline - timedelta(days=7), deadline=deadline,
+            stake_state=sstate, spend_request_id=spend, verdict_at=deadline,
+        )
+        repo.save_pact(p)
+        _passes(pid, 5 if status == PactStatus.succeeded else 3, deadline)
+
+    # ── Owner track record so the Home stats read true. ────────────────────────
+    repo.save_profile(
+        Profile(
+            owner=_OWNER,
+            current_streak=4,
+            best_streak=9,
+            kept=12,
+            failed=3,
+            pact_ids=[],
+            history=[],
+        )
+    )
+
+    return out

@@ -634,6 +634,8 @@ def create_pact_structured(
         deadline_at=deadline_at,
         target_count=target_count,
         distinct_days=True,
+        days_per_week=days_per_week,
+        weeks=weeks,
         recommended_stake_cents=stake_amount_cents,
         stake_amount_cents=stake_amount_cents,
         charity_id=charity_id,

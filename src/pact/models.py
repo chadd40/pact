@@ -88,6 +88,12 @@ class Pact(BaseModel):
     deadline_at: datetime
     target_count: int
     distinct_days: bool = True
+    # The weekly cadence the pact was built from (days_per_week x weeks = target_count).
+    # Stored so every surface speaks the same "N days a week for M weeks" language the
+    # Create flow collects. Optional/nullable: pre-cadence rows derive it on read
+    # (see pact.progress.compute_cadence).
+    days_per_week: int | None = None
+    weeks: int | None = None
     recommended_stake_cents: int
     stake_amount_cents: int
     currency: str = "usd"
