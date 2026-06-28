@@ -8,3 +8,8 @@ artifacts/
 /build/
 /dist/
 web/src-tauri/binaries/
+
+.playwright-mcp/
+
+# local screenshot artifacts
+/*.png
