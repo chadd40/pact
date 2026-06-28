@@ -171,6 +171,7 @@ export interface Charity {
   donation_url: string;
   allowed_domains: string[];
   category: string;
+  description: string;
   default_amounts: number[];
   checkout_kind: string;
   stamp: string;

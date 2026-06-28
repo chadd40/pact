@@ -41,32 +41,9 @@ interface AgentDef {
   glyph?: JSX.Element;
 }
 const AGENTS: AgentDef[] = [
-  { key: "Hermes", name: "Hermes Agent", blurb: "Your built-in coach", avatar: "/agents/hermes.png", tag: "rec" },
-  {
-    key: "Claude Code",
-    name: "Claude Code",
-    blurb: "From your dev workflow",
-    avatar: null,
-    tag: "connect",
-    glyph: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-        <path d="M8 7l-5 5 5 5M16 7l5 5-5 5" />
-      </svg>
-    ),
-  },
-  {
-    key: "your agent",
-    name: "Your own agent",
-    blurb: "Any MCP agent, via API",
-    avatar: null,
-    tag: "connect",
-    glyph: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-        <rect x="4" y="4" width="16" height="16" rx="4" />
-        <path d="M9 12h6M12 9v6" />
-      </svg>
-    ),
-  },
+  { key: "Hermes", name: "Hermes Agent", blurb: "Your built-in coach", avatar: "/agents/Hermes.svg", tag: "rec" },
+  { key: "Claude Code", name: "Claude Code", blurb: "From your dev workflow", avatar: "/agents/Claude.svg", tag: "connect" },
+  { key: "your agent", name: "Your own agent", blurb: "Any MCP agent, via API", avatar: "/agents/Nemoclaw.svg", tag: "connect" },
 ];
 
 // Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 sealing · 6 message
@@ -268,22 +245,6 @@ export function Create() {
     if (created) navigate(`/pact/${created.id}`);
   };
 
-  const restart = () => {
-    setStage(0);
-    setActive(0);
-    setGoalIndex(null);
-    setCustomTitle("");
-    setDays(5);
-    setWeeks(4);
-    setStake(200);
-    setCharityId(null);
-    setAgentKey(null);
-    setCustomDesc("");
-    setEditorReady(false);
-    setCreated(null);
-    setError(null);
-  };
-
   // ── Card slot / flip transforms ─────────────────────────────────────────────
   const slotTransform = (a: number, b: number, c: number, ry: number, s: number) =>
     `translate(-50%,-50%) translateX(${a}px) translateY(${b}px) translateZ(${c}px) rotateY(${ry}deg) scale(${s})`;
@@ -352,7 +313,7 @@ export function Create() {
       : stage === 3
       ? { n: 3, head: "Choose the cause" }
       : stage === 4
-      ? { n: 4, head: "Pick your keeper" }
+      ? { n: 4, head: "Pick your agent" }
       : { n: 0, head: "" };
 
   const canContinue =
@@ -360,23 +321,15 @@ export function Create() {
 
   return (
     <div className="pc-root" ref={rootRef}>
+      {/* Brand lockup — the landing-page logo, pinned to the viewport corner like the
+          landing chrome. Lives outside the scaled stage so its position matches landing
+          exactly. Clickable: returns home (the dashboard, once the app build lands). */}
+      <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact — back to home">
+        <img className="pc-brand-logo" src="/primary_logo.svg" alt="Pact" />
+      </button>
+
       <div className="pc-stage">
         <div className="pc-vignette" />
-
-        {/* Brand lockup — pact mark (two cards bound by a wax seal) + wordmark */}
-        <div className="pc-brand" aria-label="Pact">
-          <svg className="pc-brand-mark" viewBox="0 0 104 80" fill="none" aria-hidden="true">
-            <rect x="3" y="6" width="46" height="68" rx="16" fill="currentColor" />
-            <rect x="62" y="32" width="39" height="42" rx="13" fill="currentColor" />
-            <circle cx="55" cy="42" r="15.5" fill="#9b3a27" />
-            <circle cx="55" cy="42" r="15.5" fill="none" stroke="#6d2315" strokeWidth="1.7" />
-            <path
-              d="M55 31.2 L57.6 39.4 L65.8 42 L57.6 44.6 L55 52.8 L52.4 44.6 L44.2 42 L52.4 39.4 Z"
-              fill="#f1ebde"
-            />
-          </svg>
-          <span className="pc-brand-word">pact</span>
-        </div>
 
         {/* Back */}
         <button
@@ -396,7 +349,6 @@ export function Create() {
 
         {/* Carousel heading */}
         <div className="pc-heading" style={{ opacity: deckMode ? 1 : 0 }}>
-          <div className="m eyebrow">New pact · Step 1</div>
           <h1>What are you committing to?</h1>
           <div className="sub">Browse the deck. Click a card to choose it.</div>
         </div>
@@ -641,8 +593,15 @@ export function Create() {
                     );
                   })}
                 </div>
-                <div className="pc-charity-label">
-                  {charity ? `${charity.name} · ${charity.category.replace(/_/g, " ")}` : "Tap a cause to stamp it on"}
+                <div className="pc-charity-info">
+                  {charity ? (
+                    <>
+                      <div className="pc-charity-name">{charity.name}</div>
+                      <p className="pc-charity-desc">{charity.description}</p>
+                    </>
+                  ) : (
+                    <div className="pc-charity-prompt m">Tap a cause to stamp it on</div>
+                  )}
                 </div>
               </div>
             )}
@@ -724,7 +683,6 @@ export function Create() {
                 <button className="open" ref={openBtnRef} onClick={openPact}>
                   Open my pact <Arrow />
                 </button>
-                <button className="replay" onClick={restart}>Replay</button>
               </div>
             </div>
           </div>
