@@ -64,6 +64,14 @@
   flex-direction: column;
   align-items: center;
   padding-top: clamp(92px, 12vh, 132px);
+  /* Hero backdrop: the activity collage, covered so it fills without stretching,
+     under a 10% --l-bg (#efe6d3) wash that warms + lightens it a touch. The phone
+     scene sits in the image's clean centre. */
+  background-image: linear-gradient(rgba(239, 230, 211, 0.1), rgba(239, 230, 211, 0.1)),
+    url("/hero_bg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* The phone scene fills the space under the headline and scales as one unit. */
