@@ -11,7 +11,7 @@ import { CardBack, CustomCardFront, AGENTS } from "../screens/Create";
 import { GoalGlyph } from "./GoalGlyph";
 import { cardArtFor } from "../lib/cardArt";
 import { asset } from "../lib/asset";
-import { dollars, formatDate } from "../lib";
+import { dollars, formatDate, formatDateTime } from "../lib";
 import type { CoachingMessage, Pact, Packet } from "../types";
 // CardBack's editorial `.cb-*` styles live in create.css. It's imported by
 // Create.tsx, but PactWorld can render standalone (e.g. tests, deep links) before
@@ -20,7 +20,7 @@ import "../screens/create.css";
 
 const LIVE = new Set(["active", "evaluating"]);
 const KEPT = new Set(["succeeded", "canceled_release"]);
-const DONATED = new Set(["donated", "donation_failed"]);
+const DONATED = new Set(["donated"]);
 const DECLINED = new Set(["donation_declined", "canceled_forfeit"]);
 
 // Default coach avatar when the pact's agent has none (or no agent set).
@@ -50,6 +50,8 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const [packet, setPacket] = useState<Packet | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [receiptRef, setReceiptRef] = useState("");
+  const [receiptErr, setReceiptErr] = useState<string | null>(null);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -186,6 +188,29 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     finally { setBusy(null); }
   };
 
+  const submitReceipt = async () => {
+    if (!pact) return;
+    const raw = receiptRef.trim();
+    if (!raw) { setReceiptErr("Enter the receipt number or URL."); return; }
+    const isUrl = /^https?:\/\//i.test(raw);
+    setBusy("receipt"); setReceiptErr(null);
+    try {
+      await api.recordDonationReceipt(pact.id, {
+        receipt_source: "manual",
+        receipt_ref: isUrl ? null : raw,
+        receipt_url: isUrl ? raw : null,
+        confirmation_notes: "Entered by the owner in Pact.",
+      });
+      setReceiptRef("");
+      await load();
+      signalChange();
+    } catch {
+      setReceiptErr("Couldn't save that receipt. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const goBack = () => {
     navigate("/dashboard");
   };
@@ -210,6 +235,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const failed = status === "failed";
   const donationDue = status === "donation_pending";
   const donated = DONATED.has(status);
+  const donationFailed = status === "donation_failed";
   const declined = DECLINED.has(status);
 
   const windowOpen =
@@ -400,20 +426,81 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       );
     }
 
-    // DONATED — receipt terminal
+    // DONATION FAILED — approval denied/expired/provider error terminal
+    if (donationFailed) {
+      return (
+        <div className="pd-terminal">
+          <div className="pd-terminal-icon declined">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="30" height="30"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16v.5" /></svg>
+          </div>
+          <div className="pd-terminal-eyebrow m muted">Donation not completed</div>
+          <div className="pd-terminal-title">No transfer was confirmed.</div>
+          <div className="pd-terminal-body">The miss is recorded, but Link did not produce an approved donation. Review the payment attempt before starting another pact.</div>
+          <div className="pd-verdict-actions">
+            <button className="pd-btn ghost" onClick={goBack}>Back home</button>
+          </div>
+        </div>
+      );
+    }
+
+    // DONATED — approval terminal, receipt-aware
     if (donated) {
+      const receiptStatus = packet?.verdict.receipt_status ?? "unconfirmed";
+      const receiptConfirmed = receiptStatus === "manual_receipt" || receiptStatus === "provider_confirmed";
+      const receiptLabel =
+        receiptStatus === "provider_confirmed" ? "Provider confirmed"
+        : receiptStatus === "manual_receipt" ? "Manual receipt"
+        : "Receipt unconfirmed";
+      const receiptEvidence =
+        packet?.verdict.receipt_ref ||
+        packet?.verdict.receipt_url ||
+        packet?.verdict.receipt_artifact_path ||
+        null;
       return (
         <div className="pd-terminal">
           <div className="pd-terminal-icon donated">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="32" height="32"><path d="M12 20s-7-4.3-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7-1.2c0 4.9-7 13.2-7 13.2Z" /></svg>
           </div>
-          <div className="pd-terminal-eyebrow m risk">Donation complete</div>
-          <div className="pd-terminal-title">{dollars(pact.stake_amount_cents)} went to {charity?.name ?? "charity"}.</div>
-          <div className="pd-terminal-body">Not the outcome you wanted — but the promise still meant something.</div>
+          <div className="pd-terminal-eyebrow m risk">
+            {receiptConfirmed ? "Donation confirmed" : "Donation approved"}
+          </div>
+          <div className="pd-terminal-title">
+            {receiptConfirmed
+              ? `${dollars(pact.stake_amount_cents)} is confirmed for ${charity?.name ?? "charity"}.`
+              : `${dollars(pact.stake_amount_cents)} was approved for ${charity?.name ?? "charity"}.`}
+          </div>
+          <div className="pd-terminal-body">
+            {receiptConfirmed
+              ? "Receipt evidence is attached to the final packet."
+              : "Link approval is recorded. Add the charity receipt when you have it so the packet can say the payout landed."}
+          </div>
           <div className="pd-receipt">
             <div className="pd-receipt-row top"><span className="b">{charity?.name ?? "charity"}</span><span className="m risk">{dollars(pact.stake_amount_cents)}</span></div>
-            <div className="pd-receipt-row"><span className="m muted">Receipt</span><span className="m">{(pact.spend_request_id ?? "PCT").slice(-8).toUpperCase()} · via Link •••• 4242</span></div>
+            <div className="pd-receipt-row"><span className="m muted">Link approval</span><span className="m">{(pact.spend_request_id ?? "PCT").slice(-8).toUpperCase()}</span></div>
+            <div className="pd-receipt-row"><span className="m muted">Receipt</span><span className={`m ${receiptConfirmed ? "ok" : "pending"}`}>{receiptEvidence ?? receiptLabel}</span></div>
+            {packet?.verdict.confirmed_at && (
+              <div className="pd-receipt-row"><span className="m muted">Confirmed</span><span className="m">{formatDateTime(packet.verdict.confirmed_at)}</span></div>
+            )}
           </div>
+          {!receiptConfirmed && (
+            <form
+              className="pd-receipt-form"
+              onSubmit={(e) => { e.preventDefault(); void submitReceipt(); }}
+            >
+              <label className="sr-only" htmlFor={`receipt-${pact.id}`}>Charity receipt number or URL</label>
+              <input
+                id={`receipt-${pact.id}`}
+                className="pd-receipt-input"
+                value={receiptRef}
+                onChange={(e) => setReceiptRef(e.target.value)}
+                placeholder="Receipt number or URL"
+              />
+              <button className="pd-btn sm" disabled={busy === "receipt"} type="submit">
+                {busy === "receipt" ? "Saving…" : "Record receipt"}
+              </button>
+              {receiptErr && <div className="pd-receipt-err">{receiptErr}</div>}
+            </form>
+          )}
           <div className="pd-verdict-actions">
             <button className="pd-btn" onClick={() => navigate("/create")}>Start a new pact</button>
             <button className="pd-btn ghost" onClick={goBack}>Back home</button>

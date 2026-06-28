@@ -61,12 +61,22 @@ export interface Cadence {
 }
 
 // Donation approve-and-monitor state (the two-phase Link flow).
-export type DonationStateName = "idle" | "awaiting_approval" | "donated" | "declined" | "error";
+export type DonationStateName =
+  | "idle"
+  | "awaiting_approval"
+  | "approved"
+  | "donated"
+  | "denied"
+  | "expired"
+  | "declined"
+  | "error";
 export interface DonationState {
   state: DonationStateName;
   status: PactStatus;
   stake_state: StakeState;
   spend_request_id: string | null;
+  approval_status?: string | null;
+  payment_status?: string | null;
 }
 
 export interface Pact {
@@ -109,6 +119,21 @@ export interface LinkStatus {
   owner: string;
   connected: boolean;
   funding_ref: string | null;
+  ready?: boolean;
+  payment_method_id?: string | null;
+  payment_method_label?: string | null;
+  payment_method_last4?: string | null;
+  auth_status?: string | null;
+  checked_at?: string | null;
+  error?: string | null;
+}
+
+export interface RuntimeInfo {
+  payment_mode: string;
+  link_mode: string;
+  reasoning_mode: string;
+  auth_mode: string;
+  live_money_enabled: boolean;
 }
 
 export interface Proof {
@@ -139,6 +164,17 @@ export interface Verdict {
   payment_ref: string | null;
   receipt_artifact_path: string | null;
   honesty_note: string;
+}
+
+export interface DonationReceipt {
+  pact_id: string;
+  receipt_status: "unconfirmed" | "manual_receipt" | "provider_confirmed" | "failed_or_reversed" | string;
+  receipt_source: string | null;
+  receipt_ref: string | null;
+  receipt_url: string | null;
+  receipt_artifact_path: string | null;
+  confirmed_at: string | null;
+  confirmation_notes: string | null;
 }
 
 export interface Profile {
@@ -200,6 +236,11 @@ export interface PacketVerdict {
   payment_action: string;
   payment_ref: string | null;
   receipt_artifact_path: string | null;
+  receipt_status: "not_required" | "unconfirmed" | "manual_receipt" | "provider_confirmed" | "failed_or_reversed" | string;
+  receipt_source: string | null;
+  receipt_ref: string | null;
+  receipt_url: string | null;
+  confirmed_at: string | null;
 }
 
 export interface Packet {

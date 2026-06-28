@@ -16,6 +16,7 @@ def test_defaults_match_contract():
     assert s.cooling_off_minutes == 60
     assert s.db_path == "pact.db"
     assert s.artifacts_dir == "artifacts"
+    assert s.auth_mode == "local_dev"
 
 
 def test_none_env_uses_defaults():
@@ -34,6 +35,7 @@ def test_settings_default_constructor_matches():
     assert s.cooling_off_minutes == 60
     assert s.db_path == "pact.db"
     assert s.artifacts_dir == "artifacts"
+    assert s.auth_mode == "local_dev"
 
 
 def test_full_env_override():
@@ -48,6 +50,7 @@ def test_full_env_override():
         "PACT_COOLING_OFF_MINUTES": "30",
         "PACT_DB_PATH": "/tmp/custom.db",
         "PACT_ARTIFACTS_DIR": "/tmp/art",
+        "PACT_AUTH_MODE": "agent_token",
     }
     s = load_settings(env)
     assert s.reasoning_mode == "agent_only"
@@ -60,6 +63,7 @@ def test_full_env_override():
     assert s.cooling_off_minutes == 30
     assert s.db_path == "/tmp/custom.db"
     assert s.artifacts_dir == "/tmp/art"
+    assert s.auth_mode == "agent_token"
 
 
 def test_partial_override_keeps_defaults():

@@ -79,7 +79,11 @@ def tick(
         was_failed = pact.status in (PactStatus.failed, PactStatus.donation_pending)
         updated, verdict = close_dispute_window(
             pact, proofs, clock, payment, settings,
-            link_connected=is_owner_connected(repo, pact.owner),
+            link_connected=(
+                False
+                if settings.payment_mode == "link_cli" and settings.link_mode == "live"
+                else is_owner_connected(repo, pact.owner)
+            ),
         )
         if was_failed and updated.status in (PactStatus.donated, PactStatus.donation_pending):
             # The window closed: persist + record the failure (idempotent) at

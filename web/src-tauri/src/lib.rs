@@ -87,6 +87,25 @@ pub fn run() {
             envs.insert("PACT_PORT".into(), "8000".into());
             envs.insert("PACT_CLOCK_MODE".into(), "real".into());
             envs.insert("PACT_EMIT_READY".into(), "1".into());
+            // Desktop builds must not inherit live-money env by accident. Live Link
+            // mode is opt-in for local drills only.
+            let allow_live_link = std::env::var("PACT_TAURI_ALLOW_LIVE_LINK")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            if allow_live_link {
+                if let Ok(mode) = std::env::var("PACT_PAYMENT_MODE") {
+                    envs.insert("PACT_PAYMENT_MODE".into(), mode);
+                }
+                if let Ok(mode) = std::env::var("PACT_LINK_MODE") {
+                    envs.insert("PACT_LINK_MODE".into(), mode);
+                }
+                if let Ok(method_id) = std::env::var("PACT_LINK_PAYMENT_METHOD_ID") {
+                    envs.insert("PACT_LINK_PAYMENT_METHOD_ID".into(), method_id);
+                }
+            } else {
+                envs.insert("PACT_PAYMENT_MODE".into(), "test_link".into());
+                envs.insert("PACT_LINK_MODE".into(), "dry_run".into());
+            }
             // Give the installed agent (the brain) a real window to judge/draft/coach
             // when it's serving (/pact serve). The hybrid provider only waits when a
             // worker has polled recently, so this never hangs the no-agent case.

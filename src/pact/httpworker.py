@@ -24,15 +24,24 @@ from .reasoning import ReasoningProvider
 class HttpWorkerClient:
     """Thin sync HTTP client over the broker's reasoning-task routes."""
 
-    def __init__(self, base_url: str, http: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        http: httpx.Client | None = None,
+        token: str | None = None,
+    ) -> None:
         self.base_url = base_url
         # Tests inject an httpx.Client bound to the ASGI app; otherwise talk to
         # a real server at base_url.
         self.http = http if http is not None else httpx.Client(base_url=base_url)
+        self.token = token
+
+    def _headers(self) -> dict:
+        return {} if not self.token else {"Authorization": f"Bearer {self.token}"}
 
     def pending(self, capability: str | None = None) -> list[dict]:
         params = {} if capability is None else {"capability": capability}
-        r = self.http.get("/api/reasoning-tasks", params=params)
+        r = self.http.get("/api/reasoning-tasks", params=params, headers=self._headers())
         r.raise_for_status()
         return r.json()
 
@@ -40,6 +49,7 @@ class HttpWorkerClient:
         r = self.http.post(
             f"/api/reasoning-tasks/{task_id}/claim",
             json={"agent_name": agent_name, "capabilities": list(capabilities)},
+            headers=self._headers(),
         )
         r.raise_for_status()
         return r.json()
@@ -48,6 +58,7 @@ class HttpWorkerClient:
         r = self.http.post(
             f"/api/reasoning-tasks/{task_id}/result",
             json={"result": result},
+            headers=self._headers(),
         )
         r.raise_for_status()
         return r.json()
@@ -108,7 +119,7 @@ def serve_http(
     return resolved
 
 
-def relay_outbox(client_or_http, base_url, owner, deliver=None) -> int:
+def relay_outbox(client_or_http, base_url, owner, deliver=None, token: str | None = None) -> int:
     """Relay the owner's undelivered coaching nudges out of the live server.
 
     For each message in GET /api/outbox?owner=<owner>: call ``deliver(msg)``
@@ -123,18 +134,21 @@ def relay_outbox(client_or_http, base_url, owner, deliver=None) -> int:
     base_url, so the relative paths below resolve correctly.
     """
     http = getattr(client_or_http, "http", client_or_http)
+    client_token = getattr(client_or_http, "token", None)
+    effective_token = token or client_token
+    headers = {} if not effective_token else {"Authorization": f"Bearer {effective_token}"}
     if deliver is None:
         def deliver(msg):  # default: no-op "log" that just echoes the message
             return msg
 
-    resp = http.get("/api/outbox", params={"owner": owner})
+    resp = http.get("/api/outbox", params={"owner": owner}, headers=headers)
     resp.raise_for_status()
     messages = resp.json()
 
     relayed = 0
     for msg in messages:
         deliver(msg)
-        marked = http.post(f"/api/coach/{msg['id']}/delivered")
+        marked = http.post(f"/api/coach/{msg['id']}/delivered", headers=headers)
         marked.raise_for_status()
         relayed += 1
     return relayed

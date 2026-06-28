@@ -203,7 +203,7 @@ class TestLLMProvider:
     def _judge_proof(self, input: dict) -> dict:
         token_ok = bool(input.get("token_ok"))
         is_duplicate = bool(input.get("is_duplicate"))
-        content_ok = bool(input.get("content_ok"))
+        content_ok = bool(input.get("content_ok", input.get("artifact_path")))
         checklist = {
             "token": token_ok,
             "content": content_ok,
@@ -295,6 +295,20 @@ class BrokerReasoningProvider:
     def capabilities(self) -> set[str]:
         return self.fallback.capabilities()
 
+    def _fallback_result(self, task: ReasoningTask) -> dict:
+        if task.type == TaskType.judge_proof and task.required_capability == "vision":
+            return {
+                "status": "ambiguous",
+                "reason": "Vision review unavailable; stored image proof needs a vision-capable agent.",
+                "checklist": {
+                    "token": bool(task.input.get("token_ok")),
+                    "content": None,
+                    "not_dup": not bool(task.input.get("is_duplicate")),
+                    "vision": False,
+                },
+            }
+        return self.fallback.resolve(task)
+
     def resolve(self, task: ReasoningTask) -> dict:
         from . import broker  # lazy import to avoid a circular import
 
@@ -307,7 +321,7 @@ class BrokerReasoningProvider:
             no_budget = self.timeout_polls == 0
             no_worker = self._worker_present is not None and not self._worker_present()
             if no_budget or no_worker:
-                return self.fallback.resolve(task)
+                return self._fallback_result(task)
 
         # Build the equivalent task ONCE and enqueue THAT EXACT task, so the id
         # we poll is the id a worker claims. (Calling broker.enqueue would
@@ -338,7 +352,7 @@ class BrokerReasoningProvider:
             return result
 
         if self.allow_fallback:
-            return self.fallback.resolve(task)
+            return self._fallback_result(task)
         raise ReasoningUnavailable(
             f"no agent result for task {equivalent.id} after "
             f"{self.timeout_polls} polls and fallback is disabled"

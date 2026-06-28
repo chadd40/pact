@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { api, DEMO_OWNER } from "../api";
+import { api } from "../api";
 import { useDemo } from "../App";
 import { AppDataContext, type AppData } from "../data";
+import { useLocalOwner } from "../owner";
 import type { Charity, Pact } from "../types";
 import { LogoMenu } from "./LogoMenu";
 import { PactToast } from "./PactToast";
@@ -21,6 +22,7 @@ const JUMPS = [
 export function AppShell() {
   const { bump, busy, doSeed, doAdvance, doReset } = useDemo();
   const navigate = useNavigate();
+  const [owner] = useLocalOwner();
   const [pacts, setPacts] = useState<Pact[]>([]);
   const [pactsLoaded, setPactsLoaded] = useState(false);
   const [charities, setCharities] = useState<Charity[]>([]);
@@ -29,11 +31,11 @@ export function AppShell() {
   // Pacts refresh on the demo `bump` signal (shared with Home/Coach via context).
   useEffect(() => {
     let alive = true;
-    api.listPacts(DEMO_OWNER)
+    api.listPacts(owner)
       .then((p) => { if (alive) { setPacts(p); setPactsLoaded(true); } })
       .catch(() => { if (alive) setPactsLoaded(true); });
     return () => { alive = false; };
-  }, [bump]);
+  }, [bump, owner]);
 
   // Charities are quasi-static: fetch once, cache for every screen.
   useEffect(() => {

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, ApiError, DEMO_OWNER } from "../api";
+import { api, ApiError } from "../api";
 import { useDemo } from "../App";
+import { useLocalOwner } from "../owner";
 import type { Charity, Pact } from "../types";
 import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { PasteWebPact } from "../components/PasteWebPact";
@@ -163,6 +164,7 @@ export function CustomCardFront({ imageSrc, title }: { imageSrc: string; title: 
 export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const { signalChange } = useDemo();
+  const [owner] = useLocalOwner();
 
   const [stage, setStage] = useState<Stage>(0);
   const [active, setActive] = useState(0); // carousel focus index
@@ -387,7 +389,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         charity_id: charityId,
         agent: agentKey,
         consent_acknowledged: true,
-        owner: DEMO_OWNER,
+        owner,
         description: isCustom ? customDesc.trim() || undefined : undefined,
         card_art: isCustom ? customArt ?? undefined : undefined,
         signer_name: signerName.trim() || undefined,

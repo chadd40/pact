@@ -3,10 +3,13 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from pact.models import (
+    AgentSession,
     Modality,
     Pact,
     PactStatus,
+    PaymentAttempt,
     Proof,
+    ProofReview,
     ProofStatus,
     ReasoningTask,
     Rubric,
@@ -202,6 +205,72 @@ def test_verdict_save_and_get(repo: Repository) -> None:
     assert loaded == make_verdict()
     assert loaded.payment_action == PaymentAction.donation_executed
     assert repo.get_verdict("pact_none") is None
+
+
+def test_payment_attempt_save_get_and_list(repo: Repository) -> None:
+    created = datetime(2026, 6, 26, 12, 0, 0, tzinfo=UTC)
+    attempt = PaymentAttempt(
+        id="pay_1",
+        pact_id="pact_abc123",
+        owner="alice@example.com",
+        provider="link_cli",
+        mode="dry_run",
+        status="created",
+        amount_cents=2000,
+        currency="usd",
+        charity_id="against_malaria_foundation",
+        merchant_name="Against Malaria Foundation",
+        merchant_url="https://www.againstmalaria.com/donation.aspx",
+        idempotency_key="pact_abc123:donation",
+        created_at=created,
+        updated_at=created,
+    )
+    repo.save_payment_attempt(attempt)
+
+    loaded = repo.get_payment_attempt("pay_1")
+    assert loaded == attempt
+    assert repo.list_payment_attempts("pact_abc123") == [attempt]
+    assert repo.list_payment_attempts("pact_other") == []
+
+
+def test_proof_review_save_get_and_list(repo: Repository) -> None:
+    review = ProofReview(
+        id="review_1",
+        proof_id="proof_1",
+        pact_id="pact_abc123",
+        reviewer="Hermes",
+        capabilities=["vision"],
+        input_artifacts={"image_path": "artifacts/pact_abc123/proof_1.png"},
+        status=ProofStatus.passed,
+        reason="Token visible and goal evidence clear.",
+        checklist={"token_visible": True, "goal_visible": True},
+        created_at=datetime(2026, 6, 26, 12, 0, 0, tzinfo=UTC),
+    )
+    repo.save_proof_review(review)
+
+    assert repo.get_proof_review("review_1") == review
+    assert repo.list_proof_reviews("proof_1") == [review]
+    assert repo.list_proof_reviews("proof_other") == []
+
+
+def test_agent_session_save_get_resolve_and_revoke(repo: Repository) -> None:
+    session = AgentSession(
+        owner="alice@example.com",
+        token_hash="hash_abc",
+        token_prefix="pat_abc",
+        created_at=datetime(2026, 6, 26, 12, 0, 0, tzinfo=UTC),
+        expires_at=datetime(2026, 9, 24, 12, 0, 0, tzinfo=UTC),
+        scopes=["claim_tasks", "post_results"],
+    )
+    repo.save_agent_session(session)
+
+    assert repo.get_agent_session("alice@example.com") == session
+    assert repo.owner_for_token_hash("hash_abc") == "alice@example.com"
+
+    revoked = session.model_copy(update={"revoked_at": datetime(2026, 6, 27, 12, 0, 0, tzinfo=UTC)})
+    repo.save_agent_session(revoked)
+    assert repo.get_agent_session("alice@example.com").revoked_at == revoked.revoked_at
+    assert repo.owner_for_token_hash("hash_abc") is None
 
 
 def test_save_verdict_replaces_existing(repo: Repository) -> None:

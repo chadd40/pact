@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from pact.clock import FixedClock
-from pact.link import connect_account, new_account
+from pact.link import connect_account, new_account, refresh_live_account
 
 
 def _clock() -> FixedClock:
@@ -34,6 +34,94 @@ def test_connect_is_idempotent():
     assert twice.funding_ref == "test_funding_a@b.com"
 
 
+class _FakeRunner:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def run(self, args, timeout):
+        self.calls.append((args, timeout))
+        if not self.responses:
+            raise AssertionError(f"unexpected link-cli call: {args!r}")
+        return self.responses.pop(0)
+
+
+def test_refresh_live_account_stores_usable_payment_method_without_secrets():
+    clock = _clock()
+    runner = _FakeRunner([
+        {"authenticated": True, "status": "authenticated"},
+        {
+            "payment_methods": [
+                {
+                    "id": "pm_live_123",
+                    "label": "Visa",
+                    "last4": "4242",
+                    "status": "active",
+                    "card": {"last4": "9999", "number": "4111111111111111"},
+                }
+            ]
+        },
+    ])
+
+    acct = refresh_live_account(new_account("a@b.com"), clock, runner=runner)
+
+    assert acct.connected is True
+    assert acct.funding_ref == "pm_live_123"
+    assert acct.payment_method_id == "pm_live_123"
+    assert acct.payment_method_label == "Visa"
+    assert acct.payment_method_last4 == "4242"
+    assert acct.auth_status == "authenticated"
+    assert acct.checked_at == clock.now()
+    assert "411111" not in acct.model_dump_json()
+    assert runner.calls == [
+        (["link-cli", "auth", "status", "--format", "json"], 120),
+        (["link-cli", "payment-methods", "list", "--format", "json"], 120),
+    ]
+
+
+def test_refresh_live_account_can_login_and_add_payment_method_when_requested():
+    clock = _clock()
+    runner = _FakeRunner([
+        {"authenticated": False, "status": "signed_out"},
+        {"ok": True},
+        {"authenticated": True, "status": "authenticated"},
+        {"payment_methods": []},
+        {"ok": True},
+        {"payment_methods": [{"id": "pm_added", "brand": "Amex", "last4": "0005"}]},
+    ])
+
+    acct = refresh_live_account(
+        new_account("a@b.com"),
+        clock,
+        runner=runner,
+        allow_login=True,
+        allow_add_method=True,
+    )
+
+    assert acct.connected is True
+    assert acct.payment_method_id == "pm_added"
+    assert runner.calls == [
+        (["link-cli", "auth", "status", "--format", "json"], 120),
+        (["link-cli", "auth", "login", "--client-name", "Pact"], 120),
+        (["link-cli", "auth", "status", "--format", "json"], 120),
+        (["link-cli", "payment-methods", "list", "--format", "json"], 120),
+        (["link-cli", "payment-methods", "add"], 120),
+        (["link-cli", "payment-methods", "list", "--format", "json"], 120),
+    ]
+
+
+def test_refresh_live_account_reports_not_ready_without_auth():
+    clock = _clock()
+    runner = _FakeRunner([{"authenticated": False, "status": "signed_out"}])
+
+    acct = refresh_live_account(new_account("a@b.com"), clock, runner=runner)
+
+    assert acct.connected is False
+    assert acct.auth_status == "signed_out"
+    assert acct.error == "Link CLI is not authenticated"
+    assert acct.payment_method_id is None
+
+
 def test_repo_round_trips_link_account(tmp_path):
     from pact.repository import Repository
 
@@ -55,13 +143,15 @@ from pact.anticheat import TokenStore  # noqa: E402
 from pact.api import create_app  # noqa: E402
 from pact.config import Settings  # noqa: E402
 from pact.models import (  # noqa: E402
+    AgentSession,
+    LinkAccount,
     Modality,
     Pact,
     PactStatus,
     Rubric,
     StakeState,
 )
-from pact.payment import TestLinkProvider  # noqa: E402
+from pact.payment import LinkCliProvider, TestLinkProvider  # noqa: E402
 from pact.reasoning import TestLLMProvider  # noqa: E402
 from pact.repository import Repository  # noqa: E402
 from datetime import timedelta  # noqa: E402
@@ -120,12 +210,16 @@ async def test_link_status_then_connect(tmp_path):
     app, _, _ = _build(tmp_path, clock)
     async with _client(app) as client:
         r = await client.get("/api/link/status", params={"owner": "a@b.com"})
-        assert r.json() == {"owner": "a@b.com", "connected": False, "funding_ref": None}
+        assert r.json()["owner"] == "a@b.com"
+        assert r.json()["connected"] is False
+        assert r.json()["funding_ref"] is None
+        assert r.json()["ready"] is False
 
         r = await client.post("/api/link/connect", json={"owner": "a@b.com"})
         assert r.status_code == 200, r.text
         assert r.json()["connected"] is True
         assert r.json()["funding_ref"] == "test_funding_a@b.com"
+        assert r.json()["ready"] is True
 
         r = await client.get("/api/link/status", params={"owner": "a@b.com"})
         assert r.json()["connected"] is True
@@ -158,3 +252,302 @@ async def test_settlement_is_gated_on_link_connection(tmp_path):
         assert payment.calls == 1
         p = await client.get("/api/pacts/pact_gate1")
         assert p.json()["status"] == "donated"
+
+
+@pytest.mark.asyncio
+async def test_live_link_preflight_persists_readiness_and_syncs_provider(tmp_path):
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    runner = _FakeRunner([
+        {"authenticated": True, "status": "authenticated"},
+        {"payment_methods": [{"id": "pm_live_123", "label": "Visa", "last4": "4242"}]},
+    ])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        r = await client.get("/api/link/preflight", params={"owner": "a@b.com"})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["ready"] is True
+        assert body["payment_method_id"] == "pm_live_123"
+        assert body["payment_method_last4"] == "4242"
+
+    acct = repo.get_link_account("a@b.com")
+    assert acct is not None
+    assert acct.connected is True
+    assert acct.payment_method_id == "pm_live_123"
+    assert payment.payment_method_id == "pm_live_123"
+
+
+@pytest.mark.asyncio
+async def test_live_preflight_reports_blockers(tmp_path):
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    runner = _FakeRunner([{"authenticated": False, "status": "signed_out"}])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(
+        db_path=db,
+        payment_mode="link_cli",
+        link_mode="live",
+        clock_mode="demo",
+    )
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        r = await client.get(
+            "/api/preflight",
+            params={
+                "owner": "a@b.com",
+                "charity_id": "against_malaria_foundation",
+                "amount_cents": 2000,
+            },
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+
+    assert body["ready"] is False
+    issue_keys = {issue["key"] for issue in body["issues"]}
+    assert {"agent_token", "link_payment_method", "clock_mode"}.issubset(issue_keys)
+
+
+@pytest.mark.asyncio
+async def test_live_preflight_ready_with_agent_link_amount_and_allowlisted_charity(tmp_path):
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_agent_session(
+        AgentSession(
+            owner="a@b.com",
+            token_hash="hash",
+            token_prefix="pat_ready",
+            created_at=clock.now(),
+            expires_at=clock.now() + timedelta(days=30),
+            scopes=["claim_tasks", "post_results", "relay_outbox"],
+        )
+    )
+    runner = _FakeRunner([
+        {"authenticated": True, "status": "authenticated"},
+        {"payment_methods": [{"id": "pm_live_123", "last4": "4242"}]},
+    ])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        r = await client.get(
+            "/api/preflight",
+            params={
+                "owner": "a@b.com",
+                "charity_id": "against_malaria_foundation",
+                "amount_cents": 2000,
+            },
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+
+    assert body["ready"] is True
+    assert body["issues"] == []
+    assert {check["key"] for check in body["checks"]} == {
+        "agent_token",
+        "link_payment_method",
+        "charity_allowlist",
+        "amount_cap",
+        "clock_mode",
+    }
+
+
+@pytest.mark.asyncio
+async def test_live_donation_initiate_blocks_when_link_is_not_ready(tmp_path):
+    owner = "a@b.com"
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_pact(
+        _failing_pact(clock, owner).model_copy(
+            update={
+                "status": PactStatus.donation_pending,
+                "stake_state": StakeState.committed,
+            }
+        )
+    )
+    runner = _FakeRunner([{"authenticated": False, "status": "signed_out"}])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        r = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        assert r.status_code == 409
+        assert "Link live mode is not ready" in r.text
+
+    pact = repo.get_pact("pact_gate1")
+    assert pact is not None
+    assert pact.status == PactStatus.donation_pending
+    assert pact.stake_state == StakeState.committed
+
+
+@pytest.mark.asyncio
+async def test_live_donation_creates_request_then_waits_for_approval(tmp_path):
+    owner = "a@b.com"
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_pact(
+        _failing_pact(clock, owner).model_copy(
+            update={
+                "status": PactStatus.donation_pending,
+                "stake_state": StakeState.committed,
+            }
+        )
+    )
+    repo.save_link_account(
+        LinkAccount(
+            owner=owner,
+            connected=True,
+            funding_ref="pm_live_123",
+            connected_at=clock.now(),
+            payment_method_id="pm_live_123",
+            auth_status="authenticated",
+            checked_at=clock.now(),
+        )
+    )
+    runner = _FakeRunner([
+        {"id": "sr_live_1", "status": "pending_approval"},
+        {"id": "sr_live_1", "status": "pending_approval"},
+        {"id": "sr_live_1", "status": "approved"},
+    ])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        initiated = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        assert initiated.status_code == 200, initiated.text
+        assert initiated.json()["state"] == "awaiting_approval"
+        pact = repo.get_pact("pact_gate1")
+        assert pact is not None
+        assert pact.spend_request_id == "sr_live_1"
+        assert pact.status == PactStatus.donation_pending
+        assert pact.stake_state == StakeState.executing
+
+        pending = await client.post("/api/pacts/pact_gate1/donation/approve")
+        assert pending.status_code == 409
+        assert repo.get_pact("pact_gate1").status == PactStatus.donation_pending
+
+        approved = await client.post("/api/pacts/pact_gate1/donation/approve")
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["state"] == "donated"
+        done = repo.get_pact("pact_gate1")
+        assert done is not None
+        assert done.status == PactStatus.donated
+        assert done.stake_state == StakeState.executed
+
+    attempts = repo.list_payment_attempts("pact_gate1")
+    assert len(attempts) == 1
+    assert attempts[0].provider_ref == "sr_live_1"
+    assert attempts[0].status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_live_donation_initiate_is_idempotent_for_open_request(tmp_path):
+    owner = "a@b.com"
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_pact(
+        _failing_pact(clock, owner).model_copy(
+            update={
+                "status": PactStatus.donation_pending,
+                "stake_state": StakeState.committed,
+            }
+        )
+    )
+    repo.save_link_account(
+        LinkAccount(
+            owner=owner,
+            connected=True,
+            funding_ref="pm_live_123",
+            connected_at=clock.now(),
+            payment_method_id="pm_live_123",
+            auth_status="authenticated",
+            checked_at=clock.now(),
+        )
+    )
+    runner = _FakeRunner([{"id": "sr_live_once", "status": "pending_approval"}])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        first = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        second = await client.post("/api/pacts/pact_gate1/donation/initiate")
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    create_calls = [call for call in runner.calls if call[0][:3] == ["link-cli", "spend-request", "create"]]
+    assert len(create_calls) == 1
+    assert len(repo.list_payment_attempts("pact_gate1")) == 1
+
+
+@pytest.mark.asyncio
+async def test_live_donation_denied_does_not_mark_donated(tmp_path):
+    owner = "a@b.com"
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_pact(
+        _failing_pact(clock, owner).model_copy(
+            update={
+                "status": PactStatus.donation_pending,
+                "stake_state": StakeState.committed,
+            }
+        )
+    )
+    repo.save_link_account(
+        LinkAccount(
+            owner=owner,
+            connected=True,
+            funding_ref="pm_live_123",
+            connected_at=clock.now(),
+            payment_method_id="pm_live_123",
+            auth_status="authenticated",
+            checked_at=clock.now(),
+        )
+    )
+    runner = _FakeRunner([
+        {"id": "sr_live_denied", "status": "pending_approval"},
+        {"id": "sr_live_denied", "status": "denied"},
+    ])
+    payment = LinkCliProvider(link_mode="live", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        initiated = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        assert initiated.status_code == 200, initiated.text
+        denied = await client.get("/api/pacts/pact_gate1/donation/status")
+        assert denied.status_code == 200, denied.text
+        assert denied.json()["state"] == "denied"
+
+    pact = repo.get_pact("pact_gate1")
+    assert pact is not None
+    assert pact.status == PactStatus.donation_failed
+    assert pact.stake_state == StakeState.error
+    verdict = repo.get_verdict("pact_gate1")
+    assert verdict is not None
+    assert verdict.payment_action == "donation_failed"
+    assert verdict.payment_ref == "sr_live_denied"
+    attempts = repo.list_payment_attempts("pact_gate1")
+    assert len(attempts) == 1
+    assert attempts[0].status == "denied"

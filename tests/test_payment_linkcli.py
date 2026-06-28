@@ -119,6 +119,100 @@ def test_dry_run_provider_ref_is_deterministic():
     assert first.provider_ref == second.provider_ref
 
 
+class _FakeRunner:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def run(self, args, timeout):
+        self.calls.append((args, timeout))
+        return self.response
+
+
+def test_live_mode_creates_link_cli_spend_request_with_human_approval_context():
+    runner = _FakeRunner({"id": "sr_live_123", "status": "approved"})
+    provider = LinkCliProvider(
+        link_mode="live",
+        payment_method_id="pm_123",
+        runner=runner,
+    )
+    pact = _make_pact(
+        pact_id="pact_live",
+        stake_amount_cents=2000,
+        charity_id="against_malaria_foundation",
+    )
+
+    result = provider.create_donation(pact, idempotency_key="pact_live:donation")
+
+    assert result.provider == "link_cli"
+    assert result.status == "approved"
+    assert result.provider_ref == "sr_live_123"
+    assert result.payload["mode"] == "live"
+    assert result.payload["idempotency_key"] == "pact_live:donation"
+
+    assert len(runner.calls) == 1
+    args, timeout = runner.calls[0]
+    assert timeout == 600
+    assert args[:4] == ["link-cli", "spend-request", "create", "--format"]
+    assert "--payment-method-id" in args
+    assert args[args.index("--payment-method-id") + 1] == "pm_123"
+    assert "--amount" in args
+    assert args[args.index("--amount") + 1] == "2000"
+    assert "--merchant-name" in args
+    assert args[args.index("--merchant-name") + 1] == "Against Malaria Foundation"
+    assert "--merchant-url" in args
+    assert args[args.index("--merchant-url") + 1] == "https://www.againstmalaria.com/donation.aspx"
+    context = args[args.index("--context") + 1]
+    assert "Pact failed" in context
+    assert "pact_live" in context
+    assert len(context) >= 100
+
+
+def test_live_mode_requires_payment_method_id_before_shelling():
+    runner = _FakeRunner({"id": "sr_live_123", "status": "approved"})
+    provider = LinkCliProvider(link_mode="live", runner=runner)
+    pact = _make_pact(pact_id="pact_live")
+
+    with pytest.raises(RuntimeError, match="payment method"):
+        provider.create_donation(pact, idempotency_key="pact_live:donation")
+
+    assert runner.calls == []
+
+
+def test_live_mode_retrieves_spend_request_status_once():
+    runner = _FakeRunner({"id": "sr_live_123", "status": "pending_approval"})
+    provider = LinkCliProvider(
+        link_mode="live",
+        payment_method_id="pm_123",
+        runner=runner,
+    )
+
+    status = provider.get_donation_status("sr_live_123")
+
+    assert status.provider == "link_cli"
+    assert status.provider_ref == "sr_live_123"
+    assert status.status == "pending_approval"
+    assert runner.calls == [
+        (
+            [
+                "link-cli",
+                "spend-request",
+                "retrieve",
+                "sr_live_123",
+                "--format",
+                "json",
+                "--timeout",
+                "1",
+                "--interval",
+                "0",
+                "--max-attempts",
+                "1",
+            ],
+            30,
+        )
+    ]
+
+
 def test_get_payment_provider_defaults_to_test_link():
     s = Settings()  # payment_mode == "test_link"
     provider = get_payment_provider(s)

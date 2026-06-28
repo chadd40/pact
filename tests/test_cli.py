@@ -205,6 +205,36 @@ async def test_cli_serve_subcommand_drains_pending_task():
 
 
 @pytest.mark.asyncio
+async def test_cli_preflight_subcommand_returns_readiness_summary():
+    app, repo = _app_with_nudge()
+    captured = {}
+
+    def _capture(summary):
+        captured.update(summary)
+
+    async with _async_client(app) as http:
+        rc = await cli.main_async(
+            [
+                "preflight",
+                "--base-url",
+                "http://test",
+                "--owner",
+                OWNER,
+                "--charity-id",
+                CHARITIES[0]["id"],
+                "--amount-cents",
+                "2000",
+            ],
+            http=http,
+            on_result=_capture,
+        )
+
+    assert rc == 0
+    assert captured["ready"] is True
+    assert captured["owner"] == OWNER
+
+
+@pytest.mark.asyncio
 async def test_cli_outbox_subcommand_relays_nudge():
     """`pact outbox --owner ...` relays the queued nudge and returns 0 (success)."""
     app, repo = _app_with_nudge()

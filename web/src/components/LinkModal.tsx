@@ -24,6 +24,7 @@ export function LinkModal({
 }) {
   const [phase, setPhase] = useState<Phase>("confirm");
   const [err, setErr] = useState<string | null>(null);
+  const [liveMoneyEnabled, setLiveMoneyEnabled] = useState<boolean | null>(null);
   const pollRef = useRef<number | null>(null);
   const autoRef = useRef<number | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -36,6 +37,20 @@ export function LinkModal({
     if (autoRef.current) { clearTimeout(autoRef.current); autoRef.current = null; }
   }, []);
   useEffect(() => () => stopTimers(), [stopTimers]);
+
+  useEffect(() => {
+    let canceled = false;
+    api.runtime()
+      .then((runtime) => {
+        if (!canceled) setLiveMoneyEnabled(runtime.live_money_enabled);
+      })
+      .catch(() => {
+        if (!canceled) setLiveMoneyEnabled(null);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const finish = useCallback(() => {
     stopTimers();
@@ -52,7 +67,9 @@ export function LinkModal({
 
   // Map a donation state to a terminal transition. Returns true if it was terminal.
   const apply = useCallback((state: DonationStateName | undefined): boolean => {
-    if (state === "donated") { finish(); return true; }
+    if (state === "donated" || state === "approved") { finish(); return true; }
+    if (state === "denied") { fail("Link approval was denied — no money moved."); return true; }
+    if (state === "expired") { fail("Link approval expired — no money moved."); return true; }
     if (state === "error") { fail("Link couldn't complete the transfer — no money moved."); return true; }
     if (state === "declined") { stopTimers(); onClose(); return true; }
     return false;
@@ -67,17 +84,24 @@ export function LinkModal({
     }
   }, [pact.id, apply, fail]);
 
+  useEffect(() => {
+    if (phase !== "awaiting" || liveMoneyEnabled !== false || autoRef.current) return;
+    autoRef.current = window.setTimeout(() => { approveNow(); }, 2600);
+    return () => {
+      if (autoRef.current) {
+        clearTimeout(autoRef.current);
+        autoRef.current = null;
+      }
+    };
+  }, [approveNow, liveMoneyEnabled, phase]);
+
   const startMonitoring = useCallback(() => {
     // Poll the donation state (the "we're watching for it").
     pollRef.current = window.setInterval(async () => {
       const s = await api.donationStatus(pact.id).catch(() => null);
       if (s) apply(s.state);
     }, 1500);
-    // Auto-simulate the Link approval arriving after a short beat (demo); the
-    // "I approved" button does the same immediately. Real Link: the agent calls
-    // approve when it detects the in-app approval.
-    autoRef.current = window.setTimeout(() => { approveNow(); }, 2600);
-  }, [pact.id, apply, approveNow]);
+  }, [pact.id, apply]);
 
   const confirm = useCallback(async () => {
     setErr(null);

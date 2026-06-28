@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
+from pact.accounts import issue_token
 from pact.anticheat import TokenStore
 from pact.api import create_app
 from pact.clock import FixedClock
@@ -23,6 +24,17 @@ def _build(tmp_path, clock):
     return app, repo
 
 
+def _build_auth(tmp_path, clock):
+    repo = Repository.connect(str(tmp_path / "pact_auth.db"))
+    repo.init_schema()
+    provider = TestLLMProvider()
+    payment = TestLinkProvider()
+    tokens = TokenStore(ttl_minutes=10)
+    settings = Settings(db_path=str(tmp_path / "pact_auth.db"), auth_mode="agent_token")
+    app = create_app(repo, provider, payment, tokens, clock, settings)
+    return app, repo
+
+
 def _client(app):
     transport = httpx.ASGITransport(app=app)
     return httpx.AsyncClient(transport=transport, base_url="http://test")
@@ -32,6 +44,29 @@ async def _draft_pact(client, prompt):
     r = await client.post("/api/pacts/draft", json={"prompt": prompt})
     assert r.status_code == 200, r.text
     return r.json()["id"]
+
+
+async def _draft_owned_pact(client, prompt, owner):
+    pact_id = await _draft_pact(client, prompt)
+    r = await client.post(f"/api/pacts/{pact_id}/owner", json={"owner": owner})
+    assert r.status_code == 200, r.text
+    return pact_id
+
+
+async def _agent_token(client, owner):
+    r = await client.post("/api/account/agent-token", json={"owner": owner})
+    assert r.status_code == 200, r.text
+    return r.json()["token"]
+
+
+def _save_scoped_token(repo, owner, clock, scopes):
+    session, raw = issue_token(owner, clock, scopes=scopes)
+    repo.save_account_link(session)
+    return raw
+
+
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.mark.asyncio
@@ -192,3 +227,109 @@ async def test_no_capability_filter_lists_all_pending(tmp_path):
         ids = [t["id"] for t in r.json()]
         assert scoped in ids
         assert unscoped in ids
+
+
+@pytest.mark.asyncio
+async def test_agent_token_required_when_auth_mode_enabled(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _ = _build_auth(tmp_path, clock)
+    async with _client(app) as client:
+        r = await client.get("/api/reasoning-tasks")
+        assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_agent_token_only_lists_owned_tasks(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _ = _build_auth(tmp_path, clock)
+    async with _client(app) as client:
+        alice_token = await _agent_token(client, "alice@example.com")
+        alice_pact = await _draft_owned_pact(client, "alice thing 5x", "alice@example.com")
+        bob_pact = await _draft_owned_pact(client, "bob thing 5x", "bob@example.com")
+
+        alice_task = (
+            await client.post(
+                f"/api/pacts/{alice_pact}/reasoning-tasks",
+                json={"type": "coach", "input": {"valid": 1, "target": 5}},
+            )
+        ).json()["id"]
+        bob_task = (
+            await client.post(
+                f"/api/pacts/{bob_pact}/reasoning-tasks",
+                json={"type": "coach", "input": {"valid": 1, "target": 5}},
+            )
+        ).json()["id"]
+
+        r = await client.get("/api/reasoning-tasks", headers=_auth(alice_token))
+        assert r.status_code == 200, r.text
+        ids = {t["id"] for t in r.json()}
+        assert alice_task in ids
+        assert bob_task not in ids
+
+
+@pytest.mark.asyncio
+async def test_agent_token_cannot_claim_another_owners_task(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _ = _build_auth(tmp_path, clock)
+    async with _client(app) as client:
+        alice_token = await _agent_token(client, "alice@example.com")
+        bob_pact = await _draft_owned_pact(client, "bob thing 5x", "bob@example.com")
+        bob_task = (
+            await client.post(
+                f"/api/pacts/{bob_pact}/reasoning-tasks",
+                json={"type": "coach", "input": {"valid": 1, "target": 5}},
+            )
+        ).json()["id"]
+
+        r = await client.post(
+            f"/api/reasoning-tasks/{bob_task}/claim",
+            headers=_auth(alice_token),
+            json={"agent_name": "alice-agent", "capabilities": ["text"]},
+        )
+        assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_agent_token_scope_required_for_task_claim_and_result(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, repo = _build_auth(tmp_path, clock)
+    async with _client(app) as client:
+        list_only = _save_scoped_token(repo, "alice@example.com", clock, ["read_pacts"])
+        alice_pact = await _draft_owned_pact(client, "alice thing 5x", "alice@example.com")
+        task_id = (
+            await client.post(
+                f"/api/pacts/{alice_pact}/reasoning-tasks",
+                json={"type": "coach", "input": {"valid": 1, "target": 5}},
+            )
+        ).json()["id"]
+
+        listed = await client.get("/api/reasoning-tasks", headers=_auth(list_only))
+        assert listed.status_code == 403
+
+        claimed = await client.post(
+            f"/api/reasoning-tasks/{task_id}/claim",
+            headers=_auth(list_only),
+            json={"agent_name": "alice-agent", "capabilities": ["text"]},
+        )
+        assert claimed.status_code == 403
+
+        full_token = _save_scoped_token(
+            repo,
+            "alice@example.com",
+            clock,
+            ["claim_tasks", "post_results", "relay_outbox", "read_pacts"],
+        )
+        ok_claim = await client.post(
+            f"/api/reasoning-tasks/{task_id}/claim",
+            headers=_auth(full_token),
+            json={"agent_name": "alice-agent", "capabilities": ["text"]},
+        )
+        assert ok_claim.status_code == 200, ok_claim.text
+
+        no_post_scope = _save_scoped_token(repo, "alice@example.com", clock, ["claim_tasks"])
+        posted = await client.post(
+            f"/api/reasoning-tasks/{task_id}/result",
+            headers=_auth(no_post_scope),
+            json={"result": {"status": "passed"}},
+        )
+        assert posted.status_code == 403

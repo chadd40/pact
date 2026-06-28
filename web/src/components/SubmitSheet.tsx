@@ -74,7 +74,7 @@ export function SubmitSheet({
     setStage("judging");
     setErr(null);
     try {
-      const proof = await api.uploadProofImage(pact.id, token, file, true);
+      const proof = await api.uploadProofImage(pact.id, token, file);
       setResult(proof.status);
       setStage("result");
     } catch {

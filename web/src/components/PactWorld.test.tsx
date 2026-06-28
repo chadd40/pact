@@ -14,13 +14,14 @@
 // for the same trade-off). `initialPact` lets us render the real component tree
 // (CardBack, panel state machine, coach strip) deterministically without network.
 
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { PactWorld } from "./PactWorld";
 import { AppDataContext, type AppData } from "../data";
 import { DemoContext } from "../App";
-import type { Pact } from "../types";
+import { api } from "../api";
+import type { DonationReceipt, Pact, Packet } from "../types";
 
 // Stub demo context — PactWorld only reads bump/signalChange, and with
 // `initialPact` supplied it never invokes the demo actions.
@@ -118,7 +119,20 @@ function activePact(): Pact {
   };
 }
 
-function renderWorld(flipFrom?: { x: number; y: number; width: number; height: number }) {
+function pactWithStatus(status: Pact["status"], stakeState: Pact["stake_state"]): Pact {
+  return {
+    ...activePact(),
+    status,
+    stake_state: stakeState,
+    spend_request_id: status === "donated" || status === "donation_failed" ? "sr_live_12345678" : null,
+    verdict_at: new Date().toISOString(),
+  };
+}
+
+function renderWorld(
+  flipFrom?: { x: number; y: number; width: number; height: number },
+  pact: Pact = activePact()
+) {
   const entry = flipFrom
     ? { pathname: "/pact/p1", state: { flipFrom } }
     : { pathname: "/pact/p1" };
@@ -126,7 +140,7 @@ function renderWorld(flipFrom?: { x: number; y: number; width: number; height: n
     <MemoryRouter initialEntries={[entry]}>
       <DemoContext.Provider value={DEMO}>
         <AppDataContext.Provider value={APP_DATA}>
-          <PactWorld pactId="p1" initialPact={activePact()} />
+          <PactWorld pactId="p1" initialPact={pact} />
         </AppDataContext.Provider>
       </DemoContext.Provider>
     </MemoryRouter>
@@ -134,7 +148,10 @@ function renderWorld(flipFrom?: { x: number; y: number; width: number; height: n
 }
 
 describe("PactWorld (active, standalone)", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("renders the submit affordance", () => {
     renderWorld();
@@ -201,4 +218,123 @@ describe("PactWorld (active, standalone)", () => {
     expect(flip?.classList.contains("world-flip--rest")).toBe(true);
     expect(flip?.style.transform ?? "").toBe("");
   });
+
+  it("renders donated as approved but receipt-unconfirmed until evidence is recorded", () => {
+    renderWorld(undefined, pactWithStatus("donated", "executed"));
+    expect(screen.getByText("Donation approved")).toBeTruthy();
+    expect(screen.getByText("Receipt unconfirmed")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /record receipt/i })).toBeTruthy();
+  });
+
+  it("renders donation_failed as not completed, not as a receipt", () => {
+    renderWorld(undefined, pactWithStatus("donation_failed", "error"));
+    expect(screen.getByText("Donation not completed")).toBeTruthy();
+    expect(screen.getByText("No transfer was confirmed.")).toBeTruthy();
+    expect(screen.queryByText("Donation approved")).toBeNull();
+    expect(screen.queryByText("Record receipt")).toBeNull();
+  });
+
+  it("validates empty receipt submission without calling the backend", () => {
+    const record = vi.spyOn(api, "recordDonationReceipt");
+    renderWorld(undefined, pactWithStatus("donated", "executed"));
+
+    fireEvent.click(screen.getByRole("button", { name: /record receipt/i }));
+
+    expect(screen.getByText("Enter the receipt number or URL.")).toBeTruthy();
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("records URL receipts as URLs and refreshes to the confirmed receipt state", async () => {
+    const donated = pactWithStatus("donated", "executed");
+    const url = "https://charity.example/receipts/AMF-123";
+    vi.spyOn(api, "recordDonationReceipt").mockResolvedValue(receiptFor(donated, { receipt_url: url }));
+    vi.spyOn(api, "getPact").mockResolvedValue(donated);
+    vi.spyOn(api, "getCoach").mockResolvedValue([]);
+    vi.spyOn(api, "packet").mockResolvedValue(packetFor(donated, {
+      receipt_status: "manual_receipt",
+      receipt_url: url,
+      confirmed_at: "2026-06-24T12:00:00Z",
+    }));
+
+    renderWorld(undefined, donated);
+    fireEvent.change(screen.getByLabelText(/charity receipt number or url/i), {
+      target: { value: url },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /record receipt/i }));
+
+    await waitFor(() => {
+      expect(api.recordDonationReceipt).toHaveBeenCalledWith("p1", expect.objectContaining({
+        receipt_ref: null,
+        receipt_url: url,
+      }));
+    });
+    await waitFor(() => expect(screen.getByText(url)).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /record receipt/i })).toBeNull();
+  });
+
+  it("records non-URL receipts as reference IDs", async () => {
+    const donated = pactWithStatus("donated", "executed");
+    vi.spyOn(api, "recordDonationReceipt").mockResolvedValue(receiptFor(donated, { receipt_ref: "AMF-123" }));
+    vi.spyOn(api, "getPact").mockResolvedValue(donated);
+    vi.spyOn(api, "getCoach").mockResolvedValue([]);
+    vi.spyOn(api, "packet").mockResolvedValue(packetFor(donated, {
+      receipt_status: "manual_receipt",
+      receipt_ref: "AMF-123",
+      confirmed_at: "2026-06-24T12:00:00Z",
+    }));
+
+    renderWorld(undefined, donated);
+    fireEvent.change(screen.getByLabelText(/charity receipt number or url/i), {
+      target: { value: " AMF-123 " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /record receipt/i }));
+
+    await waitFor(() => {
+      expect(api.recordDonationReceipt).toHaveBeenCalledWith("p1", expect.objectContaining({
+        receipt_ref: "AMF-123",
+        receipt_url: null,
+      }));
+    });
+    await waitFor(() => expect(screen.getByText("AMF-123")).toBeTruthy());
+  });
 });
+
+function receiptFor(pact: Pact, overrides: Partial<DonationReceipt> = {}): DonationReceipt {
+  return {
+    pact_id: pact.id,
+    receipt_status: "manual_receipt",
+    receipt_source: "manual",
+    receipt_ref: null,
+    receipt_url: null,
+    receipt_artifact_path: null,
+    confirmed_at: "2026-06-24T12:00:00Z",
+    confirmation_notes: "Entered by the owner in Pact.",
+    ...overrides,
+  };
+}
+
+function packetFor(pact: Pact, verdict: Partial<Packet["verdict"]> = {}): Packet {
+  return {
+    pact,
+    proofs: [],
+    verdict: {
+      status: pact.status,
+      banner: "donated",
+      valid_proof_count: 0,
+      target_count: pact.target_count,
+      freezes_used: 0,
+      summary: "Donation completed.",
+      payment_action: "donation_executed",
+      payment_ref: pact.spend_request_id,
+      receipt_artifact_path: null,
+      receipt_status: "unconfirmed",
+      receipt_source: null,
+      receipt_ref: null,
+      receipt_url: null,
+      confirmed_at: null,
+      ...verdict,
+    },
+    honesty_note: "",
+    coaching_log: [],
+  };
+}

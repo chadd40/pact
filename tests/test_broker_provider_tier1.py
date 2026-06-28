@@ -73,6 +73,38 @@ def test_zero_polls_with_fallback_returns_stub_without_enqueuing_orphan(repo, cl
     assert sleep_calls == []
 
 
+def test_vision_required_task_without_worker_falls_back_to_ambiguous_not_pass(repo, clock):
+    """Photo proof needs actual vision. Hybrid fallback must not turn a stored
+    image artifact into a pass when no vision worker can inspect it."""
+    fallback = TestLLMProvider()
+    provider = BrokerReasoningProvider(
+        repo,
+        clock,
+        fallback,
+        timeout_polls=0,
+        allow_fallback=True,
+    )
+    task = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_photo",
+        {
+            "token_ok": True,
+            "is_duplicate": False,
+            "artifact_path": "artifacts/pact_photo/proof_1.png",
+            "expected_token": "PACT-7Q",
+            "modality": "photo",
+        },
+        clock,
+        required_capability="vision",
+    )
+
+    result = provider.resolve(task)
+
+    assert result["status"] == "ambiguous"
+    assert "vision" in result["reason"].lower()
+    assert repo.pending_tasks() == []
+
+
 def test_real_clock_enqueue_id_matches_polled_id_and_agent_result_wins():
     """Regression for the FixedClock-masked id bug: under a RealClock the task
     id must be computed ONCE, so the id resolve() polls is exactly the id a

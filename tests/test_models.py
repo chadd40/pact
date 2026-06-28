@@ -4,10 +4,13 @@ import pytest
 from pydantic import ValidationError
 
 from pact.models import (
+    AgentSession,
     Modality,
     PactStatus,
     PaymentAction,
+    PaymentAttempt,
     Proof,
+    ProofReview,
     ProofStatus,
     Pact,
     ReasoningTask,
@@ -167,6 +170,60 @@ def test_build_reasoning_task_defaults():
     assert t.result is None
     assert t.claimed_by is None
     assert t.required_capability is None
+
+
+def test_build_payment_attempt_defaults():
+    attempt = PaymentAttempt(
+        id="pay_pact_a1b2c3",
+        pact_id="pact_a1b2c3",
+        owner="a@b.com",
+        provider="link_cli",
+        mode="dry_run",
+        status="created",
+        amount_cents=2000,
+        currency="usd",
+        charity_id="against_malaria_foundation",
+        merchant_name="Against Malaria Foundation",
+        merchant_url="https://www.againstmalaria.com/donation.aspx",
+        idempotency_key="pact_a1b2c3:donation",
+        created_at=_utc(2026, 6, 26, 12, 0, 0),
+        updated_at=_utc(2026, 6, 26, 12, 0, 0),
+    )
+    assert attempt.provider_ref is None
+    assert attempt.approval_status is None
+    assert attempt.error is None
+
+
+def test_build_proof_review_records_artifacts_without_raw_image_bytes():
+    review = ProofReview(
+        id="review_1",
+        proof_id="proof_1",
+        pact_id="pact_a1b2c3",
+        reviewer="Hermes",
+        capabilities=["vision"],
+        input_artifacts={"image_path": "artifacts/pact_a1b2c3/proof_1.png"},
+        status=ProofStatus.ambiguous,
+        reason="Image is too blurry to verify the token.",
+        checklist={"token_visible": False},
+        created_at=_utc(2026, 6, 26, 12, 0, 0),
+    )
+    assert review.status == ProofStatus.ambiguous
+    assert "raw_bytes" not in review.input_artifacts
+
+
+def test_agent_session_never_serializes_raw_token():
+    session = AgentSession(
+        owner="a@b.com",
+        token_hash="abc123",
+        token_prefix="pat_abcd",
+        created_at=_utc(2026, 6, 26, 12, 0, 0),
+        expires_at=_utc(2026, 9, 24, 12, 0, 0),
+        scopes=["claim_tasks", "post_results"],
+    )
+    dumped = session.model_dump_json()
+    assert "token_hash" in dumped
+    assert "pat_secret" not in dumped
+    assert session.revoked_at is None
 
 
 def test_pact_round_trip_json():

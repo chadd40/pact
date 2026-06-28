@@ -13,12 +13,28 @@ from pact.config import Settings
 from pact.payment import TestLinkProvider
 from pact.reasoning import TestLLMProvider
 from pact.repository import Repository
+from pact.models import TaskType
 
 
-def _build(tmp_path, clock):
+class CapturingVisionProvider(TestLLMProvider):
+    def __init__(self):
+        self.tasks = []
+
+    def resolve(self, task):
+        if task.type != TaskType.judge_proof:
+            return super().resolve(task)
+        self.tasks.append(task)
+        return {
+            "status": "passed",
+            "reason": "vision reviewed stored artifact",
+            "checklist": {"token_visible": True, "goal_visible": True},
+        }
+
+
+def _build(tmp_path, clock, provider=None):
     repo = Repository.connect(str(tmp_path / "pact.db"))
     repo.init_schema()
-    provider = TestLLMProvider()
+    provider = provider or TestLLMProvider()
     payment = TestLinkProvider()
     tokens = TokenStore(ttl_minutes=10)
     settings = Settings(
@@ -140,3 +156,45 @@ async def test_bad_token_image_fails(tmp_path):
         proof = r.json()
         assert proof["status"] == "failed"
         assert proof["token_ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_image_proof_judge_receives_stored_artifact_not_client_content_ok(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    provider = CapturingVisionProvider()
+    app, repo, _ = _build(tmp_path, clock, provider=provider)
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
+        token = await _token(client, pact_id)
+
+        # The client-supplied content_ok field must not be trusted or forwarded.
+        r = await _post_image(
+            client,
+            pact_id,
+            token,
+            _png_bytes((70, 110, 140)),
+            content_ok=False,
+        )
+        assert r.status_code == 200, r.text
+        proof = r.json()
+        assert proof["status"] == "passed"
+
+    assert provider.tasks, "provider should have reviewed the image proof"
+    task = provider.tasks[-1]
+    assert task.required_capability == "vision"
+    assert "content_ok" not in task.input
+    assert task.input["artifact_path"] == proof["artifact_path"]
+    assert task.input["expected_token"] == token
+    assert task.input["phash"] == proof["phash"]
+    assert task.input["modality"] == "photo"
+    assert task.input["pact_title"]
+    assert task.input["pact_goal"]
+    assert task.input["artifact"]["thumbnail_path"]
+    assert task.input["artifact"]["mime_type"] == "image/png"
+    assert task.input["artifact"]["size_bytes"] > 0
+
+    reviews = repo.list_proof_reviews(proof["id"])
+    assert len(reviews) == 1
+    assert reviews[0].status.value == "passed"
+    assert reviews[0].input_artifacts["artifact_path"] == proof["artifact_path"]
+    assert reviews[0].checklist == {"token_visible": True, "goal_visible": True}

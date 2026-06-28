@@ -7,6 +7,7 @@ from pact.models import (
     PaymentAction,
     Proof,
     ProofStatus,
+    DonationReceipt,
     Rubric,
     Verdict,
 )
@@ -84,6 +85,8 @@ def test_packet_failed_shows_donation_ref_and_failed_status():
     assert packet["verdict"]["banner"] == "FAILED $20 -> charity"
     assert packet["verdict"]["payment_ref"] == "test_sr_pact_a1b2c3_2000"
     assert packet["verdict"]["payment_action"] == PaymentAction.donation_executed.value
+    assert packet["verdict"]["receipt_status"] == "unconfirmed"
+    assert packet["verdict"]["receipt_source"] is None
     assert packet["verdict"]["valid_proof_count"] == 4
     assert packet["verdict"]["target_count"] == 5
 
@@ -127,6 +130,39 @@ def test_packet_success_shows_zero_moved_and_no_ref():
     assert packet["verdict"]["banner"] == "SUCCEEDED $0 moved"
     assert packet["verdict"]["payment_ref"] is None
     assert packet["verdict"]["payment_action"] == PaymentAction.none.value
+    assert packet["verdict"]["receipt_status"] == "not_required"
     assert packet["verdict"]["valid_proof_count"] == 5
     assert len(packet["proofs"]) == 5
     assert all(row["status"] == ProofStatus.passed.value for row in packet["proofs"])
+
+
+def test_packet_includes_manual_receipt_confirmation():
+    pact = _pact(PactStatus.donated)
+    verdict = Verdict(
+        pact_id="pact_a1b2c3",
+        status=PactStatus.donated,
+        valid_proof_count=4,
+        target_count=5,
+        freezes_used=0,
+        summary="4 of 5 distinct-day proofs by deadline. Pact failed.",
+        proof_ids=[],
+        payment_action=PaymentAction.donation_executed,
+        payment_ref="test_sr_pact_a1b2c3_2000",
+        honesty_note="Commitment device; proofs judged best-effort, not forensically verified.",
+    )
+    receipt = DonationReceipt(
+        pact_id="pact_a1b2c3",
+        receipt_status="manual_receipt",
+        receipt_source="user_upload",
+        receipt_ref="AMF-123",
+        receipt_url="https://www.againstmalaria.com/receipt/AMF-123",
+        confirmed_at=datetime(2026, 6, 30, 12, 0, 0, tzinfo=timezone.utc),
+        confirmation_notes="User uploaded charity receipt.",
+    )
+
+    packet = build_packet(pact, [], verdict, receipt=receipt)
+
+    assert packet["verdict"]["receipt_status"] == "manual_receipt"
+    assert packet["verdict"]["receipt_source"] == "user_upload"
+    assert packet["verdict"]["receipt_ref"] == "AMF-123"
+    assert packet["verdict"]["confirmed_at"] == "2026-06-30T12:00:00Z"

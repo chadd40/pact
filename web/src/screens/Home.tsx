@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, DEMO_OWNER } from "../api";
+import { api } from "../api";
 import { useDemo } from "../App";
 import { useAppData } from "../data";
+import { useLocalOwner } from "../owner";
 import { dollars, formatDate } from "../lib";
 import { cardArtFor } from "../lib/cardArt";
 import { statusDot } from "../lib/pactStatus";
@@ -45,6 +46,7 @@ const AlertIcon = () => (
 export function Home() {
   const { bump, nowIso } = useDemo();
   const { pacts: allPacts, pactsLoaded, charityById } = useAppData();
+  const [owner] = useLocalOwner();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [statement] = useState(() => pickStatement());
@@ -59,9 +61,9 @@ export function Home() {
   // Only the profile is Home-specific; refresh it on the demo bump.
   useEffect(() => {
     let alive = true;
-    api.profile(DEMO_OWNER).then((p) => alive && setProfile(p)).catch(() => {});
+    api.profile(owner).then((p) => alive && setProfile(p)).catch(() => {});
     return () => { alive = false; };
-  }, [bump]);
+  }, [bump, owner]);
 
   // Global pointer listeners drive the drag (mirrors the mockup's window handlers).
   useEffect(() => {

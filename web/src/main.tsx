@@ -16,14 +16,15 @@ import { Coach } from "./screens/Coach";
 import { Charities } from "./screens/Charities";
 import { Settings } from "./screens/Settings";
 import { isDesktop } from "./lib/platform";
-import { api, DEMO_OWNER } from "./api";
+import { api } from "./api";
+import { getLocalOwner } from "./owner";
 
 function RootEntry() {
   const [dest, setDest] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (!isDesktop()) { setDest("__web__"); return; }
     // Desktop: first-run owners start in Create; returning owners go to the dashboard.
-    api.listPacts(DEMO_OWNER)
+    api.listPacts(getLocalOwner())
       .then((pacts) => setDest(pacts.length > 0 ? "/dashboard" : "/create"))
       .catch(() => setDest("/create"));
   }, []);

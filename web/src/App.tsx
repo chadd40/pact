@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { api, DEMO_OWNER } from "./api";
+import { api } from "./api";
+import { useLocalOwner } from "./owner";
 
 // ── Demo clock + actions context ────────────────────────────────────────────
 // The backend runs on a FixedClock in demo mode. We mirror "now" here so screens
@@ -38,6 +39,7 @@ export function App() {
   const [nowIso, setNowIso] = useState<string | null>(null);
   const [bump, setBump] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const [owner] = useLocalOwner();
   const navigate = useNavigate();
 
   const signalChange = useCallback(() => setBump((b) => b + 1), []);
@@ -80,7 +82,7 @@ export function App() {
   const stampOwners = async (ids: { win: string; fail: string; live: string }) => {
     await Promise.all(
       [ids.win, ids.fail, ids.live].map((id) =>
-        api.setOwner(id, DEMO_OWNER).catch(() => {})
+        api.setOwner(id, owner).catch(() => {})
       )
     );
     const win = await api.getPact(ids.win);
@@ -99,7 +101,7 @@ export function App() {
     } finally {
       setBusy(null);
     }
-  }, [navigate, signalChange]);
+  }, [navigate, signalChange, owner]);
 
   const doAdvance = useCallback(async () => {
     setBusy("advance");
@@ -122,7 +124,7 @@ export function App() {
     } finally {
       setBusy(null);
     }
-  }, [navigate, signalChange]);
+  }, [navigate, signalChange, owner]);
 
   // Stable demo context: its identity only changes when nowIso/bump/busy change
   // (the callbacks are useCallback-stable), so the per-second clock tick does NOT

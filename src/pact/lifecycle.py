@@ -185,6 +185,7 @@ def submit_proof(
     provider: ReasoningProvider,
     clock: Clock,
     prior_phashes: list[str] | None = None,
+    artifact_meta: dict | None = None,
 ) -> Proof:
     now = clock.now()
     token_ok = tokens.verify(pact.id, token, clock)
@@ -199,16 +200,34 @@ def submit_proof(
         if idx is not None:
             dup_of = existing[idx]
 
+    task_input = {
+        "token_ok": token_ok,
+        "is_duplicate": dup_of is not None,
+        "rubric": pact.rubric.model_dump(),
+        "modality": modality.value,
+    }
+    required_capability: str | None = None
+    if image_path is not None:
+        task_input.update(
+            {
+                "artifact_path": image_path,
+                "phash": phash,
+                "expected_token": token,
+                "pact_title": pact.title,
+                "pact_goal": pact.goal,
+                "artifact": artifact_meta or {},
+            }
+        )
+        required_capability = "vision"
+    else:
+        task_input["content_ok"] = content_ok
+
     task = make_reasoning_task(
         TaskType.judge_proof,
         pact.id,
-        {
-            "token_ok": token_ok,
-            "is_duplicate": dup_of is not None,
-            "content_ok": content_ok,
-            "rubric": pact.rubric.model_dump(),
-        },
+        task_input,
         clock,
+        required_capability=required_capability,
     )
     try:
         result = provider.resolve(task)
@@ -321,6 +340,54 @@ def _build_verdict(
         honesty_note=(
             "Commitment device; proofs judged best-effort, not forensically verified."
         ),
+    )
+
+
+def terminal_verdict(pact: Pact, proofs: list[Proof]) -> Verdict:
+    """Build a durable verdict row for terminal states reached outside settle."""
+    valid = _valid_count(pact, proofs)
+    if pact.status == PactStatus.succeeded:
+        return _build_verdict(
+            pact, proofs, valid, PactStatus.succeeded, PaymentAction.none, None
+        )
+    if pact.status == PactStatus.donated:
+        return _build_verdict(
+            pact,
+            proofs,
+            valid,
+            PactStatus.failed,
+            PaymentAction.donation_executed,
+            pact.spend_request_id,
+        )
+    if pact.status == PactStatus.donation_failed:
+        return _build_verdict(
+            pact,
+            proofs,
+            valid,
+            PactStatus.failed,
+            PaymentAction.donation_failed,
+            pact.spend_request_id,
+        )
+    if pact.status == PactStatus.donation_declined:
+        return _build_verdict(
+            pact,
+            proofs,
+            valid,
+            PactStatus.failed,
+            PaymentAction.donation_declined,
+            pact.spend_request_id,
+        )
+    if pact.status == PactStatus.canceled_forfeit:
+        return _build_verdict(
+            pact,
+            proofs,
+            valid,
+            PactStatus.failed,
+            PaymentAction.cancelled,
+            pact.spend_request_id,
+        )
+    return _build_verdict(
+        pact, proofs, valid, PactStatus.failed, PaymentAction.none, pact.spend_request_id
     )
 
 

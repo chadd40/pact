@@ -1,31 +1,42 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, DEMO_OWNER } from "../api";
+import { api } from "../api";
+import { useLocalOwner } from "../owner";
 import type { LinkStatus } from "../types";
 
 // Account / funding / agent settings (local-first, single owner).
 export function Settings() {
+  const [owner, setOwner] = useLocalOwner();
+  const [ownerDraft, setOwnerDraft] = useState(owner);
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
-    setLink(await api.linkStatus(DEMO_OWNER).catch(() => null));
-  }, []);
+    setLink(await api.linkStatus(owner).catch(() => null));
+  }, [owner]);
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { setOwnerDraft(owner); }, [owner]);
 
   const connect = async () => {
     setBusy("link");
-    try { await api.linkConnect(DEMO_OWNER); await refresh(); } finally { setBusy(null); }
+    try { await api.linkConnect(owner); await refresh(); } finally { setBusy(null); }
   };
   const mint = async () => {
     setBusy("token");
-    try { const r = await api.mintAgentToken(DEMO_OWNER); setToken(r.token); setCopied(false); } finally { setBusy(null); }
+    try { const r = await api.mintAgentToken(owner); setToken(r.token); setCopied(false); } finally { setBusy(null); }
+  };
+  const saveOwner = () => {
+    setOwner(ownerDraft);
+    setToken(null);
   };
   const copyToken = async () => {
     if (!token) return;
     try { await navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
   };
+  const fundingLabel = link?.payment_method_last4
+    ? `${link.payment_method_label ?? "Card"} •••• ${link.payment_method_last4}`
+    : link?.funding_ref;
 
   return (
     <div className="pg">
@@ -37,7 +48,16 @@ export function Settings() {
 
       <div className="set-card">
         <div className="set-row">
-          <div><div className="set-k">Owner</div><div className="set-v m">{DEMO_OWNER}</div></div>
+          <div>
+            <div className="set-k">Owner</div>
+            <input
+              className="set-input"
+              value={ownerDraft}
+              onChange={(e) => setOwnerDraft(e.target.value)}
+              onBlur={saveOwner}
+              onKeyDown={(e) => { if (e.key === "Enter") saveOwner(); }}
+            />
+          </div>
         </div>
       </div>
 
@@ -47,8 +67,8 @@ export function Settings() {
             <div className="set-k">Funding source (Link)</div>
             <div className="set-v">
               {link == null ? "—" : link.connected
-                ? <span className="set-ok">Connected · {link.funding_ref}</span>
-                : "Not connected — a missed pact can't be charged until you connect."}
+                ? <span className="set-ok">Connected · {fundingLabel}</span>
+                : `Not connected${link?.error ? ` · ${link.error}` : " — a missed pact can't be charged until you connect."}`}
             </div>
           </div>
           {!link?.connected && (
@@ -57,7 +77,7 @@ export function Settings() {
             </button>
           )}
         </div>
-        <div className="set-note m">Pact never holds your money. Connecting registers a (test) funding source — no money moves now.</div>
+        <div className="set-note m">Pact never holds your money. Connecting registers the funding source — no donation moves now.</div>
       </div>
 
       <div className="set-card">

@@ -3,12 +3,14 @@ import type {
   CoachingMessage,
   DemoAdvanceResult,
   DemoSeedResult,
+  DonationReceipt,
   DonationState,
   LinkStatus,
   Pact,
   Packet,
   Profile,
   Proof,
+  RuntimeInfo,
   TickResult,
   Verdict,
 } from "./types";
@@ -63,6 +65,8 @@ async function request<T>(
 }
 
 export const api = {
+  runtime: () => request<RuntimeInfo>("/api/runtime"),
+
   // ── Pacts ────────────────────────────────────────────────────────────────
   draftPact: (prompt: string) =>
     request<Pact>("/api/pacts/draft", { json: { prompt } }),
@@ -115,18 +119,16 @@ export const api = {
     }),
 
   // Real photo proof: EXIF-stripped, stored, pHashed and judged server-side. The
-  // backend reads a multipart form (`token`, `content_ok`, file `image`). We hand
+  // backend reads a multipart form (`token`, file `image`). We hand
   // a FormData straight to fetch and deliberately do NOT set Content-Type — the
   // browser must set it with the multipart boundary or the upload won't parse.
   uploadProofImage: (
     pactId: string,
     token: string,
-    file: File,
-    contentOk = true
+    file: File
   ) => {
     const form = new FormData();
     form.append("token", token);
-    form.append("content_ok", String(contentOk));
     form.append("image", file);
     return request<Proof>(`/api/pacts/${pactId}/proofs/image`, {
       method: "POST",
@@ -165,6 +167,24 @@ export const api = {
 
   donationStatus: (pactId: string) =>
     request<DonationState>(`/api/pacts/${pactId}/donation/status`),
+
+  donationReceipt: (pactId: string) =>
+    request<DonationReceipt>(`/api/pacts/${pactId}/donation/receipt`),
+
+  recordDonationReceipt: (
+    pactId: string,
+    payload: {
+      receipt_status?: string;
+      receipt_source?: string | null;
+      receipt_ref?: string | null;
+      receipt_url?: string | null;
+      receipt_artifact_path?: string | null;
+      confirmation_notes?: string | null;
+    }
+  ) =>
+    request<DonationReceipt>(`/api/pacts/${pactId}/donation/receipt`, {
+      json: { receipt_status: "manual_receipt", ...payload },
+    }),
 
   packet: (pactId: string) => request<Packet>(`/api/pacts/${pactId}/packet`),
 

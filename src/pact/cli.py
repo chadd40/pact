@@ -38,13 +38,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="comma-separated capabilities this worker advertises",
     )
     p_serve.add_argument("--rounds", type=int, default=1)
+    p_serve.add_argument("--agent-token", default=None)
 
     p_tick = sub.add_parser("tick", help="run one scheduler sweep (POST /api/tick)")
     p_tick.add_argument("--base-url", default="http://localhost:8000")
 
+    p_preflight = sub.add_parser("preflight", help="check live-money readiness")
+    p_preflight.add_argument("--base-url", default="http://localhost:8000")
+    p_preflight.add_argument("--owner", required=True)
+    p_preflight.add_argument("--charity-id", default=None)
+    p_preflight.add_argument("--amount-cents", type=int, default=None)
+
     p_outbox = sub.add_parser("outbox", help="relay queued coaching nudges")
     p_outbox.add_argument("--base-url", default="http://localhost:8000")
     p_outbox.add_argument("--owner", required=True)
+    p_outbox.add_argument("--agent-token", default=None)
 
     return parser
 
@@ -63,7 +71,7 @@ async def main_async(argv=None, *, http=None, on_result=None) -> int:
     # Unknown command (argparse falls through when dest="command" is set to a
     # parsed subcommand name that isn't in our handled set below — shouldn't
     # happen, but guard for forward-compat).
-    if args.command not in ("serve", "tick", "outbox"):
+    if args.command not in ("serve", "tick", "preflight", "outbox"):
         parser.print_help()
         return 2
 
@@ -86,9 +94,14 @@ async def main_async(argv=None, *, http=None, on_result=None) -> int:
                 capabilities = set(cap_list)
 
             resolved = 0
+            headers = (
+                {}
+                if not args.agent_token
+                else {"Authorization": f"Bearer {args.agent_token}"}
+            )
             for _ in range(args.rounds):
                 count_this_round = 0
-                r = await client.get("/api/reasoning-tasks")
+                r = await client.get("/api/reasoning-tasks", headers=headers)
                 r.raise_for_status()
                 for entry in r.json():
                     if not _can_handle(entry.get("required_capability"), capabilities):
@@ -99,6 +112,7 @@ async def main_async(argv=None, *, http=None, on_result=None) -> int:
                             "agent_name": args.agent_name,
                             "capabilities": list(capabilities),
                         },
+                        headers=headers,
                     )
                     r2.raise_for_status()
                     task = _task_from_dict(r2.json())
@@ -106,6 +120,7 @@ async def main_async(argv=None, *, http=None, on_result=None) -> int:
                     r3 = await client.post(
                         f"/api/reasoning-tasks/{task.id}/result",
                         json={"result": result},
+                        headers=headers,
                     )
                     r3.raise_for_status()
                     resolved += 1
@@ -129,13 +144,33 @@ async def main_async(argv=None, *, http=None, on_result=None) -> int:
                 print(summary)
             return 0
 
+        if args.command == "preflight":
+            params = {"owner": args.owner}
+            if args.charity_id:
+                params["charity_id"] = args.charity_id
+            if args.amount_cents is not None:
+                params["amount_cents"] = args.amount_cents
+            resp = await client.get("/api/preflight", params=params)
+            resp.raise_for_status()
+            summary = resp.json()
+            if on_result is not None:
+                on_result(summary)
+            else:
+                print(summary)
+            return 0 if summary.get("ready") else 1
+
         if args.command == "outbox":
-            r = await client.get("/api/outbox", params={"owner": args.owner})
+            headers = (
+                {}
+                if not args.agent_token
+                else {"Authorization": f"Bearer {args.agent_token}"}
+            )
+            r = await client.get("/api/outbox", params={"owner": args.owner}, headers=headers)
             r.raise_for_status()
             messages = r.json()
             relayed = 0
             for msg in messages:
-                marked = await client.post(f"/api/coach/{msg['id']}/delivered")
+                marked = await client.post(f"/api/coach/{msg['id']}/delivered", headers=headers)
                 marked.raise_for_status()
                 relayed += 1
             if on_result is not None:
@@ -170,7 +205,7 @@ def main(argv=None) -> int:
         parser.print_help()
         return 2
 
-    if args.command not in ("serve", "tick", "outbox"):
+    if args.command not in ("serve", "tick", "preflight", "outbox"):
         parser.print_help()
         return 2
 

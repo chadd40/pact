@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
+from pact.accounts import issue_token
 from pact.anticheat import TokenStore
 from pact.api import create_app
 from pact.charities import CHARITIES
@@ -73,9 +74,33 @@ def _build_app(clock: FixedClock):
     return app, repo, payment, settings
 
 
+def _build_auth_app(clock: FixedClock):
+    repo = _repo()
+    payment = TestLinkProvider()
+    settings = Settings(auth_mode="agent_token")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+    return app, repo, payment, settings
+
+
 def _client(app):
     transport = httpx.ASGITransport(app=app)
     return httpx.AsyncClient(transport=transport, base_url="http://test")
+
+
+async def _agent_token(client, owner):
+    r = await client.post("/api/account/agent-token", json={"owner": owner})
+    assert r.status_code == 200, r.text
+    return r.json()["token"]
+
+
+def _save_scoped_token(repo, owner, clock, scopes):
+    session, raw = issue_token(owner, clock, scopes=scopes)
+    repo.save_account_link(session)
+    return raw
+
+
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_nudge_appears_in_outbox_and_disappears_after_mark_delivered_via_repo():
@@ -150,6 +175,85 @@ async def test_mark_delivered_404_for_unknown_message():
     async with _client(app) as client:
         resp = await client.post("/api/coach/nonexistent_msg/delivered")
         assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_outbox_requires_agent_token_when_auth_mode_enabled():
+    now = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
+    app, _repo_, _payment, _settings = _build_auth_app(FixedClock(now))
+
+    async with _client(app) as client:
+        resp = await client.get("/api/outbox", params={"owner": OWNER})
+        assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_outbox_token_cannot_read_or_mark_another_owner_message():
+    now = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
+    clock = FixedClock(now)
+    app, repo, payment, settings = _build_auth_app(clock)
+
+    deadline = now + timedelta(days=2)
+    alice_pact = _active_pact("pact_alice", now, deadline)
+    bob_pact = _active_pact("pact_bob", now, deadline).model_copy(
+        update={"owner": "bob@example.com"}
+    )
+    repo.save_pact(alice_pact)
+    repo.save_pact(bob_pact)
+    tick(repo, clock, payment, settings)
+
+    async with _client(app) as client:
+        alice_token = await _agent_token(client, OWNER)
+
+        alice_outbox = await client.get(
+            "/api/outbox",
+            params={"owner": OWNER},
+            headers=_auth(alice_token),
+        )
+        assert alice_outbox.status_code == 200
+        assert all(m["pact_id"] == "pact_alice" for m in alice_outbox.json())
+
+        bob_outbox = await client.get(
+            "/api/outbox",
+            params={"owner": "bob@example.com"},
+            headers=_auth(alice_token),
+        )
+        assert bob_outbox.status_code == 403
+
+        bob_msg = repo.outbox("bob@example.com")[0]
+        marked = await client.post(
+            f"/api/coach/{bob_msg.id}/delivered",
+            headers=_auth(alice_token),
+        )
+        assert marked.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_outbox_requires_relay_scope_to_read_or_mark_delivered():
+    now = datetime(2026, 6, 24, 12, 0, 0, tzinfo=timezone.utc)
+    clock = FixedClock(now)
+    app, repo, payment, settings = _build_auth_app(clock)
+
+    deadline = now + timedelta(days=2)
+    repo.save_pact(_active_pact("pact_scope_outbox", now, deadline))
+    tick(repo, clock, payment, settings)
+    msg = repo.outbox(OWNER)[0]
+
+    async with _client(app) as client:
+        no_relay_scope = _save_scoped_token(repo, OWNER, clock, ["claim_tasks"])
+
+        resp = await client.get(
+            "/api/outbox",
+            params={"owner": OWNER},
+            headers=_auth(no_relay_scope),
+        )
+        assert resp.status_code == 403
+
+        marked = await client.post(
+            f"/api/coach/{msg.id}/delivered",
+            headers=_auth(no_relay_scope),
+        )
+        assert marked.status_code == 403
 
 
 def test_outbox_only_returns_undelivered_outbound_messages():

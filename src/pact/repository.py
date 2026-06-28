@@ -6,12 +6,16 @@ from datetime import datetime
 
 from pact.models import (
     AccountLink,
+    AgentSession,
     CoachingMessage,
+    DonationReceipt,
     LinkAccount,
     Pact,
     PactStatus,
+    PaymentAttempt,
     Profile,
     Proof,
+    ProofReview,
     ReasoningTask,
     Verdict,
 )
@@ -118,6 +122,42 @@ class Repository:
                 data TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_account_links_token ON account_links(token);
+
+            CREATE TABLE IF NOT EXISTS agent_sessions (
+                owner TEXT PRIMARY KEY,
+                token_hash TEXT NOT NULL,
+                token_prefix TEXT NOT NULL,
+                revoked_at TEXT,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_sessions_token_hash ON agent_sessions(token_hash);
+
+            CREATE TABLE IF NOT EXISTS payment_attempts (
+                id TEXT PRIMARY KEY,
+                pact_id TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                status TEXT NOT NULL,
+                provider_ref TEXT,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_payment_attempts_pact ON payment_attempts(pact_id);
+            CREATE INDEX IF NOT EXISTS idx_payment_attempts_owner ON payment_attempts(owner);
+
+            CREATE TABLE IF NOT EXISTS proof_reviews (
+                id TEXT PRIMARY KEY,
+                proof_id TEXT NOT NULL,
+                pact_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_proof_reviews_proof ON proof_reviews(proof_id);
+            CREATE INDEX IF NOT EXISTS idx_proof_reviews_pact ON proof_reviews(pact_id);
+
+            CREATE TABLE IF NOT EXISTS donation_receipts (
+                pact_id TEXT PRIMARY KEY,
+                receipt_status TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
 
             CREATE TABLE IF NOT EXISTS coaching_messages (
                 id TEXT PRIMARY KEY,
@@ -306,9 +346,10 @@ class Repository:
         with self._write_lock:
             self.conn.execute(
                 "INSERT OR REPLACE INTO account_links (owner, token, data) VALUES (?, ?, ?)",
-                (link.owner, link.token, link.model_dump_json()),
+                (link.owner, link.token_hash, link.model_dump_json()),
             )
             self.conn.commit()
+        self.save_agent_session(link)
 
     def get_account_link(self, owner: str) -> AccountLink | None:
         row = self._one("SELECT data FROM account_links WHERE owner = ?", (owner,))
@@ -317,8 +358,146 @@ class Repository:
         return AccountLink.model_validate_json(row["data"])
 
     def owner_for_token(self, token: str) -> str | None:
-        row = self._one("SELECT owner FROM account_links WHERE token = ?", (token,))
+        from pact.accounts import hash_token
+
+        return self.owner_for_token_hash(hash_token(token))
+
+    # --- AgentSession ---
+
+    def save_agent_session(self, session: AgentSession) -> None:
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO agent_sessions
+                    (owner, token_hash, token_prefix, revoked_at, data)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    session.owner,
+                    session.token_hash,
+                    session.token_prefix,
+                    session.revoked_at.isoformat() if session.revoked_at is not None else None,
+                    session.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
+
+    def get_agent_session(self, owner: str) -> AgentSession | None:
+        row = self._one("SELECT data FROM agent_sessions WHERE owner = ?", (owner,))
+        if row is None:
+            return None
+        return AgentSession.model_validate_json(row["data"])
+
+    def owner_for_token_hash(self, token_hash: str) -> str | None:
+        row = self._one(
+            """
+            SELECT owner FROM agent_sessions
+            WHERE token_hash = ? AND revoked_at IS NULL
+            """,
+            (token_hash,),
+        )
         return row["owner"] if row is not None else None
+
+    def session_for_token_hash(self, token_hash: str) -> AgentSession | None:
+        row = self._one(
+            """
+            SELECT data FROM agent_sessions
+            WHERE token_hash = ? AND revoked_at IS NULL
+            """,
+            (token_hash,),
+        )
+        if row is None:
+            return None
+        return AgentSession.model_validate_json(row["data"])
+
+    # --- PaymentAttempt ---
+
+    def save_payment_attempt(self, attempt: PaymentAttempt) -> None:
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO payment_attempts
+                    (id, pact_id, owner, status, provider_ref, data)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attempt.id,
+                    attempt.pact_id,
+                    attempt.owner,
+                    attempt.status,
+                    attempt.provider_ref,
+                    attempt.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
+
+    def get_payment_attempt(self, attempt_id: str) -> PaymentAttempt | None:
+        row = self._one("SELECT data FROM payment_attempts WHERE id = ?", (attempt_id,))
+        if row is None:
+            return None
+        return PaymentAttempt.model_validate_json(row["data"])
+
+    def list_payment_attempts(self, pact_id: str) -> list[PaymentAttempt]:
+        rows = self._all(
+            "SELECT data FROM payment_attempts WHERE pact_id = ? ORDER BY id",
+            (pact_id,),
+        )
+        return [PaymentAttempt.model_validate_json(r["data"]) for r in rows]
+
+    # --- ProofReview ---
+
+    def save_proof_review(self, review: ProofReview) -> None:
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO proof_reviews (id, proof_id, pact_id, status, data)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    review.id,
+                    review.proof_id,
+                    review.pact_id,
+                    review.status.value,
+                    review.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
+
+    def get_proof_review(self, review_id: str) -> ProofReview | None:
+        row = self._one("SELECT data FROM proof_reviews WHERE id = ?", (review_id,))
+        if row is None:
+            return None
+        return ProofReview.model_validate_json(row["data"])
+
+    def list_proof_reviews(self, proof_id: str) -> list[ProofReview]:
+        rows = self._all(
+            "SELECT data FROM proof_reviews WHERE proof_id = ? ORDER BY id",
+            (proof_id,),
+        )
+        return [ProofReview.model_validate_json(r["data"]) for r in rows]
+
+    # --- DonationReceipt ---
+
+    def save_donation_receipt(self, receipt: DonationReceipt) -> None:
+        with self._write_lock:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO donation_receipts (pact_id, receipt_status, data)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    receipt.pact_id,
+                    receipt.receipt_status,
+                    receipt.model_dump_json(),
+                ),
+            )
+            self.conn.commit()
+
+    def get_donation_receipt(self, pact_id: str) -> DonationReceipt | None:
+        row = self._one("SELECT data FROM donation_receipts WHERE pact_id = ?", (pact_id,))
+        if row is None:
+            return None
+        return DonationReceipt.model_validate_json(row["data"])
 
     # --- CoachingMessage ---
 
@@ -392,6 +571,10 @@ class Repository:
                 DELETE FROM tasks;
                 DELETE FROM verdicts;
                 DELETE FROM profiles;
+                DELETE FROM agent_sessions;
+                DELETE FROM payment_attempts;
+                DELETE FROM proof_reviews;
+                DELETE FROM donation_receipts;
                 DELETE FROM coaching_messages;
                 """
             )

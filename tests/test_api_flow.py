@@ -7,6 +7,7 @@ from pact.api import create_app
 from pact.anticheat import TokenStore
 from pact.clock import FixedClock
 from pact.config import Settings
+from pact.models import PactStatus, StakeState
 from pact.payment import TestLinkProvider
 from pact.reasoning import TestLLMProvider
 from pact.repository import Repository
@@ -156,13 +157,83 @@ async def test_fail_flow_defers_then_donates_after_window(tmp_path):
         assert donated.status == "donated"
         assert donated.spend_request_id == f"test_sr_{pact_id}_1500"
         assert donated.stake_state == "executed"
+        attempts = repo.list_payment_attempts(pact_id)
+        assert len(attempts) == 1
+        assert attempts[0].provider == "test_link"
+        assert attempts[0].status == "succeeded"
+        assert attempts[0].provider_ref == f"test_sr_{pact_id}_1500"
+        assert attempts[0].idempotency_key == f"{pact_id}:donation"
 
         # Idempotent: a second settle after donation moves no additional money.
         r2 = await client.post(f"/api/pacts/{pact_id}/settle")
         assert r2.status_code == 200, r2.text
         assert r2.json()["payment_ref"] == f"test_sr_{pact_id}_1500"
         assert repo.get_pact(pact_id).spend_request_id == f"test_sr_{pact_id}_1500"
+        assert len(repo.list_payment_attempts(pact_id)) == 1
 
         r = await client.get(f"/api/pacts/{pact_id}/packet")
         assert r.json()["verdict"]["payment_action"] == "donation_executed"
         assert r.json()["verdict"]["payment_ref"] == f"test_sr_{pact_id}_1500"
+        assert r.json()["verdict"]["receipt_status"] == "unconfirmed"
+
+        receipt = await client.post(
+            f"/api/pacts/{pact_id}/donation/receipt",
+            json={
+                "receipt_status": "manual_receipt",
+                "receipt_source": "user_upload",
+                "receipt_ref": "AMF-123",
+                "receipt_url": "https://www.againstmalaria.com/receipt/AMF-123",
+                "confirmation_notes": "Uploaded receipt from charity checkout.",
+            },
+        )
+        assert receipt.status_code == 200, receipt.text
+        assert receipt.json()["receipt_status"] == "manual_receipt"
+
+        receipt_get = await client.get(f"/api/pacts/{pact_id}/donation/receipt")
+        assert receipt_get.status_code == 200
+        assert receipt_get.json()["receipt_ref"] == "AMF-123"
+
+        packet_with_receipt = await client.get(f"/api/pacts/{pact_id}/packet")
+        assert packet_with_receipt.json()["verdict"]["receipt_status"] == "manual_receipt"
+        assert packet_with_receipt.json()["verdict"]["receipt_ref"] == "AMF-123"
+
+
+@pytest.mark.asyncio
+async def test_receipt_cannot_be_recorded_before_donation(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _ = _build(tmp_path, clock)
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
+
+        receipt = await client.post(
+            f"/api/pacts/{pact_id}/donation/receipt",
+            json={"receipt_status": "manual_receipt", "receipt_ref": "TOO-EARLY"},
+        )
+        assert receipt.status_code == 409
+
+        confirmed = await client.post(f"/api/pacts/{pact_id}/donation/confirm")
+        assert confirmed.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_receipt_rejects_unknown_confirmation_status(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, repo = _build(tmp_path, clock)
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
+        pact = repo.get_pact(pact_id)
+        repo.update_pact(
+            pact.model_copy(
+                update={
+                    "status": PactStatus.donated,
+                    "stake_state": StakeState.executed,
+                    "spend_request_id": "sr_test_receipt",
+                }
+            )
+        )
+
+        receipt = await client.post(
+            f"/api/pacts/{pact_id}/donation/receipt",
+            json={"receipt_status": "definitely_confirmed", "receipt_ref": "BAD"},
+        )
+        assert receipt.status_code == 422

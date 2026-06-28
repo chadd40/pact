@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, DEMO_OWNER } from "../api";
+import { api } from "../api";
 import { useDemo } from "../App";
 import { useAppData } from "../data";
+import { useLocalOwner } from "../owner";
 import { GoalGlyph } from "../components/GoalGlyph";
 import { formatDateTime } from "../lib";
 import type { CoachingMessage } from "../types";
@@ -11,17 +12,18 @@ import type { CoachingMessage } from "../types";
 export function Coach() {
   const { bump } = useDemo();
   const { pacts } = useAppData();
+  const [owner] = useLocalOwner();
   const navigate = useNavigate();
   const [feed, setFeed] = useState<CoachingMessage[]>([]);
 
   // Pacts come from shared AppData; only the outbox feed is Coach-specific.
   useEffect(() => {
     let alive = true;
-    api.outbox(DEMO_OWNER)
+    api.outbox(owner)
       .then((out) => alive && setFeed(out.slice().reverse()))
       .catch(() => {});
     return () => { alive = false; };
-  }, [bump]);
+  }, [bump, owner]);
 
   const byId = Object.fromEntries(pacts.map((p) => [p.id, p]));
   const coached = pacts.filter((p) => p.status === "active" || p.status === "evaluating" || p.status === "needs_review");

@@ -198,6 +198,11 @@ async def test_donation_flow_initiate_then_approve_donates_once(tmp_path):
         assert a2.json()["state"] == "donated"
         assert repo.get_pact("pact-due").spend_request_id == ref
 
+        packet = await client.get("/api/pacts/pact-due/packet")
+        assert packet.status_code == 200, packet.text
+        assert packet.json()["verdict"]["payment_action"] == "donation_executed"
+        assert packet.json()["verdict"]["payment_ref"] == ref
+
 
 @pytest.mark.anyio
 async def test_donation_initiate_rejects_non_pending(tmp_path):

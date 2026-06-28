@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api, DEMO_OWNER } from "../api";
+import { api } from "../api";
 import { isDesktop } from "../lib/platform";
+import { useLocalOwner } from "../owner";
 import type { LinkStatus } from "../types";
 import "./onboard.css";
 
@@ -18,13 +19,14 @@ async function installSkill(agentKey: string): Promise<InstallResult | null> {
 export function Onboard() {
   const navigate = useNavigate();
   const pactId = (useLocation().state as { pactId?: string } | null)?.pactId;
+  const [owner] = useLocalOwner();
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [agentKey, setAgentKey] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallResult | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => { api.linkStatus(DEMO_OWNER).then(setLink).catch(() => setLink(null)); }, []);
+  useEffect(() => { api.linkStatus(owner).then(setLink).catch(() => setLink(null)); }, [owner]);
   // Learn which agent the user chose when they sealed, so step 2 can install the
   // /pact skill for exactly that agent. Returning users (no pactId) skip this.
   useEffect(() => {
@@ -34,13 +36,13 @@ export function Onboard() {
 
   const connect = async () => {
     setBusy("link");
-    try { setLink(await api.linkConnect(DEMO_OWNER)); }
+    try { setLink(await api.linkConnect(owner)); }
     finally { setBusy(null); }
   };
   const mint = async () => {
     setBusy("token");
     try {
-      setToken((await api.mintAgentToken(DEMO_OWNER)).token);
+      setToken((await api.mintAgentToken(owner)).token);
       // On desktop, also install the /pact skill for the chosen agent (M3).
       if (isDesktop()) {
         try { setInstall(await installSkill(agentKey ?? "your agent")); } catch { /* non-fatal: token still works */ }
@@ -50,6 +52,9 @@ export function Onboard() {
 
   const fundingDone = !!link?.connected;
   const agentDone = !!token; // the token is the gate; the /pact skill install (M3) rides alongside it.
+  const fundingLabel = link?.payment_method_last4
+    ? `${link.payment_method_label ?? "Card"} •••• ${link.payment_method_last4}`
+    : link?.funding_ref;
 
   return (
     <div className="onb">
@@ -59,7 +64,7 @@ export function Onboard() {
         <h2>1 · Funding source</h2>
         <p>Connect the card that pays the donation if you miss your pact. Pact never holds your money.</p>
         {fundingDone
-          ? <div className="onb-ok">Connected ✓ · {link?.funding_ref}</div>
+          ? <div className="onb-ok">Connected ✓ · {fundingLabel}</div>
           : <button className="ov-btn" onClick={connect} disabled={busy === "link"}>{busy === "link" ? "Connecting…" : "Connect Link"}</button>}
       </section>
 
