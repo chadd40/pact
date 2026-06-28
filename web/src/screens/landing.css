@@ -53,7 +53,7 @@
 /* ── Pinned hero ────────────────────────────────────────────────────────────── */
 .lp-pin {
   position: relative;
-  height: 200vh;
+  height: 240vh;
 }
 .lp-sticky {
   position: sticky;
@@ -121,7 +121,7 @@
   margin-bottom: clamp(30px, 5vh, 56px);
   font-size: clamp(16px, 1.3vw + 8px, 22px);
   line-height: 1.4;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: rgba(21, 20, 15, 0.7);
   max-width: 540px;
@@ -1020,36 +1020,24 @@
   color: #b3aa97;
 }
 
-/* CREATE — a flatter fan of the real cards. The fan is an absolute band that
-   bleeds past the top edge of the cell (clipped by the cell's overflow) and
-   slides *behind* an opaque tan footer band, so "Create a pact" reads on a clean
-   field of the card colour. */
+/* CREATE — a flatter fan of the real cards as a fixed band at the top of the
+   cell, sitting clear above the "Create a pact" footer (no overlap). The cell is
+   taller than the fan (the agent cell stretches the row), so anchor to the top. */
 .bento-create {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 .bv-fan {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -30px;
-  height: 74%;
-  margin: 0;
-  min-height: 0;
+  position: relative;
+  flex: 0 0 auto;
+  height: 168px;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1;
-}
-.bento-create .bento-foot {
-  position: relative;
-  z-index: 6;
-  margin: 0 -22px -22px;
-  padding: 18px 22px 20px;
-  background: var(--l-card);
+  margin: 2px 0 16px;
 }
 .bf-card {
   position: absolute;
-  width: clamp(126px, 13vw, 178px);
+  width: clamp(92px, 9vw, 116px);
   aspect-ratio: 416 / 582;
   height: auto;
   border-radius: 14px;
@@ -1060,11 +1048,11 @@
   transition: translate 0.5s cubic-bezier(0.34, 1.4, 0.5, 1), rotate 0.5s cubic-bezier(0.34, 1.4, 0.5, 1);
   transform-origin: center bottom;
 }
-.bf-1 { --tx: -130%; --ty: 16px; --rot: -8deg; --txh: -162%; --roth: -13deg; z-index: 3; }
-.bf-2 { --tx: -65%; --ty: 5px; --rot: -4deg; --txh: -81%; --roth: -6.5deg; z-index: 4; }
+.bf-1 { --tx: -130%; --ty: 6px; --rot: -8deg; --txh: -162%; --roth: -13deg; z-index: 3; }
+.bf-2 { --tx: -65%; --ty: 2px; --rot: -4deg; --txh: -81%; --roth: -6.5deg; z-index: 4; }
 .bf-3 { --tx: 0%; --ty: 0px; --rot: 0deg; --txh: 0%; --roth: 0deg; z-index: 5; }
-.bf-4 { --tx: 65%; --ty: 5px; --rot: 4deg; --txh: 81%; --roth: 6.5deg; z-index: 4; }
-.bf-5 { --tx: 130%; --ty: 16px; --rot: 8deg; --txh: 162%; --roth: 13deg; z-index: 3; }
+.bf-4 { --tx: 65%; --ty: 2px; --rot: 4deg; --txh: 81%; --roth: 6.5deg; z-index: 4; }
+.bf-5 { --tx: 130%; --ty: 6px; --rot: 8deg; --txh: 162%; --roth: 13deg; z-index: 3; }
 .bento-create:hover .bf-card {
   translate: var(--txh) var(--ty);
   rotate: var(--roth);
@@ -1079,23 +1067,21 @@
   50% { transform: rotate(1.1deg) translateY(-3px); }
 }
 
-/* AGENT — Hermes in a lighter chat panel that fills the top */
+/* AGENT — Hermes in a white chat panel on the same tan card as the other bentos */
 .bento-agent {
-  background: var(--l-ink);
-  border-color: var(--l-ink);
-  color: var(--l-cream);
-  justify-content: flex-start;
-  gap: 0;
-  padding: 0;
+  justify-content: space-between;
 }
 .ba-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 16px 16px 18px;
-  background: linear-gradient(180deg, #756b5b, #5e5547);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.22);
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 6px;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid var(--l-line);
+  border-radius: 14px;
 }
 .ba-top {
   display: flex;
@@ -1107,20 +1093,22 @@
   height: 40px;
   border-radius: 11px;
   object-fit: contain;
-  background: var(--l-cream);
+  background: var(--l-bg);
   padding: 5px;
 }
 .ba-name {
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  line-height: 1.05;
+  color: var(--l-ink);
 }
 .ba-status {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 2px;
   font-size: 12px;
-  color: rgba(255, 252, 245, 0.72);
+  color: var(--l-muted);
 }
 .ba-dot {
   width: 6px;
@@ -1139,15 +1127,16 @@
 .ba-bubble {
   align-self: flex-start;
   max-width: 94%;
-  background: #f7f0e2;
+  background: var(--l-bg);
   color: #2a261d;
+  border: 1px solid var(--l-line);
   border-radius: 16px 16px 16px 6px;
   padding: 11px 14px;
   font-size: 14.5px;
   font-weight: 500;
   line-height: 1.46;
   letter-spacing: -0.005em;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 2px 6px rgba(21, 20, 15, 0.06);
   opacity: 0;
   transform: translateY(8px) scale(0.96);
 }
@@ -1161,10 +1150,11 @@
   align-self: flex-start;
   display: flex;
   gap: 4px;
-  background: #f4ecdd;
+  background: var(--l-bg);
+  border: 1px solid var(--l-line);
   border-radius: 13px;
   padding: 10px 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 2px 6px rgba(21, 20, 15, 0.06);
   opacity: 0;
 }
 .ba-typing span {
@@ -1186,23 +1176,8 @@
   100% { opacity: 0; }
 }
 .bento-agent .bento-foot {
-  padding: 14px 20px 20px;
+  padding: 0;
 }
-.bento-badge {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 4;
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #fff;
-  background: rgba(176, 67, 42, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
-  padding: 4px 9px;
-}
-
 /* STAKE — a Link card swiped across a reader */
 .bv-stake {
   flex: 1;

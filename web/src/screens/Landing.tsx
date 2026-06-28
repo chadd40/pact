@@ -53,12 +53,12 @@ const MSG_COUNT = SIDES.length;
 // Map scroll progress (0..1) through the pinned hero to how many messages should
 // be revealed. The first two (friend's opener + your wish) are up at the top.
 function targetFor(p: number): number {
-  if (p < 0.12) return 2;
-  if (p < 0.26) return 3;
-  if (p < 0.4) return 4;
-  if (p < 0.53) return 5;
-  if (p < 0.63) return 6;
-  if (p < 0.78) return 7;
+  if (p < 0.1) return 2;
+  if (p < 0.22) return 3;
+  if (p < 0.33) return 4;
+  if (p < 0.44) return 5;
+  if (p < 0.55) return 6; // headline flips here; the rest is dwell so it can be read
+  if (p < 0.7) return 7;
   return 8;
 }
 
@@ -104,9 +104,12 @@ export function Landing() {
   useEffect(() => {
     const STAGE_W = 480;
     const STAGE_H = 770;
+    const BOTTOM_SAFE = 16; // always keep the phone clear of the bottom edge
     const fit = () => {
-      const availH = stageWrapRef.current?.clientHeight || window.innerHeight;
-      const s = Math.min(window.innerWidth / STAGE_W, availH / STAGE_H, 1.2);
+      const wrap = stageWrapRef.current;
+      const availH = (wrap?.clientHeight ?? window.innerHeight) - BOTTOM_SAFE;
+      const availW = wrap?.clientWidth ?? window.innerWidth;
+      const s = Math.max(0.3, Math.min(availW / STAGE_W, availH / STAGE_H, 1.2));
       if (stageRef.current) stageRef.current.style.transform = `scale(${s.toFixed(3)})`;
     };
     fit();
@@ -114,13 +117,18 @@ export function Landing() {
     const t1 = setTimeout(fit, 80);
     const t2 = setTimeout(fit, 320);
     window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+    // Observe the stage's own container (most reliable) plus the document, so the
+    // phone re-fits on any window or layout change, not just full reloads.
     const ro = new ResizeObserver(fit);
+    if (stageWrapRef.current) ro.observe(stageWrapRef.current);
     ro.observe(document.documentElement);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t1);
       clearTimeout(t2);
       window.removeEventListener("resize", fit);
+      window.removeEventListener("orientationchange", fit);
       ro.disconnect();
     };
   }, []);
@@ -416,7 +424,7 @@ export function Landing() {
               </div>
               <div className="bento-foot">
                 <div className="bento-h">Create a pact</div>
-                <p className="bento-p">Pick the thing you keep wishing you'd do — browse the deck and choose your card.</p>
+                <p className="bento-p">Pick the thing you keep wishing you'd do, then browse the deck and choose your card.</p>
               </div>
             </article>
 
@@ -434,7 +442,7 @@ export function Landing() {
                 </div>
                 <div className="ba-thread">
                   <div className="ba-bubble b1">12 hours left to log today's workout ⏳</div>
-                  <div className="ba-bubble b2">You're 4 for 5 this week — way ahead of last week.</div>
+                  <div className="ba-bubble b2">You're 4 for 5 this week, way ahead of last week.</div>
                   <div className="ba-typing" aria-hidden="true">
                     <span /> <span /> <span />
                   </div>
@@ -442,12 +450,11 @@ export function Landing() {
                 </div>
               </div>
               <div className="bento-foot">
-                <div className="bento-h light">An agent in your corner</div>
-                <p className="bento-p dim">
+                <div className="bento-h">An agent in your corner</div>
+                <p className="bento-p">
                   Hermes checks your proof, remembers your streak, and talks you through the days you'd rather skip.
                 </p>
               </div>
-              <div className="bento-badge m">The heart of it</div>
             </article>
 
             {/* STAKE — a Link card swiped across a reader */}
@@ -501,39 +508,6 @@ export function Landing() {
         </div>
       </section>
 
-      {/* ── Coaching spotlight ──────────────────────────────────────────────── */}
-      <section className="lp-section lp-coach-sec">
-        <div className="lp-wrap lp-coach-grid">
-          <div className="lp-coach-copy" data-reveal>
-            <div className="lp-eyebrow m">Who keeps you honest</div>
-            <h2 className="lp-sec-title">You're not white-knuckling this alone.</h2>
-            <p className="lp-coach-lede">
-              Hermes reads your proof the moment it lands, keeps your streak in its head, and texts you through
-              the days you'd rather skip — then calls the verdict the second the deadline hits.
-            </p>
-          </div>
-          <div className="lp-chat" data-reveal style={{ transitionDelay: ".1s" }}>
-            <div className="lp-chat-head">
-              <img className="lp-chat-av" src="/agents/Hermes.svg" alt="Hermes" />
-              <div className="lp-chat-id">
-                <div className="lp-chat-name">Hermes</div>
-                <div className="lp-chat-sub">
-                  <span className="lp-chat-live" /> Coaching your workout pact
-                </div>
-              </div>
-            </div>
-            <div className="lp-chat-body">
-              <div className="lp-chat-day m">Today</div>
-              <div className="lp-chat-msg in c1">Three down, two to go. You're ahead of last week — keep the rhythm.</div>
-              <div className="lp-chat-msg out c2">feeling it today tbh</div>
-              <div className="lp-chat-sys c3">✓ Proof verified — Thursday workout</div>
-              <div className="lp-chat-msg in c4">One session left and the week is clean. Don't hand $40 to charity tonight.</div>
-              <div className="lp-chat-msg out c5">ok say less 💪</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── The deck · the real create flow, embedded ────────────────────────── */}
       <section className="lp-section lp-deck-sec" id="deck">
         <div className="lp-deck-sticky">
@@ -541,7 +515,7 @@ export function Landing() {
             <div className="lp-eyebrow m">Get started today</div>
             <h2 className="lp-sec-title">Make your first pact.</h2>
             <p className="lp-coach-lede lp-deck-lede">
-              This is the real thing — browse the deck, pick a card, and shape it into a pact right here.
+              This is the real thing. Browse the deck, pick a card, and shape it into a pact right here.
             </p>
           </div>
           <div className="lp-embed-deck">
@@ -550,7 +524,7 @@ export function Landing() {
         </div>
         {/* Mobile fallback — the deck is desktop-only, so don't leave a void. */}
         <div className="lp-deck-mobilecta">
-          <p>The deck is built for a bigger screen — open Pact on a laptop to deal yourself in.</p>
+          <p>The deck is built for a bigger screen. Open Pact on a laptop to deal yourself in.</p>
           <button className="lp-deck-cta" onClick={onboard}>
             Make your first pact <span>→</span>
           </button>
@@ -564,7 +538,7 @@ export function Landing() {
             <div className="lp-eyebrow m">Integrations</div>
             <h2 className="lp-sec-title">Bring your own agent.</h2>
             <p className="lp-int-lede">
-              Pact works with the agent you already talk to. Hermes is built in — or bring Claude Code, NVIDIA NeMo,
+              Pact works with the agent you already talk to. Hermes is built in, or bring Claude Code, NVIDIA NeMo,
               or any MCP agent over the API to judge your proof and keep you honest.
             </p>
           </div>
@@ -595,11 +569,16 @@ export function Landing() {
             </div>
             <div className="lp-int-card" data-reveal style={{ transitionDelay: ".18s" }}>
               <span className="lp-int-logo">
-                <img src="/link_icon.svg" alt="Link" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2e2a20" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="26" height="26" aria-hidden="true">
+                  <circle cx="6" cy="6" r="2.5" />
+                  <circle cx="18" cy="18" r="2.5" />
+                  <circle cx="18" cy="6" r="2.5" />
+                  <path d="M8.2 7.2l7.6 9.6M16 8v8" />
+                </svg>
               </span>
-              <div className="lp-int-name">Link</div>
-              <div className="lp-int-sub">Charge-on-fail funding source</div>
-              <span className="lp-int-tag m">Built in</span>
+              <div className="lp-int-name">MCP</div>
+              <div className="lp-int-sub">Connect any agent over MCP</div>
+              <span className="lp-int-tag m on">Available</span>
             </div>
           </div>
         </div>
@@ -658,19 +637,19 @@ export function Landing() {
 const FAQS: Array<{ q: string; a: string }> = [
   {
     q: "What is a pact?",
-    a: "A pact is a promise you put money behind. You pick a goal, choose how often and for how long, and stake real cash. Prove you showed up and you keep your money — miss a check-in and the stake goes to a charity you chose.",
+    a: "A pact is a promise you put money behind. You pick a goal, choose how often and for how long, and stake real cash. Prove you showed up and you keep your money. Miss a check-in and the stake goes to a charity you chose.",
   },
   {
     q: "Where does the money go if I fail?",
-    a: "To a real cause you pick when you create the pact — like the World Wildlife Fund or Save the Children. Pact never keeps your stake; it only moves to your charity if you don't follow through.",
+    a: "To a real cause you pick when you create the pact, like the World Wildlife Fund or Save the Children. Pact never keeps your stake; it only moves to your charity if you don't follow through.",
   },
   {
     q: "How does Pact know I actually did it?",
-    a: "You submit evidence — a photo or screenshot — for each check-in. Your agent (Hermes, or one you bring) verifies it against your goal in seconds and logs the result.",
+    a: "You submit evidence, a photo or screenshot, for each check-in. Your agent (Hermes, or one you bring) verifies it against your goal in seconds and logs the result.",
   },
   {
     q: "Does Pact hold my money?",
-    a: "No. Pact registers a funding source through Link and only charges it if you miss. Your money stays with you until — and unless — you fold.",
+    a: "No. Pact registers a funding source through Link and only charges it if you miss. Your money stays with you unless you fold.",
   },
   {
     q: "Can I use my own agent?",
