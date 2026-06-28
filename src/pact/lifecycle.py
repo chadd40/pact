@@ -589,6 +589,7 @@ def create_pact_structured(
     settings: Settings,
     original_prompt: str = "",
     description: str | None = None,
+    card_art: str | None = None,
 ) -> Pact:
     """Build an ACTIVE pact directly from structured UI inputs.
 
@@ -669,6 +670,7 @@ def create_pact_structured(
         charity_id=charity_id,
         charity_url=charity_url,
         agent=agent,
+        card_art=card_art,
         freezes_allowed=settings.default_freezes,
         freeze_extension_hours=settings.freeze_extension_hours,
         rubric=rubric,

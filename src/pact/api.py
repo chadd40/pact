@@ -49,6 +49,8 @@ from pact.scheduler import tick as scheduler_tick
 # be overturned to `succeeded` within the window, so recording it early would
 # wrongly (and irreversibly, first-write-wins) stamp a failure. Donation/forfeit
 # states below are reached only after the window closes. Mirrors scheduler.tick.
+ALLOWED_CARD_ART = frozenset(f"/create/create_{i}.png" for i in range(1, 6))
+
 _TERMINAL_STATUSES = {
     PactStatus.succeeded,
     # donation_pending is reached only AFTER the dispute window closes (no more
@@ -100,6 +102,7 @@ class CreateIn(BaseModel):
     owner: str | None = None
     # Custom goals: the owner's own "what counts as a check-in" definition.
     description: str | None = None
+    card_art: str | None = None
 
 
 class EnqueueTaskIn(BaseModel):
@@ -186,6 +189,8 @@ def create_app(
 
     @app.post("/api/pacts/create")
     def create_structured(body: CreateIn):
+        if body.card_art is not None and body.card_art not in ALLOWED_CARD_ART:
+            raise HTTPException(status_code=422, detail="invalid card_art")
         try:
             pact = create_pact_structured(
                 goal_title=body.goal_title,
@@ -200,6 +205,7 @@ def create_app(
                 clock=clock,
                 settings=settings,
                 description=body.description,
+                card_art=body.card_art,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))

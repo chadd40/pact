@@ -407,3 +407,87 @@ async def test_api_structured_create_with_goal_template(tmp_path):
         assert r.status_code == 200, r.text
         body = r.json()
         assert "cardio" in body["goal"]
+
+
+def test_lifecycle_structured_create_persists_card_art(tmp_path):
+    clock, settings = _clock(), _settings()
+    pact = create_pact_structured(
+        goal_title="Custom goal",
+        goal_template=None,
+        days_per_week=3,
+        weeks=4,
+        stake_amount_cents=20000,
+        charity_id=_CHARITY,
+        agent="Hermes",
+        consent_acknowledged=True,
+        owner="c@example.com",
+        clock=clock,
+        settings=settings,
+        card_art="/create/create_3.png",
+    )
+    assert pact.card_art == "/create/create_3.png"
+
+
+@pytest.mark.anyio
+async def test_api_create_persists_card_art(tmp_path):
+    app, repo, clock, settings = _build(tmp_path)
+    async with _client(app) as client:
+        r = await client.post(
+            "/api/pacts/create",
+            json={
+                "goal_title": "Custom goal",
+                "days_per_week": 3,
+                "weeks": 4,
+                "stake_amount_cents": 20000,
+                "charity_id": _CHARITY,
+                "agent": "Hermes",
+                "consent_acknowledged": True,
+                "owner": "c@example.com",
+                "card_art": "/create/create_2.png",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["card_art"] == "/create/create_2.png"
+        assert repo.get_pact(r.json()["id"]).card_art == "/create/create_2.png"
+
+
+@pytest.mark.anyio
+async def test_api_create_card_art_defaults_null(tmp_path):
+    app, repo, clock, settings = _build(tmp_path)
+    async with _client(app) as client:
+        r = await client.post(
+            "/api/pacts/create",
+            json={
+                "goal_title": "Run 3x a week",
+                "days_per_week": 3,
+                "weeks": 4,
+                "stake_amount_cents": 20000,
+                "charity_id": _CHARITY,
+                "agent": "Hermes",
+                "consent_acknowledged": True,
+                "owner": "runner@example.com",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["card_art"] is None
+
+
+@pytest.mark.anyio
+async def test_api_create_rejects_unknown_card_art(tmp_path):
+    app, repo, clock, settings = _build(tmp_path)
+    async with _client(app) as client:
+        r = await client.post(
+            "/api/pacts/create",
+            json={
+                "goal_title": "Run",
+                "days_per_week": 3,
+                "weeks": 4,
+                "stake_amount_cents": 20000,
+                "charity_id": _CHARITY,
+                "agent": "Hermes",
+                "consent_acknowledged": True,
+                "owner": "c@example.com",
+                "card_art": "/evil.png",
+            },
+        )
+        assert r.status_code == 422, r.text
