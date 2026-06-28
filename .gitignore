@@ -5,3 +5,6 @@ artifacts/
 *.db
 .DS_Store
 .env
+/build/
+/dist/
+web/src-tauri/binaries/

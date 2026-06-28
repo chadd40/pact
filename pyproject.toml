@@ -22,6 +22,7 @@ dev = [
     "httpx",
     "pytest-asyncio",
     "anyio[trio]",
+    "pyinstaller",
 ]
 
 [tool.pytest.ini_options]
