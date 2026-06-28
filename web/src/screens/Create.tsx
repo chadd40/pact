@@ -283,6 +283,8 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   // the desktop app via clipboard. Mirror the seal handler's goal/what_counts
   // derivation exactly so the desktop side receives a faithful pact definition.
   const copyPayload = async () => {
+    setCopied(false);
+    setBlobText(null);
     if (!charityId || !agentKey) return;
     const draft: PactDraft = {
       // Mirror seal handler: goalName = isCustom ? customTitle.trim() || "Your goal" : goalCard.title
