@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import { useAppData } from "../data";
@@ -172,10 +171,7 @@ export function Home() {
                   onClick={() => openPact(p.id)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPact(p.id); } }}
                 >
-                  <motion.div
-                    className="home-cardfront"
-                    layoutId={`pact-card-${p.id}`}
-                  >
+                  <div className="home-cardfront">
                     <span
                       className={`home-dot ${dot}`}
                       aria-label={dot === "green" ? "On track" : dot === "amber" ? "At risk" : "Off track"}
@@ -192,7 +188,7 @@ export function Home() {
                           <div className="home-cardglyph-title">{p.title}</div>
                         </div>
                       )}
-                  </motion.div>
+                  </div>
                 </div>
               );
             })}
