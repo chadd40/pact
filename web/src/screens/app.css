@@ -135,18 +135,6 @@
 /* ════════════════════════ PACT DETAIL ════════════════════════ */
 .pd { display: flex; flex-direction: column; min-height: 100%; background: var(--pc-ivory); }
 .pd-missing { padding: 60px 34px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; color: #56524a; }
-.pd-top { position: sticky; top: 0; z-index: 6; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 16px 30px; border-bottom: 1px solid var(--pc-hair-2); background: #fff; }
-.pd-top-left { display: flex; align-items: center; gap: 12px; }
-.pd-icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid #e6e4de; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #56524a; }
-.pd-top-glyph { width: 34px; height: 34px; border-radius: 9px; background: #16150f; color: #efebe1; display: flex; align-items: center; justify-content: center; }
-.pd-top-title { font-size: 16px; font-weight: 600; color: #1b1a17; letter-spacing: -0.01em; }
-.pd-top-sub { font-size: 10.5px; color: #9a9488; }
-.pd-pill { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 6px 13px; }
-.pd-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.pd-pill.ok { color: var(--pc-kept); background: #eaf1ec; }
-.pd-pill.risk { color: var(--pc-accent); background: #f6ece5; }
-.pd-pill.amber { color: var(--pc-amber); background: #f5efe0; }
-.pd-pill.muted { color: #76736a; background: #f0eee7; }
 .pd-err { margin: 14px 34px 0; background: #f6ece5; color: var(--pc-accent); border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; }
 
 /* active */
@@ -793,6 +781,16 @@
 .world-panel > .pd-terminal {
   width: 100%; margin: auto 0;
 }
+
+/* This-week pill — re-themed for the light panel. The .pd-hero-week / .pd-bar
+   styles were authored for the dark charcoal hero (cream "on" bars, near-white
+   value text, dark "off" track); moved onto the light .world-panel they read
+   inverted. Override so completed bars + the value are clearly the filled state. */
+.world-panel .pd-hero-week { margin-top: 22px; max-width: 380px; }
+.world-panel .pd-hero-week-head { color: #6c6452; }
+.world-panel .pd-hero-week-head span:last-child { color: #1b1a17; }
+.world-panel .pd-bar { background: #e6e3db; }
+.world-panel .pd-bar.on { background: var(--pc-accent); }
 
 /* Coach strip: the agent name is italicized (was a plain mono caption). */
 .pd-coach-name { font-style: italic; }
