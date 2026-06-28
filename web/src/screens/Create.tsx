@@ -539,7 +539,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           exactly. Hidden in embedded mode (the landing provides its own chrome).
           Clickable: returns home (the dashboard, once the app build lands). */}
       {!embedded && (
-        <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact — back to home">
+        <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact, back to home">
           <img className="pc-brand-logo" src="/primary_logo.svg" alt="Pact" />
         </button>
       )}
@@ -596,7 +596,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                   role={deckMode ? "button" : undefined}
                   tabIndex={deckMode ? 0 : -1}
                   aria-hidden={!deckMode && !isHero}
-                  aria-label={deckMode ? `${g.title} — ${g.desc}` : undefined}
+                  aria-label={deckMode ? `${g.title}: ${g.desc}` : undefined}
                 >
                   <div className="pc-flip" style={flipStyle(i)}>
                     {/* FRONT */}
@@ -752,7 +752,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                     )}
                     <textarea
                       className="pc-desc-input"
-                      placeholder="What counts as a check-in? (optional — your agent judges against this)"
+                      placeholder="What counts as a check-in? (optional, your agent judges against this)"
                       aria-label="What counts as a check-in"
                       value={customDesc}
                       maxLength={140}
@@ -908,7 +908,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                   }}
                 />
                 <div className="pc-help m">
-                  This is the name that signs your pact — it's written on the card and stands behind the promise.
+                  This is the name that signs your pact. It's written on the card and stands behind the promise.
                 </div>
               </div>
             )}
@@ -960,10 +960,10 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                 </div>
                 <div className="body">
                   <div className="bubble">
-                    Let's go — we've got a pact. <b>${stake}</b> is on the line behind{" "}
+                    Let's go, we've got a pact. <b>${stake}</b> is on the line behind{" "}
                     <b>{goalName.toLowerCase()}</b>, {days} days/week for {weeks} {weeksWord}. I'll get you
                     started: your <b>first check-in is tomorrow</b>. Miss it and{" "}
-                    {charity?.name || "your charity"} gets paid — so let's not.
+                    {charity?.name || "your charity"} gets paid, so let's not.
                   </div>
                   <div className="actions">
                     <button className="open" ref={openBtnRef} onClick={openPact}>
@@ -998,7 +998,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                       <DownloadIcon /> Download the app
                     </a>
                     <button className="pc-done-copy" onClick={copyBlob}>
-                      {copied ? "Copied — now paste it in ✓" : "Copy your pact"}
+                      {copied ? "Copied, now paste it in ✓" : "Copy your pact"}
                     </button>
                   </div>
                   <textarea
@@ -1006,7 +1006,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                     readOnly
                     value={blobText ?? ""}
                     rows={3}
-                    aria-label="Pact payload — copy and paste this into the Pact desktop app"
+                    aria-label="Pact payload: copy and paste this into the Pact desktop app"
                     onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                   />
                 </div>
