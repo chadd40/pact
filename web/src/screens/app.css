@@ -476,8 +476,9 @@
   z-index: 100;
 }
 .lm-menu-card {
-  background: #f0e9da;
-  border: 1px solid #c9bda0;
+  /* Match the logo button: white background + medium-tan border. */
+  background: #fff;
+  border: 1px solid #d8cdb8;
   /* Square off the top corners so the dropdown reads as a continuation of the
      button above it; keep the bottom corners rounded. */
   border-radius: 6px 6px 16px 16px;
