@@ -65,6 +65,19 @@
   align-items: center;
   padding-top: clamp(92px, 12vh, 132px);
 }
+/* Hero backdrop: the activity collage at 70% opacity (covered so it fills without
+   stretching), letting the warm page tone show through. The phone sits in its
+   clean centre. On its own layer so we can dial the opacity (background-image
+   itself has no opacity property). */
+.lp-sticky::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("/hero_bg.png") center / cover no-repeat;
+  opacity: 0.7;
+  pointer-events: none;
+}
 
 /* The phone scene fills the space under the headline and scales as one unit. */
 .lp-stagewrap {
