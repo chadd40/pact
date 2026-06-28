@@ -538,7 +538,7 @@
   align-items: center;
   gap: 0;
   outline: none;
-  border-radius: 12px;
+  border-radius: 14px;
 }
 .flyout:focus-visible {
   outline: 2px solid var(--pc-accent);
@@ -552,8 +552,10 @@
   align-items: center;
   background: #fff;
   border: 1px solid var(--pc-hair);
-  border-radius: 12px 0 0 12px;
-  padding: 8px 14px;
+  border-radius: 14px 0 0 14px;
+  height: 46px;
+  box-sizing: border-box;
+  padding: 0 16px;
   gap: 0;
   max-width: 0;
   opacity: 0;
@@ -612,9 +614,11 @@
   gap: 6px;
   background: #fff;
   border: 1px solid var(--pc-hair);
-  border-radius: 12px;
-  padding: 8px 14px;
-  min-width: 78px;
+  border-radius: 14px;
+  height: 46px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  min-width: 90px;
   cursor: default;
   user-select: none;
 }
