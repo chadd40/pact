@@ -8,6 +8,7 @@ export type PactDraft = {
   stake_amount_cents: number;
   charity_id: string;
   agent: string;
+  signer_name?: string;
 };
 
 export type PactDraftTransfer = {
@@ -30,8 +31,8 @@ function checksum(draft: PactDraft): string {
 }
 
 // Stable key order so the checksum is reproducible across encode/decode.
-// Optional fields (goal_template, what_counts) are omitted when absent so they
-// round-trip faithfully as undefined for drafts that lack them.
+// Optional fields (goal_template, what_counts, signer_name) are omitted when
+// absent so they round-trip faithfully as undefined for drafts that lack them.
 function canonical(d: PactDraft) {
   const base = {
     goal: d.goal,
@@ -41,7 +42,8 @@ function canonical(d: PactDraft) {
     agent: d.agent,
   };
   const withTemplate = d.goal_template ? { ...base, goal_template: d.goal_template } : base;
-  return d.what_counts ? { ...withTemplate, what_counts: d.what_counts } : withTemplate;
+  const withCounts = d.what_counts ? { ...withTemplate, what_counts: d.what_counts } : withTemplate;
+  return d.signer_name ? { ...withCounts, signer_name: d.signer_name } : withCounts;
 }
 
 function toB64url(s: string): string {

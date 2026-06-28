@@ -98,14 +98,17 @@
 }
 .lp-drift {
   position: absolute;
-  font-size: clamp(12px, 1.1vw, 16px);
-  color: rgba(21, 20, 15, 0.14);
+  font-size: clamp(18px, 1.65vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: rgba(21, 20, 15, 0.13);
   white-space: nowrap;
   animation: pactFloat 13s linear infinite;
 }
 .lp-sparkle {
   color: rgba(176, 67, 42, 0.2);
-  font-size: clamp(13px, 1.3vw, 18px);
+  font-size: clamp(18px, 1.8vw, 26px);
+  font-weight: 400;
 }
 
 /* Headline sits just below the fixed chrome (logo + Start a pact). */
@@ -612,10 +615,12 @@
   margin-bottom: 2px;
 }
 .lp-chat-msg {
-  max-width: 80%;
-  padding: 10px 13px;
-  font-size: 13.5px;
-  line-height: 1.45;
+  max-width: 82%;
+  padding: 11px 15px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
   opacity: 0;
   transform: translateY(10px) scale(0.97);
 }
@@ -1015,19 +1020,36 @@
   color: #b3aa97;
 }
 
-/* CREATE — a flatter fan of the real cards, filling the top of the cell */
+/* CREATE — a flatter fan of the real cards. The fan is an absolute band that
+   bleeds past the top edge of the cell (clipped by the cell's overflow) and
+   slides *behind* an opaque tan footer band, so "Create a pact" reads on a clean
+   field of the card colour. */
+.bento-create {
+  justify-content: flex-end;
+}
 .bv-fan {
-  position: relative;
-  flex: 1;
-  min-height: 232px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30px;
+  height: 74%;
+  margin: 0;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  z-index: 1;
+}
+.bento-create .bento-foot {
+  position: relative;
+  z-index: 6;
+  margin: 0 -22px -22px;
+  padding: 18px 22px 20px;
+  background: var(--l-card);
 }
 .bf-card {
   position: absolute;
-  width: clamp(118px, 12.5vw, 166px);
+  width: clamp(126px, 13vw, 178px);
   aspect-ratio: 416 / 582;
   height: auto;
   border-radius: 14px;
@@ -1116,14 +1138,16 @@
 }
 .ba-bubble {
   align-self: flex-start;
-  max-width: 92%;
-  background: #f4ecdd;
+  max-width: 94%;
+  background: #f7f0e2;
   color: #2a261d;
-  border-radius: 14px 14px 14px 5px;
-  padding: 8px 12px;
-  font-size: 13px;
-  line-height: 1.4;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+  border-radius: 16px 16px 16px 6px;
+  padding: 11px 14px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.46;
+  letter-spacing: -0.005em;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
   opacity: 0;
   transform: translateY(8px) scale(0.96);
 }
@@ -1240,7 +1264,7 @@
   width: 156px;
   height: 98px;
   border-radius: 12px;
-  background: linear-gradient(150deg, #0c4429, #011e0f);
+  background: linear-gradient(150deg, #2a8a59, #0f5733);
   box-shadow: 0 18px 30px -14px rgba(0, 0, 0, 0.6);
   padding: 12px 13px;
   display: flex;
@@ -1326,12 +1350,14 @@
   color: var(--l-ink);
 }
 .bento-prove.is-in .bp-file {
-  animation: bpDrop 0.7s cubic-bezier(0.3, 0.9, 0.3, 1) 0.3s forwards;
+  animation: bpDropLoop 4.6s cubic-bezier(0.3, 0.9, 0.3, 1) infinite;
 }
-@keyframes bpDrop {
+@keyframes bpDropLoop {
   0% { opacity: 0; transform: translateY(-92px) rotate(-4deg); }
-  60% { opacity: 1; transform: translateY(6px) rotate(0deg); }
-  100% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  9% { opacity: 1; transform: translateY(6px) rotate(0deg); }
+  13% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  90% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(0) rotate(0deg); }
 }
 .bp-status {
   display: grid;
@@ -1359,7 +1385,7 @@
   animation: bpSpin 0.8s linear infinite;
 }
 .bento-prove.is-in .bp-check {
-  animation: bpCheck 1.6s ease 1.2s forwards;
+  animation: bpCheckLoop 4.6s ease infinite;
 }
 .bp-stamp {
   display: inline-flex;
@@ -1375,19 +1401,22 @@
   transform: scale(0.6) rotate(-8deg);
 }
 .bento-prove.is-in .bp-stamp {
-  animation: bpStamp 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 3s forwards;
+  animation: bpStampLoop 4.6s cubic-bezier(0.2, 1.4, 0.5, 1) infinite;
 }
 @keyframes bpSpin { to { transform: rotate(360deg); } }
-@keyframes bpCheck {
-  0% { opacity: 0; }
-  12% { opacity: 1; }
-  80% { opacity: 1; }
+@keyframes bpCheckLoop {
+  0%, 13% { opacity: 0; }
+  20% { opacity: 1; }
+  52% { opacity: 1; }
+  58% { opacity: 0; }
   100% { opacity: 0; }
 }
-@keyframes bpStamp {
-  0% { opacity: 0; transform: scale(0.6) rotate(-8deg); }
-  60% { opacity: 1; transform: scale(1.08) rotate(-3deg); }
-  100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+@keyframes bpStampLoop {
+  0%, 55% { opacity: 0; transform: scale(0.6) rotate(-8deg); }
+  63% { opacity: 1; transform: scale(1.08) rotate(-3deg); }
+  69% { opacity: 1; transform: scale(1) rotate(-4deg); }
+  90% { opacity: 1; transform: scale(1) rotate(-4deg); }
+  100% { opacity: 0; transform: scale(1) rotate(-4deg); }
 }
 
 /* ── Embedded deck section (pinned; scaled up to match /create) ───────────────── */

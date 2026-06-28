@@ -38,11 +38,15 @@
   flex: 0 0 auto;
 }
 
+/* Full-page ambient — a child of .pc-root (not the scaled stage), so the soft
+   top highlight + bottom shadow span the whole viewport with no visible box. */
 .pc-vignette {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
-  background: radial-gradient(120% 80% at 50% 120%, rgba(22, 21, 15, 0.1), transparent 60%);
+  background: radial-gradient(85% 60% at 50% 116%, rgba(22, 21, 15, 0.12), transparent 62%),
+    radial-gradient(120% 80% at 50% -12%, rgba(255, 250, 238, 0.45), transparent 56%);
 }
 
 /* ── Top chrome ──────────────────────────────────────────────────────────────── */
@@ -511,6 +515,84 @@
   box-shadow: 0 0 0 3px rgba(214, 178, 120, 0.12);
 }
 
+/* Name + picture-picker row (custom goal) */
+.pc-name-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.pc-name-row .pc-name-input {
+  flex: 1;
+  margin-bottom: 0;
+}
+.pc-art-btn {
+  flex: 0 0 auto;
+  width: 50px;
+  align-self: stretch;
+  border-radius: 11px;
+  background: rgba(239, 235, 225, 0.06);
+  border: 1px solid var(--pc-card-line-2);
+  color: var(--pc-on-card-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+.pc-art-btn:hover {
+  border-color: var(--pc-gold-line);
+  color: var(--pc-cream-bright);
+}
+.pc-art-btn.has {
+  border-color: var(--pc-gold-line);
+  color: var(--pc-gold);
+  background: var(--pc-gold-soft);
+}
+.pc-art-picker {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+  animation: pc-fade-up 0.25s ease both;
+}
+.pc-art-opt {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--pc-card-line-2);
+  background: rgba(239, 235, 225, 0.05);
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.82;
+  transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+.pc-art-opt img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pc-art-opt:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+.pc-art-opt.sel {
+  opacity: 1;
+  border-color: var(--pc-gold-line);
+  box-shadow: 0 0 0 2px var(--pc-gold-line);
+  transform: scale(1.04);
+}
+.pc-signer-input {
+  font-size: 18px;
+}
+
+/* Custom-goal card front once a picture is chosen — the designer's custom_card
+   frame (inline SVG) with the image + live title filling the card face. */
+.pc-cc-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* Frequency controls */
 .pc-freq-top {
   display: flex;
@@ -719,11 +801,7 @@
   color: var(--pc-cream-bright);
 }
 .pc-charity-desc {
-  margin: 8px 0 0;
-  padding: 11px 13px;
-  border-radius: 11px;
-  background: rgba(239, 235, 225, 0.05);
-  border: 1px solid var(--pc-card-line-2);
+  margin: 4px 0 0;
   font-size: 13px;
   line-height: 1.5;
   color: var(--pc-on-card-dim);
@@ -849,6 +927,12 @@
 .pc-arrow:disabled {
   opacity: 0.3 !important;
   cursor: default;
+}
+/* Once we leave the deck, hide the arrows outright — beats the disabled
+   !important so a disabled arrow doesn't ghost on later stages. */
+.pc-arrow[aria-hidden="true"] {
+  opacity: 0 !important;
+  pointer-events: none;
 }
 .pc-choose {
   position: absolute;
@@ -1010,6 +1094,65 @@
   border: none;
 }
 
+/* Final web screen — pact signed → download app + paste handoff */
+.pc-msg .head .ic.done {
+  background: #2f8f5c;
+  color: #fff;
+}
+.pc-done-head .status {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pc-done-lede {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #4c483e;
+}
+.pc-done-steps {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pc-done-download,
+.pc-done-copy {
+  flex: 1;
+  height: 48px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--pc-sans);
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.pc-done-download {
+  background: var(--pc-card);
+  color: var(--pc-cream);
+}
+.pc-done-download:hover {
+  transform: translateY(-1px);
+}
+.pc-done-download svg {
+  color: var(--pc-gold);
+}
+.pc-done-copy {
+  background: var(--pc-gold);
+  color: #20180c;
+}
+.pc-done-copy:hover {
+  transform: translateY(-1px);
+  background: #e0bf86;
+}
+.pc-done-blob {
+  margin-top: 2px;
+}
+
 /* ── Error toast ─────────────────────────────────────────────────────────────── */
 .pc-error {
   position: absolute;
@@ -1063,23 +1206,7 @@
   to { opacity: 1; transform: translateY(0) rotate(0); }
 }
 
-/* ── Web-mode handoff (copy-paste pact to desktop app) ──────────────────────── */
-.pc-web-handoff {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-}
-.pc-handoff-hint {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pc-handoff-msg {
-  font-size: 13px;
-  color: var(--pc-muted);
-  margin: 0;
-}
+/* ── Web-mode handoff blob (copy-paste pact to desktop app) ──────────────────── */
 .pc-handoff-blob {
   width: 100%;
   font-family: "SF Mono", "Menlo", "Consolas", monospace;
