@@ -8,6 +8,7 @@ import { cardArtFor } from "../lib/cardArt";
 import { statusDot } from "../lib/pactStatus";
 import { pickStatement } from "../lib/motivation";
 import { GoalGlyph } from "../components/GoalGlyph";
+import { StatsFlyout } from "../components/StatsFlyout";
 import { CustomCardFront } from "./Create";
 import type { Charity, Pact, Profile } from "../types";
 
@@ -53,7 +54,6 @@ export function Home() {
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
   const dragInfo = useRef<{ startX: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
-  const tiltRef = useRef<HTMLDivElement>(null);
 
   // Pacts + charities come from the shared AppData (fetched once by AppShell).
   // Only the profile is Home-specific; refresh it on the demo bump.
@@ -116,16 +116,6 @@ export function Home() {
     dragInfo.current = { startX: e.clientX, moved: false };
     setDrag({ dx: 0 });
   };
-  const onTilt = (e: React.MouseEvent) => {
-    if (dragInfo.current) return;
-    const el = tiltRef.current;
-    if (!el) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
-    const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
-    el.style.transform = `rotateY(${(nx * 5).toFixed(2)}deg) rotateX(${(-ny * 4).toFixed(2)}deg)`;
-  };
-  const onLeave = () => { if (tiltRef.current) tiltRef.current.style.transform = ""; };
   const step = (dir: number) => setActive((a) => Math.max(0, Math.min(cardCount.current - 1, a + dir)));
   const onStageKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
@@ -156,13 +146,14 @@ export function Home() {
           <div className="home-eyebrow m">{greeting(nowIso ? new Date(nowIso).getTime() : Date.now())}</div>
           <div className="home-headline">{statement}</div>
         </div>
+        <StatsFlyout profile={profile} pacts={allPacts} />
       </div>
 
       {/* ── Carousel shelf ── */}
       <div className="home-shelf">
         <div className="home-shelf-label m">Active pacts · click a card to open it</div>
-        <div className="home-stage" role="group" aria-label="Active pacts carousel — use left and right arrow keys, or click a card" onKeyDown={onStageKey} onPointerDown={onDown} onMouseMove={onTilt} onMouseLeave={onLeave}>
-          <div className="home-tilt" ref={tiltRef}>
+        <div className="home-stage" role="group" aria-label="Active pacts carousel — use left and right arrow keys, or click a card" onKeyDown={onStageKey} onPointerDown={onDown}>
+          <div className="home-tilt">
             {carousel.map((p, i) => {
               const art = cardArtFor(p);
               const dot = statusDot(p);

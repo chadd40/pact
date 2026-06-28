@@ -8,13 +8,13 @@ export function PactToast({ pact, onResolve }: { pact: Pact | null; onResolve: (
   if (collapsed) {
     return (
       <button className="toast-dot" aria-label="Action needed" onClick={() => setCollapsed(false)}>
-        <span className="toast-dot-pulse" />
+        <span className="toast-dot-pulse" aria-hidden="true" />
       </button>
     );
   }
   return (
     <div className="toast" role="alert" aria-live="assertive">
-      <span className="toast-pulse" />
+      <span className="toast-pulse" aria-hidden="true" />
       <div className="toast-body">
         <div className="toast-title m">Action needed</div>
         <div className="toast-msg">Your {dollars(pact.stake_amount_cents)} stake is unresolved.</div>

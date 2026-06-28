@@ -3,9 +3,8 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import { AppDataContext, type AppData } from "../data";
-import type { Charity, Pact, Profile } from "../types";
+import type { Charity, Pact } from "../types";
 import { LogoMenu } from "./LogoMenu";
-import { StatsFlyout } from "./StatsFlyout";
 import { PactToast } from "./PactToast";
 
 // Stable demo pact ids (src/pact/demo.seed + seed_states) the States menu jumps to.
@@ -25,7 +24,6 @@ export function AppShell() {
   const [pacts, setPacts] = useState<Pact[]>([]);
   const [pactsLoaded, setPactsLoaded] = useState(false);
   const [charities, setCharities] = useState<Charity[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Pacts refresh on the demo `bump` signal (shared with Home/Coach via context).
@@ -34,13 +32,6 @@ export function AppShell() {
     api.listPacts(DEMO_OWNER)
       .then((p) => { if (alive) { setPacts(p); setPactsLoaded(true); } })
       .catch(() => { if (alive) setPactsLoaded(true); });
-    return () => { alive = false; };
-  }, [bump]);
-
-  // Profile refresh on bump (mirrors Home.tsx pattern) — needed by StatsFlyout.
-  useEffect(() => {
-    let alive = true;
-    api.profile(DEMO_OWNER).then((p) => alive && setProfile(p)).catch(() => {});
     return () => { alive = false; };
   }, [bump]);
 
@@ -68,11 +59,10 @@ export function AppShell() {
   return (
     <AppDataContext.Provider value={appData}>
       <div className="as-root">
-        {/* ── Top bar ── */}
-        <header className="as-topbar">
+        {/* ── Floating logo (top-left, no bar) ── */}
+        <div className="as-logo">
           <LogoMenu />
-          <StatsFlyout profile={profile} pacts={pacts} />
-        </header>
+        </div>
 
         {/* ── Main content ── */}
         <main className="as-main">

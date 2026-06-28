@@ -27,7 +27,7 @@ vi.mock("../api", () => ({
   },
 }));
 
-it("renders a top bar with the logo-menu button and no sidebar", () => {
+it("renders the floating logo-menu button and no sidebar", () => {
   const { container, getByRole } = render(
     <MemoryRouter initialEntries={["/dashboard"]}>
       <AppShell />
@@ -39,14 +39,16 @@ it("renders a top bar with the logo-menu button and no sidebar", () => {
   expect(getByRole("button", { name: /menu/i })).toBeTruthy();
 });
 
-describe("AppShell top bar layout", () => {
-  it("has an .as-topbar element and no .as-side element", () => {
+describe("AppShell shell layout", () => {
+  it("floats the logo (.as-logo) with no top bar and no sidebar", () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <AppShell />
       </MemoryRouter>
     );
     expect(container.querySelector(".as-side")).toBeNull();
-    expect(container.querySelector(".as-topbar")).toBeTruthy();
+    // The full-width top bar is gone; the logo floats instead.
+    expect(container.querySelector(".as-topbar")).toBeNull();
+    expect(container.querySelector(".as-logo")).toBeTruthy();
   });
 });

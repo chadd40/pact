@@ -10,9 +10,9 @@ const profile = { current_streak: 3, best_streak: 9, kept: 3, failed: 1 } as Pro
 const pacts = [{ status: "active", stake_amount_cents: 5000 }, { status: "donated", stake_amount_cents: 4000 }] as Pact[];
 
 describe("StatsFlyout", () => {
-  it("always shows the collapsed donated amount", () => {
+  it("shows the collapsed \"Stats\" label", () => {
     render(<StatsFlyout profile={profile} pacts={pacts} />);
-    expect(screen.getAllByText(/\$40/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Stats")).toBeTruthy();
   });
   it("renders all five stats with labels in order", () => {
     render(<StatsFlyout profile={profile} pacts={pacts} />);

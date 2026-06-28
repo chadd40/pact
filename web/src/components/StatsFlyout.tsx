@@ -12,7 +12,7 @@ export function StatsFlyout({ profile, pacts }: { profile: Profile | null; pacts
     { label: "Donated", big: dollars(s.donatedCents) },
   ];
   return (
-    <div className="flyout" tabIndex={0}>
+    <div className="flyout" tabIndex={0} aria-label="Your stats">
       <div className="flyout-panel" role="group" aria-label="Your stats">
         {items.map((it, i) => (
           <div className="flyout-stat" key={it.label}>
@@ -23,8 +23,7 @@ export function StatsFlyout({ profile, pacts }: { profile: Profile | null; pacts
         ))}
       </div>
       <div className="flyout-collapsed" aria-hidden="true">
-        <span className="flyout-collapsed-num m">{dollars(s.donatedCents)}</span>
-        <span className="flyout-collapsed-label">Donated</span>
+        <span className="flyout-collapsed-label">Stats</span>
         <svg className="flyout-chevron" viewBox="0 0 24 24" width="14" height="14"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </div>
     </div>
