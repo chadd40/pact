@@ -9,6 +9,7 @@ import { App } from "./App";
 import { AppShell } from "./components/AppShell";
 import { Landing } from "./screens/Landing";
 import { Create } from "./screens/Create";
+import { Onboard } from "./screens/Onboard";
 import { Home } from "./screens/Home";
 import { PactDetail } from "./screens/PactDetail";
 import { Coach } from "./screens/Coach";
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       // Full-bleed, no app shell.
       { path: "/", element: <RootEntry /> },
       { path: "/create", element: <Create /> },
+      { path: "/onboard", element: <Onboard /> },
       // In-app: persistent sidebar shell.
       {
         element: <AppShell />,

@@ -276,7 +276,13 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   };
 
   const openPact = () => {
-    if (created) navigate(`/pact/${created.id}`);
+    if (created) {
+      if (isDesktop()) {
+        navigate("/onboard", { state: { pactId: created.id } });
+      } else {
+        navigate(`/pact/${created.id}`);
+      }
+    }
   };
 
   // Web mode: instead of sealing locally, encode a draft and hand it off to
