@@ -1,13 +1,12 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   PACT · App shell (Geist/Caveat). Sidebar + carousel Home + status-driven Detail
+   PACT · App shell (Geist/Caveat). Top bar + carousel Home + status-driven Detail
    + overlays + Coach/Charities/Settings. All color via --pc-* tokens (styles.css).
    ════════════════════════════════════════════════════════════════════════════ */
 
 .as-root {
-  position: fixed;
-  inset: 0;
+  min-height: 100vh;
   display: flex;
-  overflow: hidden;
+  flex-direction: column;
   background: var(--pc-ivory);
   color: #1b1a17;
   font-family: var(--pc-sans);
@@ -28,57 +27,29 @@
 .as-root .m { font-family: var(--pc-mono); }
 .as-root svg { display: block; }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
-.as-side {
-  width: 220px;
-  flex: none;
-  background: var(--pc-ivory-2);
-  border-right: 1px solid var(--pc-hair-2);
-  display: flex;
-  flex-direction: column;
-  /* extra bottom padding so the profile footer clears the fixed States pill */
-  padding: 22px 14px 66px;
-  z-index: 20;
-}
-.as-brand {
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.as-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 6px 10px 26px;
-  text-decoration: none;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: var(--pc-ivory);
+  border-bottom: 1px solid var(--pc-hair-2);
 }
-.as-brand-dot { width: 12px; height: 12px; border-radius: 3px; background: #1b1a17; }
-.as-brand-word { font-size: 19px; font-weight: 700; letter-spacing: -0.03em; color: #1b1a17; }
-.as-nav { display: flex; flex-direction: column; gap: 2px; }
-.as-nav-item {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 12px; border-radius: 9px;
-  color: #56524a; font-size: 14px; font-weight: 500;
-  text-decoration: none; cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.as-nav-item:hover { background: rgba(27, 26, 23, 0.04); color: #1b1a17; }
-.as-nav-item.on { background: #1b1a17; color: #fff; font-weight: 600; }
-.as-profile {
-  margin-top: auto; display: flex; align-items: center; gap: 10px;
-  padding: 12px 8px 2px; border-top: 1px solid var(--pc-hair-2);
-}
-.as-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e4e0d6; flex: none; }
-.as-profile-name { font-size: 13px; font-weight: 600; color: #1b1a17; }
-.as-profile-sub { font-size: 10px; color: #9a9488; }
 
-/* ── Main / nag ──────────────────────────────────────────────────────────── */
-.as-main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
-.as-nag {
-  flex: none; display: flex; align-items: center; gap: 14px;
-  background: #16150f; color: #f4ecda; border: 0;
-  padding: 11px 26px; cursor: pointer; text-align: left; width: 100%;
+/* ── Main content ────────────────────────────────────────────────────────── */
+/* height:0 gives this flex child a definite height so children's `min-height:100%`
+   (e.g. .home, .pd) resolve and fill the viewport as they did under the old shell. */
+.as-main {
+  flex: 1;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
-.as-nag-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pc-accent); box-shadow: 0 0 0 4px rgba(176, 67, 42, 0.25); flex: none; }
-.as-nag-msg { font-size: 13.5px; font-weight: 600; }
-.as-nag-tag { font-size: 11px; color: #a39d8e; text-transform: uppercase; letter-spacing: 0.08em; }
-.as-nag-cta { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--pc-accent-soft); }
-.as-content { flex: 1; min-height: 0; overflow-y: auto; }
 
 /* ── States / Demo menu ──────────────────────────────────────────────────── */
 .as-states { position: fixed; left: 18px; bottom: 18px; z-index: 80; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -703,7 +674,6 @@
 
 /* Narrow viewports: this build is desktop-first (mirrors the Create flow notice). */
 @media (max-width: 720px) {
-  .as-side { display: none; }
   .pd-active { flex-direction: column; }
   .pd-hero { width: 100%; }
 }
