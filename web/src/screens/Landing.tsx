@@ -14,17 +14,29 @@ const GOALS = [
   "shipped something every day",
 ];
 
-// Ambient wishes that drift up + fade across the whole hero. Positioned in the
-// left/right margins (% → scales with the window) so they clear the centered phone.
+// Ambient wishes that drift up + fade across the whole hero. Positioned mostly in
+// the left/right margins (% → scales with the window) so they frame the centered
+// phone, with a few up top / down low to fill the field.
 const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string }> = [
-  { t: "I wish I read more", pos: { left: "7%", bottom: "20%" }, d: "0s", dur: "14s" },
-  { t: "I wish I doomscrolled less", pos: { left: "18%", bottom: "9%" }, d: "2.4s", dur: "13s" },
-  { t: "I wish I called my mom", pos: { left: "10%", top: "30%" }, d: "5s", dur: "16s" },
-  { t: "I wish I drank less", pos: { left: "23%", top: "15%" }, d: "3.2s", dur: "15s" },
-  { t: "I wish I meditated more", pos: { right: "15%", bottom: "15%" }, d: "1.2s", dur: "13s" },
-  { t: "I wish I worked out more", pos: { right: "24%", bottom: "25%" }, d: "3.6s", dur: "14s" },
-  { t: "I wish I shipped more", pos: { right: "8%", top: "27%" }, d: "6s", dur: "17s" },
-  { t: "I wish I slept earlier", pos: { right: "20%", top: "13%" }, d: "4.4s", dur: "15s" },
+  // left column
+  { t: "I wish I read more", pos: { left: "6%", top: "16%" }, d: "0s", dur: "14s" },
+  { t: "I wish I called my mom", pos: { left: "4%", top: "35%" }, d: "5s", dur: "16s" },
+  { t: "I wish I drank less", pos: { left: "8%", top: "54%" }, d: "3.2s", dur: "15s" },
+  { t: "I wish I journaled", pos: { left: "5%", top: "73%" }, d: "6.8s", dur: "15s" },
+  { t: "I wish I doomscrolled less", pos: { left: "15%", bottom: "8%" }, d: "2.4s", dur: "13s" },
+  { t: "I wish I woke up early", pos: { left: "19%", top: "25%" }, d: "8.1s", dur: "17s" },
+  { t: "I wish I cooked more", pos: { left: "12%", bottom: "26%" }, d: "4.7s", dur: "14s" },
+  // right column
+  { t: "I wish I meditated more", pos: { right: "6%", top: "18%" }, d: "1.2s", dur: "13s" },
+  { t: "I wish I worked out more", pos: { right: "5%", top: "37%" }, d: "3.6s", dur: "14s" },
+  { t: "I wish I shipped more", pos: { right: "9%", top: "55%" }, d: "6s", dur: "17s" },
+  { t: "I wish I slept earlier", pos: { right: "5%", top: "74%" }, d: "4.4s", dur: "15s" },
+  { t: "I wish I stretched daily", pos: { right: "16%", bottom: "9%" }, d: "7.3s", dur: "13s" },
+  { t: "I wish I saved more", pos: { right: "19%", top: "27%" }, d: "2.1s", dur: "16s" },
+  { t: "I wish I touched grass", pos: { right: "12%", bottom: "27%" }, d: "9.2s", dur: "15s" },
+  // top edges, framing the headline
+  { t: "I wish I wrote more", pos: { left: "29%", top: "9%" }, d: "5.6s", dur: "16s" },
+  { t: "I wish I learned guitar", pos: { right: "28%", top: "11%" }, d: "1.9s", dur: "14s" },
 ];
 
 // Desktop app download. Pact ships as a GitHub DMG — point at the latest release.
@@ -421,12 +433,12 @@ export function Landing() {
                   </div>
                 </div>
                 <div className="ba-thread">
-                  <div className="ba-bubble b1">You've got 12 hours to submit evidence ⏳</div>
-                  <div className="ba-bubble b2">Let's go — you've got this 💪</div>
+                  <div className="ba-bubble b1">12 hours left to log today's workout ⏳</div>
+                  <div className="ba-bubble b2">You're 4 for 5 this week — way ahead of last week.</div>
                   <div className="ba-typing" aria-hidden="true">
                     <span /> <span /> <span />
                   </div>
-                  <div className="ba-bubble b3">Don't hand $200 to charity tonight.</div>
+                  <div className="ba-bubble b3">One session and the week is clean. Don't hand $200 to charity tonight 💪</div>
                 </div>
               </div>
               <div className="bento-foot">

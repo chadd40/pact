@@ -30,6 +30,19 @@ const GOALS: GoalCard[] = [
 ];
 const CUSTOM_INDEX = GOALS.length - 1;
 
+// Painterly card fronts a custom goal can wear (picked via the image button on
+// step 1). The goal name is overlaid at the bottom, mirroring the template cards.
+const CUSTOM_ARTS = [
+  "/create/create_1.png",
+  "/create/create_2.png",
+  "/create/create_3.png",
+  "/create/create_4.png",
+  "/create/create_5.png",
+];
+
+// Desktop app download — the GitHub DMG release (mirrors the landing page).
+const DOWNLOAD_URL = "https://github.com/pact-app/pact/releases/latest";
+
 // Shown as the signature line on the card back. Until accounts exist, the signer's
 // real name isn't known at creation time — show a placeholder. Swap to the
 // registered user's name here once that's available.
@@ -50,8 +63,8 @@ const AGENTS: AgentDef[] = [
   { key: "your agent", name: "Your own agent", blurb: "Any MCP agent, via API", avatar: "/agents/Nemoclaw.svg", tag: "connect" },
 ];
 
-// Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 sealing · 6 message
-type Stage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+// Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 name · 6 sealing · 7 message
+type Stage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 const WEEK_OPTIONS = [1, 4, 8, 12];
 const STAKE_PRESETS = [50, 100, 200, 500];
@@ -78,6 +91,18 @@ const Spark = ({ size = 24 }: { size?: number }) => (
     <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" />
   </svg>
 );
+const PictureIcon = ({ size = 19 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <circle cx="8.5" cy="9.5" r="1.6" />
+    <path d="M21 16l-5-5L5 20" />
+  </svg>
+);
+const DownloadIcon = ({ size = 18 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
+    <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" />
+  </svg>
+);
 
 export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
@@ -93,6 +118,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const [stake, setStake] = useState(200);
   const [charityId, setCharityId] = useState<string | null>(null);
   const [agentKey, setAgentKey] = useState<string | null>(null);
+  const [signerName, setSignerName] = useState(""); // step 5 — signs the card
+  const [customArt, setCustomArt] = useState<string | null>(null); // custom-goal front
+  const [pickerOpen, setPickerOpen] = useState(false); // image picker open
+  const [peeking, setPeeking] = useState(false); // momentary flip-to-front peek
+  const peekTimer = useRef<number | null>(null);
   // Reveal beat: after the flip lands, the card "loads" — title + frequency
   // resolve out of the skeleton and the editor rail comes alive.
   const [editorReady, setEditorReady] = useState(false);
@@ -135,8 +165,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     setStake(Math.round(d.stake_amount_cents / 100));
     setCharityId(d.charity_id);
     setAgentKey(d.agent);
+    setSignerName(d.signer_name ?? "");
+    setCustomArt(null);
     setEditorReady(true);
-    setStage(4);
+    // Everything but the signature is filled — land on the name step ready to sign.
+    setStage(5);
   };
 
   // Fetch the real charity catalog once.
@@ -191,10 +224,10 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const railHeadRef = useRef<HTMLHeadingElement>(null);
   const openBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (stage === 1 && isCustom) return; // the name input auto-focuses itself
+    if ((stage === 1 && isCustom) || stage === 5) return; // name inputs auto-focus themselves
     // When embedded on the landing, never let focus yank the page-scroll around.
-    if (stage >= 1 && stage <= 4) railHeadRef.current?.focus({ preventScroll: embedded });
-    else if (stage === 6) openBtnRef.current?.focus({ preventScroll: embedded });
+    if (stage >= 1 && stage <= 5) railHeadRef.current?.focus({ preventScroll: embedded });
+    else if (stage === 7) openBtnRef.current?.focus({ preventScroll: embedded });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -222,6 +255,8 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     setCharityId(null);
     setAgentKey(null);
     setCustomDesc("");
+    setCustomArt(null);
+    setPickerOpen(false);
     if (i !== CUSTOM_INDEX) setCustomTitle("");
     setGoalIndex(i);
     setActive(i);
@@ -238,6 +273,24 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     if (i !== active) setActive(i);
     else select(i);
   };
+
+  // Click anywhere on a card. In the deck it picks/recenters; while editing,
+  // clicking the chosen card flips it to its front for a beat so you can see the
+  // image + goal, then it smoothly flips back.
+  const onCardClick = (i: number) => {
+    if (stage === 0) {
+      tap(i);
+      return;
+    }
+    if (i === goalIndex && stage >= 1 && stage <= 5) peekFront();
+  };
+
+  const peekFront = () => {
+    setPeeking(true);
+    if (peekTimer.current) window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => setPeeking(false), 1300);
+  };
+  useEffect(() => () => { if (peekTimer.current) window.clearTimeout(peekTimer.current); }, []);
 
   const prev = () => setActive((a) => Math.max(0, a - 1));
   const next = () => setActive((a) => Math.min(GOALS.length - 1, a + 1));
@@ -259,14 +312,15 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const advance = () => {
     if (stage === 1 && isCustom && !customTitle.trim()) return;
     if (stage === 3 && !charityId) return;
-    setStage((s) => Math.min(4, (s + 1) as Stage) as Stage);
+    if (stage === 4 && !agentKey) return;
+    setStage((s) => Math.min(5, (s + 1) as Stage) as Stage);
   };
 
   const seal = async () => {
     if (!charityId || !agentKey) return;
-    if (stageRef.current >= 5) return; // guard against double-seal (duplicate pacts)
+    if (stageRef.current >= 6) return; // guard against double-seal (duplicate pacts)
     setError(null);
-    setStage(5);
+    setStage(6);
     try {
       const pact = await api.createPact({
         goal_title: goalName,
@@ -282,11 +336,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       });
       setCreated(pact);
       signalChange();
-      window.setTimeout(() => setStage(6), 1300);
+      window.setTimeout(() => setStage(7), 1300);
     } catch (e) {
       const detail = e instanceof ApiError ? e.detail : "Could not seal the pact. Try again.";
       setError(detail);
-      setStage(4);
+      setStage(5);
     }
   };
 
@@ -300,33 +354,47 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     }
   };
 
-  // Web mode: instead of sealing locally, encode a draft and hand it off to
-  // the desktop app via clipboard. Mirror the seal handler's goal/what_counts
-  // derivation exactly so the desktop side receives a faithful pact definition.
-  const copyPayload = async () => {
-    setCopied(false);
-    setBlobText(null);
-    if (!charityId || !agentKey) return;
+  // Encode the current choices into a copy-paste handoff blob. Mirrors the seal
+  // handler's goal/what_counts derivation exactly so the desktop side receives a
+  // faithful pact definition (now including the signer's name).
+  const buildBlob = (): string | null => {
+    if (!charityId || !agentKey) return null;
     const draft: PactDraft = {
-      // Mirror seal handler: goalName = isCustom ? customTitle.trim() || "Your goal" : goalCard.title
       goal: goalName,
-      // Mirror seal handler: goal_template = goalCard.template (null for custom)
       ...(isCustom ? {} : { goal_template: goalCard.template ?? undefined }),
-      // Mirror seal handler: description = isCustom ? customDesc.trim() || undefined : undefined
       what_counts: isCustom ? customDesc.trim() || undefined : undefined,
       frequency: { days_per_week: days, weeks },
       stake_amount_cents: stake * 100,
       charity_id: charityId,
       agent: agentKey,
+      signer_name: signerName.trim() || undefined,
     };
-    const blob = encodeDraft(draft);
+    return encodeDraft(draft);
+  };
+
+  // Web mode "Sign the pact": there's no local account to seal into, so we encode
+  // the handoff blob, play the signing beat, then land on the download + paste
+  // screen the user finishes in the desktop app.
+  const signWeb = () => {
+    if (!charityId || !agentKey || !signerName.trim()) return;
+    if (stageRef.current >= 6) return;
+    setError(null);
+    setCopied(false);
+    const blob = buildBlob();
+    if (!blob) return;
     setBlobText(blob);
+    setStage(6);
+    window.setTimeout(() => setStage(7), 1300);
+  };
+
+  // Copy the handoff blob from the final screen.
+  const copyBlob = async () => {
+    if (!blobText) return;
     try {
-      await navigator.clipboard.writeText(blob);
+      await navigator.clipboard.writeText(blobText);
       setCopied(true);
     } catch {
-      // Clipboard blocked — blob is shown in the fallback textarea for manual copy.
-      setCopied(false);
+      setCopied(false); // clipboard blocked — the textarea is there for manual copy
     }
   };
 
@@ -348,10 +416,10 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     }
     // hero (chosen card)
     if (i === goalIndex) {
-      const exiting = stage >= 5;
+      const exiting = stage >= 6;
       return {
         transform: slotTransform(-258, exiting ? 44 : 0, 60, 0, exiting ? 0.86 : 1),
-        opacity: stage === 6 ? 0 : 1,
+        opacity: stage === 7 ? 0 : 1,
         zIndex: 200,
         transition: "transform .72s cubic-bezier(.34,.72,.26,1), opacity .55s ease",
       };
@@ -370,7 +438,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   };
 
   const flipStyle = (i: number): React.CSSProperties => {
-    const flipped = stage >= 1 && i === goalIndex;
+    // The chosen card shows its editorial back while editing — except during a
+    // peek, when it flips back to the front for a beat.
+    const flipped = stage >= 1 && i === goalIndex && !peeking;
     return {
       transform: `rotateY(${flipped ? 180 : 0}deg)`,
       transition: "transform .85s cubic-bezier(.2,.72,.26,1) .1s",
@@ -383,11 +453,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const stakeReady = stage >= 2;
   const charityReady = stage >= 3 && !!charity;
   const agentReady = stage >= 4 && !!agentDef;
-  const signed = stage >= 5;
+  const signed = stage >= 6;
   const zoneState = (n: number) => (stage === n ? "active" : stage > n ? "done" : "pending");
 
   const deckMode = stage === 0;
-  const editing = stage >= 1 && stage <= 4;
+  const editing = stage >= 1 && stage <= 5;
 
   // ── Editor rail step copy ────────────────────────────────────────────────────
   const stepMeta =
@@ -399,10 +469,18 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       ? { n: 3, head: "Choose the cause" }
       : stage === 4
       ? { n: 4, head: "Pick your agent" }
+      : stage === 5
+      ? { n: 5, head: "Sign your name" }
       : { n: 0, head: "" };
 
   const canContinue =
-    stage === 1 ? !isCustom || !!customTitle.trim() : stage === 3 ? !!charityId : true;
+    stage === 1
+      ? !isCustom || !!customTitle.trim()
+      : stage === 3
+      ? !!charityId
+      : stage === 4
+      ? !!agentKey
+      : true;
 
   return (
     <div className={embedded ? "pc-root pc-embedded" : "pc-root"} ref={rootRef}>
@@ -421,9 +499,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
       )}
 
-      <div className="pc-stage">
-        <div className="pc-vignette" />
+      {/* Full-page ambient vignette — lives outside the scaled stage so it covers
+          the whole viewport, not just the stage box. */}
+      <div className="pc-vignette" />
 
+      <div className="pc-stage">
         {/* Back */}
         <button
           type="button"
@@ -456,7 +536,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                   key={g.title}
                   className="pc-slot"
                   style={slotStyle(i)}
-                  onClick={() => tap(i)}
+                  onClick={() => onCardClick(i)}
                   onKeyDown={(e) => {
                     if (deckMode && (e.key === "Enter" || e.key === " ")) {
                       e.preventDefault();
@@ -473,6 +553,19 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                     <div className="pc-face pc-front">
                       {g.art ? (
                         <img className="pc-art" src={g.art} alt="" draggable={false} />
+                      ) : isHero && customArt ? (
+                        // Custom goal with a picked picture: image + goal name baked on,
+                        // mirroring the template card fronts.
+                        <div className="pc-custom-art">
+                          <img className="pc-art" src={customArt} alt="" draggable={false} />
+                          <div className="pc-custom-art-foot">
+                            <div className="pc-custom-art-title">{goalName}</div>
+                            <div className="cf-foot m">
+                              <span>pact</span>
+                              <span>✦</span>
+                            </div>
+                          </div>
+                        </div>
                       ) : (
                         <div className="pc-custom-front">
                           <div className="cf-plus">
@@ -503,7 +596,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                           stake={stake}
                           charity={charity}
                           agent={agentDef}
-                          owner={OWNER_NAME}
+                          owner={signerName.trim() || OWNER_NAME}
                           sealedDate={sealedDate}
                           titleReady={titleReady}
                           freqReady={freqReady}
@@ -567,7 +660,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           }}
         >
           <div className="pc-rail-head">
-            <div className="m step">Step {stepMeta.n} of 4</div>
+            <div className="m step">Step {stepMeta.n} of 5</div>
             <h2 ref={railHeadRef} tabIndex={-1}>{stepMeta.head}</h2>
           </div>
 
@@ -577,15 +670,45 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
               <div className="pc-panel">
                 {isCustom && (
                   <>
-                    <input
-                      className="pc-name-input"
-                      placeholder="Name your goal…"
-                      aria-label="Name your goal"
-                      value={customTitle}
-                      autoFocus
-                      maxLength={60}
-                      onChange={(e) => setCustomTitle(e.target.value)}
-                    />
+                    <div className="pc-name-row">
+                      <input
+                        className="pc-name-input"
+                        placeholder="Name your goal…"
+                        aria-label="Name your goal"
+                        value={customTitle}
+                        autoFocus
+                        maxLength={60}
+                        onChange={(e) => setCustomTitle(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className={`pc-art-btn${customArt ? " has" : ""}`}
+                        aria-label="Choose a picture for your card"
+                        aria-expanded={pickerOpen}
+                        onClick={() => setPickerOpen((o) => !o)}
+                      >
+                        <PictureIcon />
+                      </button>
+                    </div>
+                    {pickerOpen && (
+                      <div className="pc-art-picker" role="listbox" aria-label="Card pictures">
+                        {CUSTOM_ARTS.map((src, idx) => (
+                          <button
+                            key={src}
+                            type="button"
+                            role="option"
+                            aria-selected={customArt === src}
+                            className={`pc-art-opt${customArt === src ? " sel" : ""}`}
+                            onClick={() => {
+                              setCustomArt(src);
+                              setPickerOpen(false);
+                            }}
+                          >
+                            <img src={src} alt={`Card picture ${idx + 1}`} loading="lazy" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <textarea
                       className="pc-desc-input"
                       placeholder="What counts as a check-in? (optional — your agent judges against this)"
@@ -727,82 +850,127 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                 </div>
               </div>
             )}
+
+            {/* NAME — signs the card */}
+            {stage === 5 && (
+              <div className="pc-panel">
+                <input
+                  className="pc-name-input pc-signer-input"
+                  placeholder="Your name…"
+                  aria-label="Your name"
+                  value={signerName}
+                  autoFocus
+                  maxLength={40}
+                  onChange={(e) => setSignerName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && signerName.trim()) (isDesktop() ? seal : signWeb)();
+                  }}
+                />
+                <div className="pc-help m">
+                  This is the name that signs your pact — it's written on the card and stands behind the promise.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pc-rail-foot">
-            {stage < 4 ? (
+            {stage < 5 ? (
               <button className="pc-continue" onClick={advance} disabled={!canContinue}>
                 Continue <Arrow />
               </button>
-            ) : isDesktop() ? (
-              /* Desktop: seal locally as before */
-              <button className="pc-continue seal" onClick={seal} disabled={!agentKey}>
-                Seal the pact <Arrow />
-              </button>
             ) : (
-              /* Web: emit a copy-paste handoff payload for the desktop app */
-              <div className="pc-web-handoff">
-                <button
-                  className="pc-continue seal"
-                  onClick={copyPayload}
-                  disabled={!agentKey}
-                >
-                  {copied ? "Copied!" : "Copy your pact"} <Arrow />
-                </button>
-                {blobText && (
-                  <div className="pc-handoff-hint">
-                    <p className="pc-handoff-msg m">Open the Pact app and paste this in</p>
-                    <textarea
-                      className="pc-handoff-blob"
-                      readOnly
-                      value={blobText}
-                      rows={3}
-                      aria-label="Pact payload — copy and paste this into the Pact desktop app"
-                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                    />
-                  </div>
-                )}
-              </div>
+              /* Step 5: sign. Desktop seals locally; web emits the handoff + lands on
+                 the download screen. */
+              <button
+                className="pc-continue seal"
+                onClick={isDesktop() ? seal : signWeb}
+                disabled={!signerName.trim()}
+              >
+                Sign the pact <Arrow />
+              </button>
             )}
           </div>
         </div>
 
-        {/* Sealing (stage 5) */}
-        <div className="pc-sending" style={{ opacity: stage === 5 ? 1 : 0 }}>
+        {/* Sealing (stage 6) */}
+        <div className="pc-sending" style={{ opacity: stage === 6 ? 1 : 0 }}>
           <div className="pill">
-            <span className="txt m">Sealing your pact with {agentDef?.name || "your agent"}</span>
+            <span className="txt m">Signing your pact with {agentDef?.name || "your agent"}</span>
             <span className="pc-dots"><span /><span /><span /></span>
           </div>
         </div>
 
-        {/* Message (stage 6) */}
+        {/* Final screen (stage 7) */}
         <div
           className="pc-msg"
-          style={{ opacity: stage === 6 ? 1 : 0, pointerEvents: stage === 6 ? "auto" : "none" }}
+          style={{ opacity: stage === 7 ? 1 : 0, pointerEvents: stage === 7 ? "auto" : "none" }}
         >
-          <div className="card" style={{ transform: stage === 6 ? "translateY(0)" : "translateY(14px)" }}>
-            <div className="head">
-              <div className="ic">
-                {agentDef?.avatar ? <img src={agentDef.avatar} alt="" /> : <Spark size={22} />}
-              </div>
-              <div>
-                <div className="nm">{agentDef?.name || "Hermes Agent"}</div>
-                <div className="status"><span className="dot" />Now coaching your pact</div>
-              </div>
-            </div>
-            <div className="body">
-              <div className="bubble">
-                Let's go — we've got a pact. <b>${stake}</b> is on the line behind{" "}
-                <b>{goalName.toLowerCase()}</b>, {days} days/week for {weeks} {weeksWord}. I'll get you
-                started: your <b>first check-in is tomorrow</b>. Miss it and{" "}
-                {charity?.name || "your charity"} gets paid — so let's not.
-              </div>
-              <div className="actions">
-                <button className="open" ref={openBtnRef} onClick={openPact}>
-                  Open my pact <Arrow />
-                </button>
-              </div>
-            </div>
+          <div className="card" style={{ transform: stage === 7 ? "translateY(0)" : "translateY(14px)" }}>
+            {isDesktop() && created ? (
+              <>
+                <div className="head">
+                  <div className="ic">
+                    {agentDef?.avatar ? <img src={agentDef.avatar} alt="" /> : <Spark size={22} />}
+                  </div>
+                  <div>
+                    <div className="nm">{agentDef?.name || "Hermes Agent"}</div>
+                    <div className="status"><span className="dot" />Now coaching your pact</div>
+                  </div>
+                </div>
+                <div className="body">
+                  <div className="bubble">
+                    Let's go — we've got a pact. <b>${stake}</b> is on the line behind{" "}
+                    <b>{goalName.toLowerCase()}</b>, {days} days/week for {weeks} {weeksWord}. I'll get you
+                    started: your <b>first check-in is tomorrow</b>. Miss it and{" "}
+                    {charity?.name || "your charity"} gets paid — so let's not.
+                  </div>
+                  <div className="actions">
+                    <button className="open" ref={openBtnRef} onClick={openPact}>
+                      Open my pact <Arrow />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Web: the pact is signed but lives in the copy-paste blob. Send the
+                 user to the app — download it, then paste the pact in. */
+              <>
+                <div className="head pc-done-head">
+                  <div className="ic done">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="nm">Pact signed by {signerName.trim() || "you"}</div>
+                    <div className="status">
+                      <span className="dot" />${stake} on {goalName.toLowerCase()} · {days}×/wk · {weeks} {weeksWord}
+                    </div>
+                  </div>
+                </div>
+                <div className="body">
+                  <p className="pc-done-lede">
+                    Two steps to put it on the line: get the Pact app, then paste your signed pact in.
+                  </p>
+                  <div className="pc-done-steps">
+                    <a className="pc-done-download" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                      <DownloadIcon /> Download the app
+                    </a>
+                    <button className="pc-done-copy" onClick={copyBlob}>
+                      {copied ? "Copied — now paste it in ✓" : "Copy your pact"}
+                    </button>
+                  </div>
+                  <textarea
+                    className="pc-handoff-blob pc-done-blob"
+                    readOnly
+                    value={blobText ?? ""}
+                    rows={3}
+                    aria-label="Pact payload — copy and paste this into the Pact desktop app"
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
