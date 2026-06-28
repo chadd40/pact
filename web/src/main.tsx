@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
+import { createHashRouter, RouterProvider, Navigate } from "react-router-dom";
 import "./styles.css";
 import "./components.css";
 import "./redesign.css";
@@ -32,7 +32,7 @@ function RootEntry() {
   return <Navigate to={dest} replace />;
 }
 
-const router = createBrowserRouter([
+const router = createHashRouter([
   {
     element: <App />,
     children: [

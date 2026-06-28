@@ -8,6 +8,7 @@ import { isDesktop } from "../lib/platform";
 import { encodeDraft } from "../lib/handoff";
 import type { PactDraft } from "../lib/handoff";
 import { CC_TOP, CC_GLYPH, CC_SUBTITLE, CC_PACT, CC_INDEX, CC_GRAD } from "./customCardFrame";
+import { asset } from "../lib/asset";
 import "./create.css";
 
 // ── Goal deck ─────────────────────────────────────────────────────────────────
@@ -21,18 +22,24 @@ interface GoalCard {
   art: string | null; // public path to the front-card SVG; null = custom
 }
 
+// `art` is display-only (it's never persisted — the seal sends `template`), so
+// resolve it against the Vite base here. `template` and `card_art` stay raw.
 const GOALS: GoalCard[] = [
-  { title: "Work out", desc: "Move your body", template: "workout", art: "/cards/workout.svg" },
-  { title: "Read", desc: "Feed your mind", template: "read", art: "/cards/read.svg" },
-  { title: "Ship something", desc: "Build in public", template: "ship_daily", art: "/cards/ship.svg" },
-  { title: "Meditate", desc: "Find some quiet", template: "meditate", art: "/cards/meditate.svg" },
-  { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", art: "/cards/nophone.svg" },
+  { title: "Work out", desc: "Move your body", template: "workout", art: asset("/cards/workout.svg") },
+  { title: "Read", desc: "Feed your mind", template: "read", art: asset("/cards/read.svg") },
+  { title: "Ship something", desc: "Build in public", template: "ship_daily", art: asset("/cards/ship.svg") },
+  { title: "Meditate", desc: "Find some quiet", template: "meditate", art: asset("/cards/meditate.svg") },
+  { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", art: asset("/cards/nophone.svg") },
   { title: "Custom goal", desc: "Make your own", template: null, art: null },
 ];
 const CUSTOM_INDEX = GOALS.length - 1;
 
 // Painterly card fronts a custom goal can wear (picked via the image button on
 // step 1). The goal name is overlaid at the bottom, mirroring the template cards.
+// Kept as raw `/create/*` paths: the chosen one is persisted as the pact's
+// `card_art`, so it must NOT carry the Vite base here (cardArtFor() / the display
+// sites resolve it against the base exactly once at the point of use — prefixing
+// here too would double it under a subpath like /pact/).
 const CUSTOM_ARTS = [
   "/create/create_1.png",
   "/create/create_2.png",
@@ -42,7 +49,7 @@ const CUSTOM_ARTS = [
 ];
 
 // Desktop app download — the GitHub DMG release (mirrors the landing page).
-const DOWNLOAD_URL = "https://github.com/pact-app/pact/releases/latest";
+const DOWNLOAD_URL = "https://github.com/chadd40/pact/releases/latest";
 
 // Shown as the signature line on the card back. Until accounts exist, the signer's
 // real name isn't known at creation time — show a placeholder. Swap to the
@@ -58,10 +65,13 @@ export interface AgentDef {
   tag: "rec" | "connect";
   glyph?: JSX.Element;
 }
+// `avatar` is display-only (the persisted agent is `key`), so resolve it against
+// the Vite base here — every consumer (Create rail/final screen, PactWorld) reads
+// `avatar` directly and none re-prefix.
 export const AGENTS: AgentDef[] = [
-  { key: "Hermes", name: "Hermes Agent", blurb: "Your built-in coach", avatar: "/agents/Hermes.svg", tag: "rec" },
-  { key: "Claude Code", name: "Claude Code", blurb: "From your dev workflow", avatar: "/agents/Claude.svg", tag: "connect" },
-  { key: "your agent", name: "Your own agent", blurb: "Any MCP agent, via API", avatar: "/agents/Nemoclaw.svg", tag: "connect" },
+  { key: "Hermes", name: "Hermes Agent", blurb: "Your built-in coach", avatar: asset("/agents/Hermes.svg"), tag: "rec" },
+  { key: "Claude Code", name: "Claude Code", blurb: "From your dev workflow", avatar: asset("/agents/Claude.svg"), tag: "connect" },
+  { key: "your agent", name: "Your own agent", blurb: "Any MCP agent, via API", avatar: asset("/agents/Nemoclaw.svg"), tag: "connect" },
 ];
 
 // Stages: 0 deck · 1 frequency · 2 stake · 3 charity · 4 agent · 5 name · 6 sealing · 7 message
@@ -541,7 +551,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           Clickable: returns home (the dashboard, once the app build lands). */}
       {!embedded && (
         <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact, back to home">
-          <img className="pc-brand-logo" src="/primary_logo.svg" alt="Pact" />
+          <img className="pc-brand-logo" src={asset("/primary_logo.svg")} alt="Pact" />
         </button>
       )}
       {isDesktop() && stage === 0 && (
@@ -607,7 +617,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                       ) : isHero && customArt ? (
                         // Custom goal with a picked picture: the designer's card
                         // frame with the image + live goal title.
-                        <CustomCardFront imageSrc={customArt} title={goalName} />
+                        <CustomCardFront imageSrc={asset(customArt)} title={goalName} />
                       ) : (
                         <div className="pc-custom-front">
                           <div className="cf-plus">
@@ -746,7 +756,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                               setPickerOpen(false);
                             }}
                           >
-                            <img src={src} alt={`Card picture ${idx + 1}`} loading="lazy" />
+                            <img src={asset(src)} alt={`Card picture ${idx + 1}`} loading="lazy" />
                           </button>
                         ))}
                       </div>

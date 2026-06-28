@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Create } from "./Create";
+import { asset } from "../lib/asset";
 import "./landing.css";
 
 // The wishes that cycle through the blue bubble + drift in the background.
@@ -41,7 +42,7 @@ const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string
 
 // Desktop app download. Pact ships as a GitHub DMG — point at the latest release.
 // Swap this to the real repo once the release is published.
-const DOWNLOAD_URL = "https://github.com/pact-app/pact/releases/latest";
+const DOWNLOAD_URL = "https://github.com/chadd40/pact/releases/latest";
 
 // The scroll-revealed iMessage script. `side` says who's "composing" it — an
 // incoming line ("in") shows the friend's typing dots first; an outgoing line
@@ -245,7 +246,7 @@ export function Landing() {
             aria-label="Pact menu"
             onClick={() => setMenuOpen((o) => !o)}
           >
-            <img src="/primary_logo.svg" alt="Pact" className="lp-logo" />
+            <img src={asset("/primary_logo.svg")} alt="Pact" className="lp-logo" />
             <svg className="lp-navcaret" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -278,7 +279,7 @@ export function Landing() {
 
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}
       <div className="lp-pin" ref={pinRef}>
-        <div className="lp-sticky">
+        <div className="lp-sticky" style={{ ["--hero-bg" as any]: `url(${asset("/hero_bg.png")})` }}>
           {/* ambient drifting wishes (scale with the window) */}
           <div className="lp-field" aria-hidden="true">
             {DRIFT.map((w, i) => (
@@ -329,7 +330,7 @@ export function Landing() {
 
                   <div className="lp-imhead">
                     <span className="lp-imback">‹</span>
-                    <img src="/alfie.png" alt="friend" className="lp-imavatar" />
+                    <img src={asset("/alfie.png")} alt="friend" className="lp-imavatar" />
                     <span className="lp-imname">
                       friend <span className="lp-imchevron">›</span>
                     </span>
@@ -364,7 +365,7 @@ export function Landing() {
                         <button className="lp-richlink" onClick={onboard}>
                           <div className="lp-richlink-hero">
                             <span className="lp-richlink-sheen" />
-                            <img src="/pact_icon.png" alt="" className="lp-richlink-icon" />
+                            <img src={asset("/pact_icon.png")} alt="" className="lp-richlink-icon" />
                           </div>
                           <div className="lp-richlink-foot">
                             <div className="lp-richlink-title">Make a promise you actually keep</div>
@@ -416,11 +417,11 @@ export function Landing() {
             {/* CREATE — a flatter fan of the real cards filling the top */}
             <article className="lp-cell bento-create" data-reveal>
               <div className="bento-visual bv-fan" aria-hidden="true">
-                <img className="bf-card bf-1" src="/cards/meditate.svg" alt="" draggable={false} />
-                <img className="bf-card bf-2" src="/cards/read.svg" alt="" draggable={false} />
-                <img className="bf-card bf-3" src="/cards/workout.svg" alt="" draggable={false} />
-                <img className="bf-card bf-4" src="/cards/ship.svg" alt="" draggable={false} />
-                <img className="bf-card bf-5" src="/cards/nophone.svg" alt="" draggable={false} />
+                <img className="bf-card bf-1" src={asset("/cards/meditate.svg")} alt="" draggable={false} />
+                <img className="bf-card bf-2" src={asset("/cards/read.svg")} alt="" draggable={false} />
+                <img className="bf-card bf-3" src={asset("/cards/workout.svg")} alt="" draggable={false} />
+                <img className="bf-card bf-4" src={asset("/cards/ship.svg")} alt="" draggable={false} />
+                <img className="bf-card bf-5" src={asset("/cards/nophone.svg")} alt="" draggable={false} />
               </div>
               <div className="bento-foot">
                 <div className="bento-h">Create a pact</div>
@@ -432,7 +433,7 @@ export function Landing() {
             <article className="lp-cell bento-agent" data-reveal style={{ transitionDelay: ".06s" }}>
               <div className="ba-panel">
                 <div className="ba-top">
-                  <img className="ba-av" src="/agents/Hermes.svg" alt="Hermes" />
+                  <img className="ba-av" src={asset("/agents/Hermes.svg")} alt="Hermes" />
                   <div>
                     <div className="ba-name">Hermes</div>
                     <div className="ba-status">
@@ -462,7 +463,7 @@ export function Landing() {
               <div className="bento-visual bv-stake" aria-hidden="true">
                 <div className="bs-reader">
                   <div className="bs-card">
-                    <img className="bs-card-logo" src="/link_logo.svg" alt="" />
+                    <img className="bs-card-logo" src={asset("/link_logo.svg")} alt="" />
                     <div className="bs-card-amt m">$200</div>
                   </div>
                   <div className="bs-terminal">
@@ -482,7 +483,7 @@ export function Landing() {
               <div className="bento-visual bv-prove" aria-hidden="true">
                 <div className="bp-zone">
                   <div className="bp-file">
-                    <img className="bp-thumb" src="/create_3.png" alt="" />
+                    <img className="bp-thumb" src={asset("/create_3.png")} alt="" />
                     <span className="bp-fname m">piano.jpg</span>
                   </div>
                   <div className="bp-status">
@@ -545,7 +546,7 @@ export function Landing() {
           <div className="lp-int-grid">
             <div className="lp-int-card lp-int-primary" data-reveal>
               <span className="lp-int-logo">
-                <img src="/agents/Hermes.svg" alt="Hermes" />
+                <img src={asset("/agents/Hermes.svg")} alt="Hermes" />
               </span>
               <div className="lp-int-name">Hermes</div>
               <div className="lp-int-sub">Built in · ready the moment you seal</div>
@@ -553,7 +554,7 @@ export function Landing() {
             </div>
             <div className="lp-int-card" data-reveal style={{ transitionDelay: ".06s" }}>
               <span className="lp-int-logo">
-                <img src="/agents/Claude.svg" alt="Claude Code" />
+                <img src={asset("/agents/Claude.svg")} alt="Claude Code" />
               </span>
               <div className="lp-int-name">Claude Code</div>
               <div className="lp-int-sub">Straight from your dev workflow</div>
@@ -561,7 +562,7 @@ export function Landing() {
             </div>
             <div className="lp-int-card" data-reveal style={{ transitionDelay: ".12s" }}>
               <span className="lp-int-logo">
-                <img src="/agents/Nemoclaw.svg" alt="NVIDIA" />
+                <img src={asset("/agents/Nemoclaw.svg")} alt="NVIDIA" />
               </span>
               <div className="lp-int-name">NVIDIA</div>
               <div className="lp-int-sub">NeMo agents, via API</div>
@@ -607,7 +608,7 @@ export function Landing() {
 
       {/* ── Final CTA ────────────────────────────────────────────────────────── */}
       <section className="lp-section lp-final">
-        <img className="lp-final-dot" src="/dot.svg" alt="" aria-hidden="true" />
+        <img className="lp-final-dot" src={asset("/dot.svg")} alt="" aria-hidden="true" />
         <h2 className="lp-final-title">Become the better version of yourself.</h2>
         <p className="lp-final-sub">
           One promise. Real stakes. An agent in your corner. It starts the moment you stop wishing.

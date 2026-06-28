@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { asset } from "../lib/asset";
 
 const ITEMS = [
   { to: "/dashboard", label: "Home" },
@@ -27,7 +28,7 @@ export function LogoMenu() {
   return (
     <div className={"lm-nav" + (open ? " open" : "")} ref={ref}>
       <button type="button" className="lm-navbtn" aria-haspopup="menu" aria-expanded={open} aria-label="Pact menu" onClick={() => setOpen((o) => !o)}>
-        <img src="/compact_nav_pact.svg" alt="Pact" className="lm-logo" />
+        <img src={asset("/compact_nav_pact.svg")} alt="Pact" className="lm-logo" />
         <svg className="lm-navcaret" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

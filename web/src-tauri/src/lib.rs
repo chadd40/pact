@@ -1,13 +1,67 @@
 use std::collections::HashMap;
 
+use serde::Serialize;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
+
+/// The /pact skill, embedded at compile time so the installer never depends on
+/// files outside the bundle. `include_str!` is resolved relative to this source
+/// file (web/src-tauri/src/lib.rs); three levels up is the repo root, which is
+/// also the checkout root in CI, so the path resolves in both places.
+const PACT_SKILL_MD: &str = include_str!("../../../.claude/skills/pact/SKILL.md");
+
+#[derive(Serialize)]
+struct InstallResult {
+    /// "installed" (wrote the skill), "builtin" (agent ships it), or "manual"
+    /// (we can't auto-install; the UI shows copy-paste instructions).
+    status: String,
+    /// Absolute path the skill was written to, when status == "installed".
+    path: Option<String>,
+    /// Human-readable line for the onboarding UI.
+    message: String,
+}
+
+/// Install the /pact skill for the agent the user picked when sealing their pact.
+/// Idempotent: re-running overwrites the file so an updated skill always wins.
+///   - "Claude Code" -> write ~/.claude/skills/pact/SKILL.md
+///   - "Hermes"      -> built-in, nothing to install
+///   - anything else -> manual (custom / bring-your-own MCP agent)
+/// The sidecar is pinned to 127.0.0.1:8000 (see the env block below), which is the
+/// base URL the skill already targets, so no templating is needed.
+#[tauri::command]
+fn install_pact_skill(app: tauri::AppHandle, agent_key: String) -> Result<InstallResult, String> {
+    match agent_key.trim().to_lowercase().as_str() {
+        "claude code" | "claude-code" | "claudecode" => {
+            let home = app.path().home_dir().map_err(|e| e.to_string())?;
+            let skill_dir = home.join(".claude").join("skills").join("pact");
+            std::fs::create_dir_all(&skill_dir).map_err(|e| e.to_string())?;
+            let skill_path = skill_dir.join("SKILL.md");
+            std::fs::write(&skill_path, PACT_SKILL_MD).map_err(|e| e.to_string())?;
+            Ok(InstallResult {
+                status: "installed".into(),
+                path: Some(skill_path.to_string_lossy().into_owned()),
+                message: "Installed the /pact skill for Claude Code.".into(),
+            })
+        }
+        "hermes" => Ok(InstallResult {
+            status: "builtin".into(),
+            path: None,
+            message: "Hermes ships with /pact built in — nothing to install.".into(),
+        }),
+        _ => Ok(InstallResult {
+            status: "manual".into(),
+            path: None,
+            message: "Copy .claude/skills/pact/SKILL.md into your agent and point it at http://127.0.0.1:8000.".into(),
+        }),
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![install_pact_skill])
         .setup(|app| {
             // Preserve debug log plugin registration from the generated scaffold.
             if cfg!(debug_assertions) {

@@ -74,7 +74,10 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: url("/hero_bg.png") center / cover no-repeat;
+  /* Image URL is supplied from JS (--hero-bg, set on .lp-sticky) so it resolves
+     against the Vite base path — a root-absolute CSS url() is not rewritten under
+     a subpath like /pact/ on GitHub Pages. */
+  background: var(--hero-bg) center / cover no-repeat;
   opacity: 0.3;
   pointer-events: none;
 }

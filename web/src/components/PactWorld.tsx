@@ -10,6 +10,7 @@ import { DeclineModal } from "./DeclineModal";
 import { CardBack, CustomCardFront, AGENTS } from "../screens/Create";
 import { GoalGlyph } from "./GoalGlyph";
 import { cardArtFor } from "../lib/cardArt";
+import { asset } from "../lib/asset";
 import { dollars, formatDate } from "../lib";
 import type { CoachingMessage, Pact, Packet } from "../types";
 // CardBack's editorial `.cb-*` styles live in create.css. It's imported by
@@ -23,7 +24,7 @@ const DONATED = new Set(["donated", "donation_failed"]);
 const DECLINED = new Set(["donation_declined", "canceled_forfeit"]);
 
 // Default coach avatar when the pact's agent has none (or no agent set).
-const HERMES_AVATAR = "/agents/Hermes.svg";
+const HERMES_AVATAR = asset("/agents/Hermes.svg");
 
 export interface PactWorldProps {
   pactId: string;

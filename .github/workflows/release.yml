@@ -1,0 +1,62 @@
+name: release
+
+# Build, sign, notarize, and publish the macOS DMG to a GitHub Release.
+# Trigger by pushing a version tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-macos:
+    # macos-14 is Apple Silicon -> produces an aarch64 (Apple Silicon) DMG.
+    # Add a macos-13 matrix leg later for an Intel (x86_64) build.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Set up uv (Python)
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python deps (incl. PyInstaller)
+        run: uv sync --group dev
+
+      - name: Build the Python sidecar (PyInstaller, triple-suffixed)
+        run: bash packaging/build-sidecar.sh
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Build, sign, notarize, and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing — Developer ID Application cert exported as base64 .p12.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # Notarization — Apple ID + app-specific password + team id.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: web
+          tagName: ${{ github.ref_name }}
+          releaseName: "Pact ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
