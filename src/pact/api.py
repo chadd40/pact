@@ -134,6 +134,10 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI()
 
+    @app.get("/api/health", include_in_schema=False)
+    def health():
+        return {"status": "ok"}
+
     def _require(pact_id: str):
         pact = repo.get_pact(pact_id)
         if pact is None:
