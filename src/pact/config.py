@@ -18,6 +18,9 @@ class Settings:
     demo_seed_iso: str = "2026-06-22T09:00:00+00:00"
     link_mode: str = "dry_run"
     reasoning_timeout_polls: int = 0
+    # How recently a reasoning worker must have polled the queue for the hybrid
+    # provider to wait for the agent brain (vs. falling straight back to the stub).
+    worker_presence_seconds: int = 45
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 60
     cors_origins: tuple[str, ...] = (
@@ -86,6 +89,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         demo_seed_iso=_str(env, "PACT_DEMO_SEED_ISO", "2026-06-22T09:00:00+00:00"),
         link_mode=_str(env, "PACT_LINK_MODE", "dry_run"),
         reasoning_timeout_polls=_int(env, "PACT_REASONING_TIMEOUT_POLLS", 0),
+        worker_presence_seconds=_int(env, "PACT_WORKER_PRESENCE_SECONDS", 45),
         scheduler_enabled=_bool(env, "PACT_SCHEDULER_ENABLED", True),
         scheduler_interval_seconds=_int(env, "PACT_SCHEDULER_INTERVAL_SECONDS", 60),
         cors_origins=_csv(

@@ -8,10 +8,12 @@ from pact import factory
 from pact.clock import FixedClock
 from pact.config import Settings, load_settings
 from pact.payment import LinkCliProvider, PaymentProvider, TestLinkProvider
+from pact.models import TaskType
 from pact.reasoning import (
     BrokerReasoningProvider,
     ReasoningProvider,
     TestLLMProvider,
+    make_reasoning_task,
 )
 from pact.repository import Repository
 
@@ -53,6 +55,50 @@ def test_hybrid_mode_returns_broker_with_fallback(repo, clock):
     assert provider.timeout_polls == 3
     # The broker still answers (via the fallback) when no worker is connected.
     assert provider.capabilities() == {"text", "vision"}
+
+
+def test_hybrid_provider_falls_back_when_no_worker_present(repo, clock):
+    # Factory wires a worker-presence probe: with a poll budget but NO worker ever
+    # seen, resolve must fall back to the stub immediately — no orphan task, no
+    # multi-second hang waiting for an agent that isn't serving.
+    settings = Settings(reasoning_mode="hybrid", reasoning_timeout_polls=5)
+    provider = factory.build_reasoning_provider(settings, repo, clock)
+    task = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_nf",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+    result = provider.resolve(task)
+    assert result["status"] == "passed"      # the deterministic stub answered
+    assert repo.get_task(task.id) is None     # nothing left orphaned in the broker
+
+
+def test_hybrid_provider_waits_when_worker_recently_seen(repo, clock):
+    # Once a worker has polled (marked seen), the provider enqueues + polls so a
+    # serving agent gets first crack. A pre-posted agent result wins over the stub.
+    settings = Settings(reasoning_mode="hybrid", reasoning_timeout_polls=2)
+    provider = factory.build_reasoning_provider(settings, repo, clock)
+    provider.sleep = lambda s: None  # keep the test instant
+    repo.mark_worker_seen(clock.now())
+    enq = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_ws",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+    from pact.models import TaskStatus
+
+    enq.status = TaskStatus.done
+    enq.result = {"status": "passed", "reason": "agent reviewed", "checklist": {}}
+    repo.save_task(enq)
+    incoming = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_ws",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+    assert provider.resolve(incoming)["reason"] == "agent reviewed"
 
 
 def test_agent_only_mode_disables_fallback(repo, clock):

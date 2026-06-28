@@ -29,6 +29,24 @@ class Repository:
         # write method that internally calls a read on the same thread can't
         # self-deadlock. Cheap and correct for a local-first single-process app.
         self._write_lock = threading.RLock()
+        # Ephemeral process state: when a reasoning worker (`/pact serve`) last
+        # polled the queue. Used to decide whether to wait for the agent brain or
+        # fall back to the stub immediately. Not persisted — presence is liveness,
+        # not history.
+        self._worker_last_seen: datetime | None = None
+
+    def mark_worker_seen(self, now: datetime) -> None:
+        """Record that a reasoning worker just polled the queue (a liveness beat)."""
+        with self._write_lock:
+            self._worker_last_seen = now
+
+    def worker_seen_within(self, now: datetime, seconds: float) -> bool:
+        """True iff a worker polled within the last ``seconds`` (relative to ``now``)."""
+        with self._write_lock:
+            last = self._worker_last_seen
+        if last is None:
+            return False
+        return (now - last).total_seconds() <= seconds
 
     def _one(self, sql: str, params: tuple = ()):
         with self._write_lock:

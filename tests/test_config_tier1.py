@@ -77,6 +77,16 @@ def test_settings_still_frozen_with_new_fields():
         s.scheduler_interval_seconds = 999  # type: ignore[misc]
 
 
+def test_worker_presence_seconds_default_is_45():
+    assert load_settings({}).worker_presence_seconds == 45
+    assert Settings().worker_presence_seconds == 45
+
+
+def test_worker_presence_seconds_env_override():
+    s = load_settings({"PACT_WORKER_PRESENCE_SECONDS": "20"})
+    assert s.worker_presence_seconds == 20
+
+
 def test_full_tier1_env_override_together():
     env = {
         "PACT_REASONING_TIMEOUT_POLLS": "3",

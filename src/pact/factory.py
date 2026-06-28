@@ -47,6 +47,11 @@ def build_reasoning_provider(
         fallback=fb,
         timeout_polls=settings.reasoning_timeout_polls,
         allow_fallback=allow_fallback,
+        # Only wait for the agent brain when a worker has actually polled recently;
+        # otherwise fall back to the stub at once (no multi-second hang per request).
+        worker_present=lambda: repo.worker_seen_within(
+            clock.now(), settings.worker_presence_seconds
+        ),
     )
 
 

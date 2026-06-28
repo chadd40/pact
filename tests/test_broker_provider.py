@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -86,6 +86,71 @@ def test_pre_posted_result_is_returned_over_fallback(repo, clock):
     result = provider.resolve(incoming)
     assert result == agent_result
     assert result["reason"] == "agent reviewed"  # not the fallback's reason
+
+
+def test_worker_absent_falls_back_immediately_without_polling(repo, clock):
+    # timeout_polls > 0, but no worker is present: resolve via the stub at once,
+    # never sleeping, and leave NO orphan pending task in the broker.
+    fallback = TestLLMProvider()
+    slept: list[float] = []
+    provider = BrokerReasoningProvider(
+        repo,
+        clock,
+        fallback,
+        timeout_polls=5,
+        sleep=lambda s: slept.append(s),
+        worker_present=lambda: False,
+    )
+    task = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_w",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+    result = provider.resolve(task)
+    assert result["status"] == "passed"          # fell back to the stub
+    assert slept == []                            # never polled / slept
+    assert repo.get_task(task.id) is None         # no orphan task enqueued
+
+
+def test_worker_present_polls_and_returns_agent_result(repo, clock):
+    # A worker IS present, so the provider enqueues + polls and an agent-posted
+    # result wins over the stub.
+    fallback = TestLLMProvider()
+    provider = BrokerReasoningProvider(
+        repo,
+        clock,
+        fallback,
+        timeout_polls=2,
+        sleep=lambda s: None,
+        worker_present=lambda: True,
+    )
+    enq = broker.enqueue(
+        repo,
+        TaskType.judge_proof,
+        "pact_p",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+    enq.status = TaskStatus.done
+    enq.result = {"status": "passed", "reason": "agent reviewed", "checklist": {}}
+    repo.update_task(enq)
+    incoming = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_p",
+        {"token_ok": True, "is_duplicate": False, "content_ok": True},
+        clock,
+    )
+    result = provider.resolve(incoming)
+    assert result["reason"] == "agent reviewed"  # not the fallback's reason
+
+
+def test_repo_worker_presence_tracks_recency(repo, clock):
+    now = clock.now()
+    assert repo.worker_seen_within(now, 30) is False   # never seen
+    repo.mark_worker_seen(now)
+    assert repo.worker_seen_within(now, 30) is True
+    assert repo.worker_seen_within(now + timedelta(seconds=31), 30) is False  # stale
 
 
 def test_pre_posted_not_done_falls_back(repo, clock):

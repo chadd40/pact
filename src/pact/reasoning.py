@@ -276,6 +276,7 @@ class BrokerReasoningProvider:
         sleep=time.sleep,
         allow_fallback: bool = True,
         poll_interval_seconds: float = 0.5,
+        worker_present=None,
     ) -> None:
         self.repo = repo
         self.clock = clock
@@ -284,6 +285,12 @@ class BrokerReasoningProvider:
         self.sleep = sleep
         self.allow_fallback = allow_fallback
         self.poll_interval_seconds = poll_interval_seconds
+        # Optional liveness probe: a zero-arg callable returning True iff a
+        # reasoning worker is currently serving. When provided and it reports no
+        # worker, fallback-allowed resolves skip the enqueue/poll entirely (no
+        # multi-second hang waiting for an agent that isn't there). Default None
+        # preserves the original poll-budget-only behavior.
+        self._worker_present = worker_present
 
     def capabilities(self) -> set[str]:
         return self.fallback.capabilities()
@@ -291,11 +298,16 @@ class BrokerReasoningProvider:
     def resolve(self, task: ReasoningTask) -> dict:
         from . import broker  # lazy import to avoid a circular import
 
-        # Zero poll budget + fallback allowed: no agent can post a result within
-        # a zero-poll window, so resolve via the stub directly and do NOT leave
-        # an unclaimable orphan task in the broker (the default demo path).
-        if self.timeout_polls == 0 and self.allow_fallback:
-            return self.fallback.resolve(task)
+        # Fallback-allowed and there's no point waiting for an agent: resolve via
+        # the stub directly and do NOT leave an unclaimable orphan task in the
+        # broker. That's true when either the poll budget is zero (no window for a
+        # worker to post) OR a liveness probe says no worker is currently serving
+        # (so polling would just burn the full budget then fall back anyway).
+        if self.allow_fallback:
+            no_budget = self.timeout_polls == 0
+            no_worker = self._worker_present is not None and not self._worker_present()
+            if no_budget or no_worker:
+                return self.fallback.resolve(task)
 
         # Build the equivalent task ONCE and enqueue THAT EXACT task, so the id
         # we poll is the id a worker claims. (Calling broker.enqueue would

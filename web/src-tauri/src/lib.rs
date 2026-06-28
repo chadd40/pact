@@ -87,6 +87,10 @@ pub fn run() {
             envs.insert("PACT_PORT".into(), "8000".into());
             envs.insert("PACT_CLOCK_MODE".into(), "real".into());
             envs.insert("PACT_EMIT_READY".into(), "1".into());
+            // Give the installed agent (the brain) a real window to judge/draft/coach
+            // when it's serving (/pact serve). The hybrid provider only waits when a
+            // worker has polled recently, so this never hangs the no-agent case.
+            envs.insert("PACT_REASONING_TIMEOUT_POLLS".into(), "20".into());
             envs.insert("PACT_DB_PATH".into(), db_path.to_string_lossy().into_owned());
             envs.insert(
                 "PACT_ARTIFACTS_DIR".into(),

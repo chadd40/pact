@@ -657,6 +657,9 @@ def create_app(
     def list_reasoning_tasks(
         capability: str | None = None, status: str | None = None
     ):
+        # A worker polling for work is the liveness beat the reasoning provider
+        # uses to decide whether to wait for the agent brain.
+        repo.mark_worker_seen(clock.now())
         # Only "pending" is exposed; the broker storage of pending tasks is the
         # work queue. `status` is accepted for forward-compat / clarity but the
         # broker always returns pending tasks here.
