@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Create } from "./Create";
 import "./landing.css";
 
 // The wishes that cycle through the blue bubble + drift in the background.
@@ -26,6 +27,29 @@ const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string
   { t: "I wish I slept earlier", pos: { right: "20%", top: "13%" }, d: "4.4s", dur: "15s" },
 ];
 
+// Desktop app download. Pact ships as a GitHub DMG — point at the latest release.
+// Swap this to the real repo once the release is published.
+const DOWNLOAD_URL = "https://github.com/pact-app/pact/releases/latest";
+
+// The scroll-revealed iMessage script. `side` says who's "composing" it — an
+// incoming line ("in") shows the friend's typing dots first; an outgoing line
+// ("out") gets typed into the composer, then sent.
+type Side = "in" | "out";
+const SIDES: Side[] = ["in", "out", "in", "out", "in", "in", "in", "in"];
+const MSG_COUNT = SIDES.length;
+
+// Map scroll progress (0..1) through the pinned hero to how many messages should
+// be revealed. The first two (friend's opener + your wish) are up at the top.
+function targetFor(p: number): number {
+  if (p < 0.12) return 2;
+  if (p < 0.26) return 3;
+  if (p < 0.4) return 4;
+  if (p < 0.53) return 5;
+  if (p < 0.63) return 6;
+  if (p < 0.78) return 7;
+  return 8;
+}
+
 // The iPhone status-bar clock — the viewer's local time, iOS-style (h:mm, no AM/PM).
 function phoneTime(): string {
   const d = new Date();
@@ -43,13 +67,19 @@ export function Landing() {
   const stageWrapRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
-  const beatRef = useRef(0);
+  const navRef = useRef<HTMLDivElement>(null);
 
-  const [beat, setBeat] = useState(0); // 0..3 — how far the conversation has revealed
-  const [showTyping, setShowTyping] = useState(false);
-  const [showYou, setShowYou] = useState(false);
-  const [goal, setGoal] = useState(0);
+  const [revealed, setRevealed] = useState(0); // # of messages shown
+  const [phase, setPhase] = useState<"idle" | "in" | "out">("idle"); // pre-reveal beat
+  const [target, setTarget] = useState(2); // scroll-driven reveal target
+  const [goal, setGoal] = useState(0); // cycling wish
   const [clock, setClock] = useState(phoneTime);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const revealedRef = useRef(0);
+  revealedRef.current = revealed;
+
+  const payoff = revealed >= 6; // headline crossfades once the pact link lands
 
   // Keep the phone clock on the viewer's current local time.
   useEffect(() => {
@@ -57,22 +87,8 @@ export function Landing() {
     return () => clearInterval(id);
   }, []);
 
-  // Intro: "you" type for a beat, then the wish bubble lands.
-  useEffect(() => {
-    const t1 = setTimeout(() => setShowTyping(true), 650);
-    const t2 = setTimeout(() => {
-      setShowTyping(false);
-      setShowYou(true);
-    }, 1650);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, []);
-
   // Scale the phone scene (phone + cue) as ONE fixed-size design stage to fit the
-  // space below the headline — uniform zoom. Measures the actual available height
-  // so the headline + chrome are always cleared.
+  // space below the headline — uniform zoom.
   useEffect(() => {
     const STAGE_W = 480;
     const STAGE_H = 770;
@@ -97,7 +113,7 @@ export function Landing() {
     };
   }, []);
 
-  // Scroll: progress through the tall pinned section drives the conversation beats.
+  // Scroll: progress through the tall pinned section drives the reveal target.
   useEffect(() => {
     let raf = 0;
     const onScroll = () => {
@@ -109,9 +125,7 @@ export function Landing() {
         const vh = window.innerHeight;
         const y = window.scrollY || 0;
         const p = Math.min(1, Math.max(0, (y - pin.offsetTop) / Math.max(1, pin.offsetHeight - vh)));
-        const b = p < 0.14 ? 0 : p < 0.42 ? 1 : p < 0.7 ? 2 : 3;
-        beatRef.current = b;
-        setBeat(b);
+        setTarget(targetFor(p));
         if (cueRef.current) cueRef.current.style.opacity = y > 30 || p > 0.02 ? "0" : "1";
       });
     };
@@ -120,13 +134,39 @@ export function Landing() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Cycle the wish only while we're at the top (beat 0) and the bubble is up.
+  // Reveal stepper: walk `revealed` toward `target`, one message at a time, with a
+  // typing beat before each. Scrolling back up snaps instantly (no reverse play).
+  useEffect(() => {
+    if (revealed === target) return;
+    if (revealed > target) {
+      setRevealed(target);
+      setPhase("idle");
+      return;
+    }
+    // Far behind (fast scroll): snap most, animate only the final one.
+    if (target - revealed > 1) {
+      setPhase("idle");
+      setRevealed(target - 1);
+      return;
+    }
+    // Exactly one to go — play its typing beat, then land the bubble.
+    const side = SIDES[revealed];
+    setPhase(side);
+    const dur = side === "in" ? 760 : 620;
+    const id = window.setTimeout(() => {
+      setRevealed((r) => Math.min(MSG_COUNT, r + 1));
+      setPhase("idle");
+    }, dur);
+    return () => window.clearTimeout(id);
+  }, [target, revealed]);
+
+  // Cycle the wish only while it's the live bubble at the top.
   useEffect(() => {
     const iv = setInterval(() => {
-      if (beatRef.current === 0 && showYou) setGoal((g) => (g + 1) % GOALS.length);
+      if (revealedRef.current <= 2) setGoal((g) => (g + 1) % GOALS.length);
     }, 1900);
     return () => clearInterval(iv);
-  }, [showYou]);
+  }, []);
 
   // Fade-up sections as they enter the viewport.
   useEffect(() => {
@@ -142,13 +182,78 @@ export function Landing() {
   useEffect(() => {
     const m = threadRef.current;
     if (m) m.scrollTop = m.scrollHeight;
-  }, [beat, showYou, showTyping, goal]);
+  }, [revealed, phase, goal]);
+
+  // Close the nav menu on outside-click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  const goTo = (id: string) => {
+    setMenuOpen(false);
+    if (id === "top") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // What's being typed into the composer right now (outgoing beat).
+  const composing = phase === "out";
+  const composeText = revealed === 1 ? `ehh… I wish I ${GOALS[goal]}` : revealed === 3 ? "ok ok i know 😩" : "";
 
   return (
     <div className="landing">
-      {/* ── Fixed chrome ─────────────────────────────────────────────────── */}
+      {/* ── Fixed chrome · logo dropdown nav ─────────────────────────────────── */}
       <div className="lp-chrome">
-        <img src="/primary_logo.svg" alt="Pact" className="lp-logo" />
+        <div className={"lp-nav" + (menuOpen ? " open" : "")} ref={navRef}>
+          <button
+            type="button"
+            className="lp-navbtn"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="Pact menu"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            <img src="/primary_logo.svg" alt="Pact" className="lp-logo" />
+            <svg className="lp-navcaret" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {menuOpen && (
+            <div className="lp-menu" role="menu">
+              <div className="lp-menu-card">
+                <div className="lp-menu-eyebrow m">Pact</div>
+                <button className="lp-menu-item" role="menuitem" onClick={() => goTo("top")}>
+                  Home
+                </button>
+                <button className="lp-menu-item" role="menuitem" onClick={() => goTo("integrations")}>
+                  Integrations
+                </button>
+                <button className="lp-menu-item" role="menuitem" onClick={() => goTo("faq")}>
+                  FAQ
+                </button>
+              </div>
+              <a className="lp-menu-download" href={DOWNLOAD_URL} target="_blank" rel="noreferrer" role="menuitem">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Download Pact
+              </a>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}
@@ -173,12 +278,13 @@ export function Landing() {
             </span>
           </div>
 
-          {/* headline — swaps to the payoff line once the last message lands */}
+          {/* headline — crossfades between the two states on scroll */}
           <div className="lp-headline">
-            <span key={beat >= 3 ? "after" : "before"} className="lp-headline-text">
-              {beat >= 3
-                ? "Now your agent can keep you accountable with a pact."
-                : "Everyone has a list of things they wish they did."}
+            <span className={"lp-headline-line" + (!payoff ? " on" : "")}>
+              Everyone has a list of things they wish they did.
+            </span>
+            <span className={"lp-headline-line" + (payoff ? " on" : "")}>
+              Now your agent can keep you accountable with a pact.
             </span>
           </div>
 
@@ -187,93 +293,87 @@ export function Landing() {
             <div className="lp-stage" ref={stageRef}>
               <div className="lp-bezel">
                 <div className="lp-screen">
-              <div className="lp-statusbar">
-                <span className="lp-time">{clock}</span>
-                <span className="lp-status-right">
-                  <span className="lp-signal">
-                    <i /> <i /> <i /> <i />
-                  </span>
-                  <span className="lp-5g m">5G</span>
-                  <span className="lp-batt">
-                    <span />
-                  </span>
-                </span>
-              </div>
-              <div className="lp-island" />
-
-              <div className="lp-imhead">
-                <span className="lp-imback">‹</span>
-                <img src="/alfie.png" alt="friend" className="lp-imavatar" />
-                <span className="lp-imname">
-                  friend <span className="lp-imchevron">›</span>
-                </span>
-              </div>
-
-              <div className="lp-thread" ref={threadRef}>
-                <div className="lp-daystamp">
-                  <b>Today</b> {clock} {new Date().getHours() < 12 ? "AM" : "PM"}
-                </div>
-
-                <div className="lp-msg lp-in">how'd the week actually go 👀</div>
-
-                {showTyping && (
-                  <div className="lp-msg lp-typing">
-                    <span /> <span /> <span />
-                  </div>
-                )}
-                {showYou && (
-                  <div className="lp-msg lp-out lp-wishbubble">
-                    ehh… I wish I{" "}
-                    <span key={goal} className="lp-wishword">
-                      {GOALS[goal]}
+                  <div className="lp-statusbar">
+                    <span className="lp-time">{clock}</span>
+                    <span className="lp-status-right">
+                      <span className="lp-signal">
+                        <i /> <i /> <i /> <i />
+                      </span>
+                      <span className="lp-5g m">5G</span>
+                      <span className="lp-batt">
+                        <span />
+                      </span>
                     </span>
                   </div>
-                )}
+                  <div className="lp-island" />
 
-                {beat >= 1 && (
-                  <>
-                    <div className="lp-msg lp-in">you said that last week 😭</div>
-                    <div className="lp-msg lp-out">ok ok i know 😩</div>
-                  </>
-                )}
+                  <div className="lp-imhead">
+                    <span className="lp-imback">‹</span>
+                    <img src="/alfie.png" alt="friend" className="lp-imavatar" />
+                    <span className="lp-imname">
+                      friend <span className="lp-imchevron">›</span>
+                    </span>
+                  </div>
 
-                {beat >= 2 && (
-                  <>
-                    <div className="lp-msg lp-in">your agent can help with that now</div>
-                    <div className="lp-msg lp-in">
-                      <span className="lp-link">pact.new</span>
+                  <div className="lp-thread" ref={threadRef}>
+                    <div className="lp-daystamp">
+                      <b>Today</b> {clock} {new Date().getHours() < 12 ? "AM" : "PM"}
                     </div>
-                  </>
-                )}
 
-                {beat >= 3 && (
-                  <>
-                    <div className="lp-card-wrap">
-                      <button className="lp-richlink" onClick={onboard}>
-                        <div className="lp-richlink-hero">
-                          <img src="/pact_icon.png" alt="" className="lp-richlink-icon" />
-                        </div>
-                        <div className="lp-richlink-foot">
-                          <div className="lp-richlink-title">Make a promise you actually keep</div>
-                          <div className="lp-richlink-url">pact.new</div>
-                        </div>
-                      </button>
-                    </div>
-                    <div className="lp-msg lp-in lp-after">
-                      put money on it. then you'll actually show up 💪
-                    </div>
-                  </>
-                )}
+                    {revealed > 0 && <div className="lp-msg lp-in">how'd the week actually go 👀</div>}
+
+                    {revealed > 1 && (
+                      <div className="lp-msg lp-out lp-wishbubble">
+                        ehh… I wish I{" "}
+                        <span key={goal} className="lp-wishword">
+                          {GOALS[goal]}
+                        </span>
+                      </div>
+                    )}
+
+                    {revealed > 2 && <div className="lp-msg lp-in">you said that last week 😭</div>}
+                    {revealed > 3 && <div className="lp-msg lp-out">ok ok i know 😩</div>}
+                    {revealed > 4 && <div className="lp-msg lp-in">your agent can help with that now</div>}
+                    {revealed > 5 && (
+                      <div className="lp-msg lp-in">
+                        <span className="lp-link">pact.new</span>
+                      </div>
+                    )}
+                    {revealed > 6 && (
+                      <div className="lp-card-wrap">
+                        <button className="lp-richlink" onClick={onboard}>
+                          <div className="lp-richlink-hero">
+                            <span className="lp-richlink-sheen" />
+                            <img src="/pact_icon.png" alt="" className="lp-richlink-icon" />
+                          </div>
+                          <div className="lp-richlink-foot">
+                            <div className="lp-richlink-title">Make a promise you actually keep</div>
+                            <div className="lp-richlink-url">pact.new</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                    {revealed > 7 && (
+                      <div className="lp-msg lp-in lp-after">put money on it. then you'll actually show up 💪</div>
+                    )}
+
+                    {/* friend's typing dots — plays right before each incoming line */}
+                    {phase === "in" && (
+                      <div className="lp-msg lp-typing" aria-hidden="true">
+                        <span /> <span /> <span />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={"lp-composer" + (composing ? " is-typing" : "")}>
+                    <span className="lp-plus">+</span>
+                    <span className={"lp-input" + (composing ? " typing" : "")}>
+                      {composing ? composeText : "iMessage"}
+                    </span>
+                    <span className={"lp-send" + (composing ? " armed" : "")}>↑</span>
+                  </div>
+                </div>
               </div>
-
-              <div className="lp-composer">
-                <span className="lp-plus">+</span>
-                <span className="lp-input">iMessage</span>
-                <span className="lp-send">↑</span>
-              </div>
-              <div className="lp-homebar" />
-            </div>
-          </div>
 
               <div className="lp-cue" ref={cueRef}>
                 <span className="m">Scroll</span>
@@ -281,46 +381,109 @@ export function Landing() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* ── How it works · bento ─────────────────────────────────────────────── */}
+      {/* ── What a pact is · animated bento ──────────────────────────────────── */}
       <section className="lp-section lp-how">
         <div className="lp-wrap">
           <div className="lp-sec-head" data-reveal>
             <div className="lp-eyebrow m">What a pact is</div>
             <h2 className="lp-sec-title">A promise that actually costs something to break.</h2>
           </div>
+
           <div className="lp-bento">
-            <article className="lp-bento-card" data-reveal>
-              <div className="lp-bento-no m">01</div>
-              <div className="lp-bento-ico">{ICON.target}</div>
-              <div className="lp-bento-h">Create a pact</div>
-              <p className="lp-bento-p">Pick the thing you keep wishing you'd do — how often, for how long.</p>
+            {/* CREATE — a flatter fan of the real cards filling the top */}
+            <article className="lp-cell bento-create" data-reveal>
+              <div className="bento-visual bv-fan" aria-hidden="true">
+                <img className="bf-card bf-1" src="/cards/meditate.svg" alt="" draggable={false} />
+                <img className="bf-card bf-2" src="/cards/read.svg" alt="" draggable={false} />
+                <img className="bf-card bf-3" src="/cards/workout.svg" alt="" draggable={false} />
+                <img className="bf-card bf-4" src="/cards/ship.svg" alt="" draggable={false} />
+                <img className="bf-card bf-5" src="/cards/nophone.svg" alt="" draggable={false} />
+              </div>
+              <div className="bento-foot">
+                <div className="bento-h">Create a pact</div>
+                <p className="bento-p">Pick the thing you keep wishing you'd do — browse the deck and choose your card.</p>
+              </div>
             </article>
-            <article className="lp-bento-card" data-reveal style={{ transitionDelay: ".08s" }}>
-              <div className="lp-bento-no m">02</div>
-              <div className="lp-bento-ico">{ICON.coin}</div>
-              <div className="lp-bento-h">Stake it</div>
-              <p className="lp-bento-p">Put real money behind it. Enough that skipping a day stings.</p>
+
+            {/* AGENT — Hermes, cheering you on, in a lighter chat panel (the heart of it) */}
+            <article className="lp-cell bento-agent" data-reveal style={{ transitionDelay: ".06s" }}>
+              <div className="ba-panel">
+                <div className="ba-top">
+                  <img className="ba-av" src="/agents/Hermes.svg" alt="Hermes" />
+                  <div>
+                    <div className="ba-name">Hermes</div>
+                    <div className="ba-status">
+                      <span className="ba-dot" /> in your corner
+                    </div>
+                  </div>
+                </div>
+                <div className="ba-thread">
+                  <div className="ba-bubble b1">You've got 12 hours to submit evidence ⏳</div>
+                  <div className="ba-bubble b2">Let's go — you've got this 💪</div>
+                  <div className="ba-typing" aria-hidden="true">
+                    <span /> <span /> <span />
+                  </div>
+                  <div className="ba-bubble b3">Don't hand $200 to charity tonight.</div>
+                </div>
+              </div>
+              <div className="bento-foot">
+                <div className="bento-h light">An agent in your corner</div>
+                <p className="bento-p dim">
+                  Hermes checks your proof, remembers your streak, and talks you through the days you'd rather skip.
+                </p>
+              </div>
+              <div className="bento-badge m">The heart of it</div>
             </article>
-            <article className="lp-bento-card" data-reveal style={{ transitionDelay: ".16s" }}>
-              <div className="lp-bento-no m">03</div>
-              <div className="lp-bento-ico">{ICON.camera}</div>
-              <div className="lp-bento-h">Prove it</div>
-              <p className="lp-bento-p">Snap a photo or screenshot. Your agent verifies it in seconds.</p>
+
+            {/* STAKE — a Link card swiped across a reader */}
+            <article className="lp-cell bento-stake" data-reveal style={{ transitionDelay: ".12s" }}>
+              <div className="bento-visual bv-stake" aria-hidden="true">
+                <div className="bs-reader">
+                  <div className="bs-card">
+                    <img className="bs-card-logo" src="/link_logo.svg" alt="" />
+                    <div className="bs-card-amt m">$200</div>
+                  </div>
+                  <div className="bs-terminal">
+                    <div className="bs-slot" />
+                    <div className="bs-ok">✓</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bento-foot">
+                <div className="bento-h">Stake it</div>
+                <p className="bento-p">Put real money behind it through Link. Miss your goal and you're donating to charity.</p>
+              </div>
             </article>
-            {/* PRIMARY — the agentic coaching piece */}
-            <article className="lp-bento-card lp-bento-primary" data-reveal style={{ transitionDelay: ".24s" }}>
-              <div className="lp-bento-no m">04</div>
-              <div className="lp-bento-ico lp-bento-ico-accent">{ICON.spark}</div>
-              <div className="lp-bento-h">An agent in your corner</div>
-              <p className="lp-bento-p">
-                Hermes, built in, or your own — it checks your proof, remembers your streak, and
-                talks you through the days you'd rather skip.
-              </p>
-              <div className="lp-bento-badge m">The heart of it</div>
+
+            {/* PROVE — drop a photo, it gets checked, then stamped */}
+            <article className="lp-cell bento-prove" data-reveal style={{ transitionDelay: ".18s" }}>
+              <div className="bento-visual bv-prove" aria-hidden="true">
+                <div className="bp-zone">
+                  <div className="bp-file">
+                    <img className="bp-thumb" src="/create_3.png" alt="" />
+                    <span className="bp-fname m">piano.jpg</span>
+                  </div>
+                  <div className="bp-status">
+                    <div className="bp-check">
+                      <span className="bp-spin" />
+                      <span className="bp-checking m">Checking you played the piano…</span>
+                    </div>
+                    <div className="bp-stamp">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Verified
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bento-foot">
+                <div className="bento-h">Prove it</div>
+                <p className="bento-p">Snap a photo or screenshot. Your agent verifies it on the spot.</p>
+              </div>
             </article>
           </div>
         </div>
@@ -331,70 +494,129 @@ export function Landing() {
         <div className="lp-wrap lp-coach-grid">
           <div className="lp-coach-copy" data-reveal>
             <div className="lp-eyebrow m">Who keeps you honest</div>
-            <h2 className="lp-sec-title">You won't be doing it alone.</h2>
+            <h2 className="lp-sec-title">You're not white-knuckling this alone.</h2>
             <p className="lp-coach-lede">
-              An agent checks your proof every day, remembers your streak, and nudges you through
-              the days you'd rather skip — then settles the verdict when the deadline hits.
+              Hermes reads your proof the moment it lands, keeps your streak in its head, and texts you through
+              the days you'd rather skip — then calls the verdict the second the deadline hits.
             </p>
           </div>
-          <div className="lp-coach-card" data-reveal style={{ transitionDelay: ".1s" }}>
-            <div className="lp-coach-top">
-              <span className="lp-coach-avatar">✦</span>
-              <div>
-                <div className="lp-coach-name">Hermes</div>
-                <div className="lp-coach-status">Coaching your workout pact</div>
+          <div className="lp-chat" data-reveal style={{ transitionDelay: ".1s" }}>
+            <div className="lp-chat-head">
+              <img className="lp-chat-av" src="/agents/Hermes.svg" alt="Hermes" />
+              <div className="lp-chat-id">
+                <div className="lp-chat-name">Hermes</div>
+                <div className="lp-chat-sub">
+                  <span className="lp-chat-live" /> Coaching your workout pact
+                </div>
               </div>
             </div>
-            <div className="lp-coach-bubble">Three down, two to go. You're ahead of last week — keep the rhythm.</div>
-            <div className="lp-coach-chip">✓ Proof verified — Thursday workout</div>
-            <div className="lp-coach-bubble">One session left and the week is clean. Don't hand $40 to charity tonight.</div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── The deck (placeholder for the future create step-1) ───────────────── */}
-      <section className="lp-section lp-deck-sec">
-        <div className="lp-wrap">
-          <div className="lp-deck-head" data-reveal>
-            <div>
-              <div className="lp-eyebrow m">It starts with one card</div>
-              <h2 className="lp-sec-title">Pick what you're committing to.</h2>
-              <p className="lp-coach-lede">
-                Browse the deck, choose a goal, and shape it into a real pact — frequency, stake,
-                and the cause that gets paid if you fold.
-              </p>
-              <button className="lp-deck-cta" onClick={onboard}>
-                Browse the deck <span>→</span>
-              </button>
+            <div className="lp-chat-body">
+              <div className="lp-chat-day m">Today</div>
+              <div className="lp-chat-msg in c1">Three down, two to go. You're ahead of last week — keep the rhythm.</div>
+              <div className="lp-chat-msg out c2">feeling it today tbh</div>
+              <div className="lp-chat-sys c3">✓ Proof verified — Thursday workout</div>
+              <div className="lp-chat-msg in c4">One session left and the week is clean. Don't hand $40 to charity tonight.</div>
+              <div className="lp-chat-msg out c5">ok say less 💪</div>
             </div>
           </div>
-          <div className="lp-deck-fan" data-reveal style={{ transitionDelay: ".1s" }}>
-            {DECK.map((c, i) => (
-              <button
-                key={c.title}
-                className="lp-deck-card"
-                onClick={onboard}
-                style={{ transform: `rotate(${c.rot}deg) translateY(${i === 1 ? -10 : 14}px)` }}
-              >
-                <div className="lp-deck-ico">{c.icon}</div>
-                <div className="lp-deck-card-title">{c.title}</div>
-                <div className="lp-deck-card-sub">{c.sub}</div>
-                <div className="lp-deck-card-foot m">
-                  <span>pact</span>
-                  <span>{c.no}</span>
-                </div>
-              </button>
-            ))}
+        </div>
+      </section>
+
+      {/* ── The deck · the real create flow, embedded ────────────────────────── */}
+      <section className="lp-section lp-deck-sec" id="deck">
+        <div className="lp-deck-sticky">
+          <div className="lp-wrap lp-deck-head" data-reveal>
+            <div className="lp-eyebrow m">Get started today</div>
+            <h2 className="lp-sec-title">Make your first pact.</h2>
+            <p className="lp-coach-lede lp-deck-lede">
+              This is the real thing — browse the deck, pick a card, and shape it into a pact right here.
+            </p>
           </div>
-          <div className="lp-placeholder m" data-reveal>
-            ⌁ first step of the create flow lands here
+          <div className="lp-embed-deck">
+            <Create embedded />
+          </div>
+        </div>
+        {/* Mobile fallback — the deck is desktop-only, so don't leave a void. */}
+        <div className="lp-deck-mobilecta">
+          <p>The deck is built for a bigger screen — open Pact on a laptop to deal yourself in.</p>
+          <button className="lp-deck-cta" onClick={onboard}>
+            Make your first pact <span>→</span>
+          </button>
+        </div>
+      </section>
+
+      {/* ── Integrations (dark tail begins) ──────────────────────────────────── */}
+      <section className="lp-section lp-integrations" id="integrations">
+        <div className="lp-wrap">
+          <div className="lp-sec-head dark" data-reveal>
+            <div className="lp-eyebrow m">Integrations</div>
+            <h2 className="lp-sec-title">Bring your own agent.</h2>
+            <p className="lp-int-lede">
+              Pact works with the agent you already talk to. Hermes is built in — or bring Claude Code, NVIDIA NeMo,
+              or any MCP agent over the API to judge your proof and keep you honest.
+            </p>
+          </div>
+          <div className="lp-int-grid">
+            <div className="lp-int-card lp-int-primary" data-reveal>
+              <span className="lp-int-logo">
+                <img src="/agents/Hermes.svg" alt="Hermes" />
+              </span>
+              <div className="lp-int-name">Hermes</div>
+              <div className="lp-int-sub">Built in · ready the moment you seal</div>
+              <span className="lp-int-tag m on">Default</span>
+            </div>
+            <div className="lp-int-card" data-reveal style={{ transitionDelay: ".06s" }}>
+              <span className="lp-int-logo">
+                <img src="/agents/Claude.svg" alt="Claude Code" />
+              </span>
+              <div className="lp-int-name">Claude Code</div>
+              <div className="lp-int-sub">Straight from your dev workflow</div>
+              <span className="lp-int-tag m">Connect</span>
+            </div>
+            <div className="lp-int-card" data-reveal style={{ transitionDelay: ".12s" }}>
+              <span className="lp-int-logo">
+                <img src="/agents/Nemoclaw.svg" alt="NVIDIA" />
+              </span>
+              <div className="lp-int-name">NVIDIA</div>
+              <div className="lp-int-sub">NeMo agents, via API</div>
+              <span className="lp-int-tag m">Connect</span>
+            </div>
+            <div className="lp-int-card" data-reveal style={{ transitionDelay: ".18s" }}>
+              <span className="lp-int-logo">
+                <img src="/link_icon.svg" alt="Link" />
+              </span>
+              <div className="lp-int-name">Link</div>
+              <div className="lp-int-sub">Charge-on-fail funding source</div>
+              <span className="lp-int-tag m">Built in</span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Final CTA + footer ──────────────────────────────────────────────── */}
+      {/* ── FAQ (answers "what is a pact") ───────────────────────────────────── */}
+      <section className="lp-section lp-faq" id="faq">
+        <div className="lp-wrap lp-faq-wrap">
+          <div className="lp-faq-head" data-reveal>
+            <div className="lp-eyebrow m">FAQ</div>
+            <h2 className="lp-sec-title">What is a pact, exactly?</h2>
+          </div>
+          <div className="lp-faq-list">
+            {FAQS.map((f, i) => (
+              <details className="lp-faq-item" key={f.q} data-reveal style={{ transitionDelay: `${0.04 * i}s` }}>
+                <summary>
+                  <span>{f.q}</span>
+                  <span className="lp-faq-plus" aria-hidden="true" />
+                </summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Final CTA ────────────────────────────────────────────────────────── */}
       <section className="lp-section lp-final">
-        <div className="lp-final-spark">✦</div>
+        <img className="lp-final-dot" src="/dot.svg" alt="" aria-hidden="true" />
         <h2 className="lp-final-title">Become the better version of yourself.</h2>
         <p className="lp-final-sub">
           One promise. Real stakes. An agent in your corner. It starts the moment you stop wishing.
@@ -402,74 +624,44 @@ export function Landing() {
         <button className="lp-final-cta" onClick={onboard}>
           Make your first pact <span>→</span>
         </button>
-        <div className="lp-footer m">Put it on the line · ✦ · 2026</div>
       </section>
+
+      {/* ── Footer · the big cut-off wordmark ────────────────────────────────── */}
+      <footer className="lp-bigfoot">
+        <div className="lp-bigfoot-links">
+          <button onClick={() => goTo("top")}>Home</button>
+          <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+            Download
+          </a>
+          <span className="lp-bigfoot-copy m">Put it on the line · ✦ · 2026</span>
+        </div>
+        <div className="lp-bigfoot-mark" aria-hidden="true">
+          pact
+        </div>
+      </footer>
     </div>
   );
 }
 
-const DECK = [
-  { title: "Work out", sub: "Move your body", no: "01", rot: -6, icon: <Dumbbell /> },
-  { title: "Read", sub: "Feed your mind", no: "02", rot: 0, icon: <Book /> },
-  { title: "Custom", sub: "Make your own", no: "+", rot: 6, icon: <Plus /> },
+const FAQS: Array<{ q: string; a: string }> = [
+  {
+    q: "What is a pact?",
+    a: "A pact is a promise you put money behind. You pick a goal, choose how often and for how long, and stake real cash. Prove you showed up and you keep your money — miss a check-in and the stake goes to a charity you chose.",
+  },
+  {
+    q: "Where does the money go if I fail?",
+    a: "To a real cause you pick when you create the pact — like the World Wildlife Fund or Save the Children. Pact never keeps your stake; it only moves to your charity if you don't follow through.",
+  },
+  {
+    q: "How does Pact know I actually did it?",
+    a: "You submit evidence — a photo or screenshot — for each check-in. Your agent (Hermes, or one you bring) verifies it against your goal in seconds and logs the result.",
+  },
+  {
+    q: "Does Pact hold my money?",
+    a: "No. Pact registers a funding source through Link and only charges it if you miss. Your money stays with you until — and unless — you fold.",
+  },
+  {
+    q: "Can I use my own agent?",
+    a: "Yes. Hermes is built in, but you can connect Claude, Claude Code, or any MCP agent over the API to coach you and judge your proof.",
+  },
 ];
-
-const ICON = {
-  target: <Clock />,
-  coin: <Coin />,
-  camera: <Camera />,
-  spark: <Spark />,
-};
-
-function Clock() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="23" height="23">
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v4l3 2" />
-    </svg>
-  );
-}
-function Coin() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="23" height="23">
-      <path d="M12 3v18M7 8h7a3 3 0 0 1 0 6H6" />
-    </svg>
-  );
-}
-function Camera() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="23" height="23">
-      <path d="M4 8h3l1.5-2h7L17 8h3v11H4Z" />
-      <circle cx="12" cy="13" r="3.4" />
-    </svg>
-  );
-}
-function Spark() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="23" height="23">
-      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" />
-    </svg>
-  );
-}
-function Dumbbell() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-      <path d="M3 9v6M6 7.5v9M18 7.5v9M21 9v6M6 12h12" />
-    </svg>
-  );
-}
-function Book() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-      <path d="M5 4a1 1 0 0 1 1-1h12v16H6a1 1 0 0 0-1 1Z" />
-      <path d="M18 3v16" />
-    </svg>
-  );
-}
-function Plus() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}

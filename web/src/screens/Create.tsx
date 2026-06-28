@@ -98,7 +98,7 @@ const Spark = ({ size = 24 }: { size?: number }) => (
   </svg>
 );
 
-export function Create() {
+export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const { signalChange } = useDemo();
 
@@ -142,10 +142,19 @@ export function Create() {
     const el = rootRef.current;
     if (!el) return;
     const apply = () => {
+      const pad = 28;
+      if (embedded) {
+        // Fit the fixed world into the embedding container's own box (the landing
+        // sizes it via CSS) — stable regardless of page scroll position.
+        const w = el.clientWidth - pad;
+        const h = el.clientHeight - pad;
+        const scale = Math.min(w / STAGE_W, h / STAGE_H, 1);
+        el.style.setProperty("--pc-scale", String(Math.max(scale, 0.3)));
+        return;
+      }
       const top = el.getBoundingClientRect().top;
       const avail = window.innerHeight - top;
       el.style.minHeight = `${avail}px`;
-      const pad = 28;
       const w = el.clientWidth - pad;
       const h = avail - pad;
       const scale = Math.min(w / STAGE_W, h / STAGE_H, 1);
@@ -159,7 +168,7 @@ export function Create() {
       ro.disconnect();
       window.removeEventListener("resize", apply);
     };
-  }, []);
+  }, [embedded]);
 
   // Move keyboard focus onto the active surface when the stage changes, so focus
   // is never stranded on hidden deck controls.
@@ -167,8 +176,9 @@ export function Create() {
   const openBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (stage === 1 && isCustom) return; // the name input auto-focuses itself
-    if (stage >= 1 && stage <= 4) railHeadRef.current?.focus();
-    else if (stage === 6) openBtnRef.current?.focus();
+    // When embedded on the landing, never let focus yank the page-scroll around.
+    if (stage >= 1 && stage <= 4) railHeadRef.current?.focus({ preventScroll: embedded });
+    else if (stage === 6) openBtnRef.current?.focus({ preventScroll: embedded });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -359,7 +369,7 @@ export function Create() {
     stage === 1 ? !isCustom || !!customTitle.trim() : stage === 3 ? !!charityId : true;
 
   return (
-    <div className="pc-root" ref={rootRef}>
+    <div className={embedded ? "pc-root pc-embedded" : "pc-root"} ref={rootRef}>
       <div className="pc-stage">
         <div className="pc-vignette" />
 
