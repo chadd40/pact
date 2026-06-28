@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from pact import broker
@@ -137,6 +138,15 @@ def create_app(
     @app.get("/api/health", include_in_schema=False)
     def health():
         return {"status": "ok"}
+
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(settings.cors_origins),
+            allow_methods=["*"],
+            allow_headers=["*"],
+            allow_credentials=False,
+        )
 
     def _require(pact_id: str):
         pact = repo.get_pact(pact_id)
