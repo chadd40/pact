@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import type { Charity, Pact } from "../types";
+import { PasteWebPact } from "../components/PasteWebPact";
+import { isDesktop } from "../lib/platform";
+import type { PactDraft } from "../lib/handoff";
 import "./create.css";
 
 // ── Goal deck ─────────────────────────────────────────────────────────────────
@@ -99,6 +102,23 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   const stageRef = useRef(stage);
   stageRef.current = stage;
+
+  // Import a draft from the web → prefill the flow and land on the agent step.
+  // stake_amount_cents ÷ 100 → dollars (the seal handler writes stake * 100).
+  // Any imported goal is free text so we treat it as a custom goal (CUSTOM_INDEX).
+  const importDraft = (d: PactDraft) => {
+    setGoalIndex(CUSTOM_INDEX);
+    setActive(CUSTOM_INDEX);
+    setCustomTitle(d.goal);
+    setCustomDesc(d.what_counts ?? "");
+    setDays(d.frequency.days_per_week);
+    setWeeks(d.frequency.weeks);
+    setStake(Math.round(d.stake_amount_cents / 100));
+    setCharityId(d.charity_id);
+    setAgentKey(d.agent);
+    setEditorReady(true);
+    setStage(4);
+  };
 
   // Fetch the real charity catalog once.
   useEffect(() => {
@@ -339,6 +359,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact — back to home">
           <img className="pc-brand-logo" src="/primary_logo.svg" alt="Pact" />
         </button>
+      )}
+      {isDesktop() && stage === 0 && (
+        <div className="pc-paste-slot">
+          <PasteWebPact onImport={importDraft} />
+        </div>
       )}
 
       <div className="pc-stage">

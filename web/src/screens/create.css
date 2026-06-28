@@ -77,6 +77,16 @@
   width: auto;
   display: block;
 }
+
+/* ── Paste slot (desktop, deck stage only) ───────────────────────────────────── */
+/* Positioned just beneath the brand logo, aligned to the same left edge. */
+.pc-paste-slot {
+  position: fixed;
+  top: calc(clamp(16px, 2.4vw, 22px) + 42px + 10px);
+  left: clamp(18px, 3vw, 34px);
+  z-index: 90;
+}
+
 .pc-back {
   position: absolute;
   top: 20px;
