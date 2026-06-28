@@ -807,6 +807,34 @@
   padding: 48px 40px;
 }
 
+/* ── Create-style flip-open entry (Task 8) ──────────────────────────────────
+   PactWorld runs a CSS/JS FLIP on `.world-card` when opened from a carousel card
+   (the inline transform is set imperatively in PactWorld). The stage carries the
+   perspective so the rotateY reads as a 3D flip (mirrors create.css's .pc-world),
+   and the right panel slides/fades in over the same window. */
+.world-stage { perspective: 1850px; perspective-origin: 50% 46%; }
+.world-card { transform-style: preserve-3d; backface-visibility: hidden; }
+
+.world--entering .world-card { will-change: transform; z-index: 2; }
+.world--entering .world-panel {
+  opacity: 0;
+  transform: translateX(22px);
+  animation: worldPanelIn .62s cubic-bezier(.2, .72, .26, 1) forwards;
+  animation-delay: .1s;
+}
+@keyframes worldPanelIn {
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No flip / slide — the world simply appears. (PactWorld also skips the JS FLIP
+     under reduced-motion, so no inline transform is ever set.) */
+  .world--entering .world-card { will-change: auto; }
+  .world--entering .world-panel {
+    opacity: 1; transform: none; animation: none;
+  }
+}
+
 @media (max-width: 760px) {
   .world-grid { flex-direction: column; align-items: center; }
   .world-panel { max-width: 100%; width: 100%; }

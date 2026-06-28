@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import { useAppData } from "../data";
@@ -45,7 +45,6 @@ export function Home() {
   const { bump, nowIso } = useDemo();
   const { pacts: allPacts, pactsLoaded, charityById } = useAppData();
   const navigate = useNavigate();
-  const location = useLocation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [statement] = useState(() => pickStatement());
 
@@ -101,9 +100,16 @@ export function Home() {
   const failed = profile?.failed ?? 0;
   const winRate = kept + failed > 0 ? Math.round((100 * kept) / (kept + failed)) : null;
 
-  const openPact = (id: string) => {
+  const openPact = (id: string, e?: React.MouseEvent | React.KeyboardEvent) => {
     if (suppressClick.current) return;
-    navigate(`/pact/${id}`, { state: { backgroundLocation: location } });
+    // Clicking a card flips it open into the centered detail world (Task 8).
+    // Capture the card's on-screen box so PactWorld can run a CSS/JS FLIP from
+    // here to its natural centered rect. Keyboard-open passes no event → no rect
+    // → the world just appears (no flip). Plain numbers keep state serializable.
+    const el = e?.currentTarget as HTMLElement | undefined;
+    const r = el?.getBoundingClientRect();
+    const flipFrom = r ? { x: r.x, y: r.y, width: r.width, height: r.height } : undefined;
+    navigate(`/pact/${id}`, flipFrom ? { state: { flipFrom } } : undefined);
   };
 
   const onDown = (e: React.PointerEvent) => {
@@ -168,7 +174,7 @@ export function Home() {
                   aria-label={`Open ${p.title} — ${dollars(p.stake_amount_cents)} on the line`}
                   className="home-card real"
                   style={cardStyle(i)}
-                  onClick={() => openPact(p.id)}
+                  onClick={(e) => openPact(p.id, e)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPact(p.id); } }}
                 >
                   <div className="home-cardfront">

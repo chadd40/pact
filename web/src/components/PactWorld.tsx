@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { motion } from "motion/react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useClock, useDemo } from "../App";
 import { useAppData } from "../data";
@@ -37,11 +36,14 @@ export interface PactWorldProps {
   initialPact?: Pact;
 }
 
+interface FlipRect { x: number; y: number; width: number; height: number; }
+
 export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps) {
   const { bump, signalChange } = useDemo();
   const nowMs = useClock();
   const { charityById } = useAppData();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [pact, setPact] = useState<Pact | null>(initialPact ?? null);
   const [coach, setCoach] = useState<CoachingMessage[]>([]);
@@ -53,6 +55,92 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
   const [chatOpen, setChatOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+
+  // ── Create-style flip-open entry (Task 8) ──────────────────────────────────
+  // Home.openPact navigates here with `state.flipFrom` = the clicked carousel
+  // card's on-screen rect. We run a CSS/JS FLIP (First-Last-Invert-Play with a
+  // rotateY) on `.world-card`: start at the card's box (rotated 180°, scaled to
+  // fit), then play to the world-card's natural centered rect over ~.62s — the
+  // editorial back flips into view. Deliberately NOT Framer `layout`/`layoutId`,
+  // which fought the carousel's CSS transforms and caused the jiggle.
+  // Capture `flipFrom` ONCE — the entry is meaningful only on the first render.
+  // (Demo bump / refetch must not re-arm the flip; React Router keeps state on the
+  // entry, so reading it on later renders is fine, but we still latch it.)
+  const flipFromRef = useRef<FlipRect | null>(
+    (location.state as { flipFrom?: FlipRect } | null)?.flipFrom ?? null
+  );
+  const worldRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [entering, setEntering] = useState(false);
+  const ranFlip = useRef(false);
+
+  // The `.world-card` only mounts once `pact` has loaded (before that we render a
+  // "Loading…" placeholder). So the FLIP can't run on the very first paint when
+  // the pact is fetched async — gate on the card being present and re-run (via the
+  // `pact` dep) once it mounts. The `ranFlip` latch keeps it to a single run.
+  useLayoutEffect(() => {
+    if (ranFlip.current) return;          // once per PactWorld instance
+    const flipFrom = flipFromRef.current;
+    if (!flipFrom) { ranFlip.current = true; return; }  // direct/keyboard → no flip
+    const card = cardRef.current;
+    if (!card) return;                    // card not mounted yet (pact still loading)
+    ranFlip.current = true;
+    // Respect reduced-motion. `matchMedia` may be absent in test/jsdom — guard it.
+    const reduce =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+
+    // LAST — the card's natural centered box. FIRST — the carousel card's rect.
+    const last = card.getBoundingClientRect();
+    if (last.width === 0 || last.height === 0) {
+      // No real layout (e.g. jsdom): still flag the entry so the class/treatment
+      // is applied, but skip the (meaningless) numeric transform math.
+      setEntering(true);
+      card.style.transform = "rotateY(180deg)";
+      return;
+    }
+    const dx = flipFrom.x - last.x;
+    const dy = flipFrom.y - last.y;
+    const sx = flipFrom.width / last.width;
+    const sy = flipFrom.height / last.height;
+
+    // INVERT — jump to the card's position/scale, rotated to the front, no anim.
+    card.style.transition = "none";
+    card.style.transformOrigin = "top left";
+    card.style.transform =
+      `translate(${dx}px, ${dy}px) scale(${sx}, ${sy}) rotateY(180deg)`;
+    setEntering(true);
+
+    let raf2 = 0;
+    const onEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== "transform") return;
+      card.style.transition = "";
+      card.style.transform = "";
+      card.style.transformOrigin = "";
+      card.removeEventListener("transitionend", onEnd);
+      setEntering(false);
+    };
+
+    // PLAY — next frame, release to identity with the transition on. A double rAF
+    // guarantees the browser has committed the inverted frame before animating.
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        card.style.transition = "transform .62s cubic-bezier(.2,.72,.26,1)";
+        card.style.transform = "none";
+        card.addEventListener("transitionend", onEnd);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      card.removeEventListener("transitionend", onEnd);
+    };
+    // The card mounts only after `pact` loads, so re-run when it appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pact]);
 
   const load = useCallback(async () => {
     if (!pactId) return;
@@ -339,9 +427,7 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
   };
 
   return (
-    <div className={`world world--${mode}`}>
-      {mode === "overlay" && <div className="world-backdrop" onClick={() => onClose?.()} />}
-
+    <div ref={worldRef} className={`world world--${mode}${entering ? " world--entering" : ""}`}>
       <div className="world-stage">
         {/* Top chrome: standalone gets a back button; overlay gets a close X. */}
         {mode === "standalone" ? (
@@ -358,9 +444,10 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
         {err && <div className="pd-err">{err}</div>}
 
         <div className="world-grid">
-          {/* LEFT — the editorial card back, fed with the live pact (shared
-              layoutId with the Home carousel card so Task 8 can flip it). */}
-          <motion.div className="world-card" layoutId={`pact-card-${pactId}`}>
+          {/* LEFT — the editorial card back, fed with the live pact. On entry it
+              flips open from the carousel card (CSS/JS FLIP driven by cardRef in
+              the layout effect above — no Framer layout). */}
+          <div ref={cardRef} className="world-card">
             <CardBack
               goalName={pact.title}
               days={days}
@@ -379,7 +466,7 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
               signed
               zoneState={() => "done"}
             />
-          </motion.div>
+          </div>
 
           {/* RIGHT — status-keyed panel. */}
           <div className="world-panel">{panelForStatus()}</div>

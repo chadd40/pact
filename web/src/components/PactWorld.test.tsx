@@ -118,9 +118,12 @@ function activePact(): Pact {
   };
 }
 
-function renderWorld() {
+function renderWorld(flipFrom?: { x: number; y: number; width: number; height: number }) {
+  const entry = flipFrom
+    ? { pathname: "/pact/p1", state: { flipFrom } }
+    : { pathname: "/pact/p1" };
   return render(
-    <MemoryRouter initialEntries={["/pact/p1"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <DemoContext.Provider value={DEMO}>
         <AppDataContext.Provider value={APP_DATA}>
           <PactWorld pactId="p1" mode="standalone" initialPact={activePact()} />
@@ -158,5 +161,25 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByText("On the line")).toBeTruthy();
     // And the card-back commitment eyebrow.
     expect(screen.getByText("The commitment")).toBeTruthy();
+  });
+
+  // ── Flip-open entry animation (Task 8) ──────────────────────────────────────
+  it("runs the entry treatment when navigation state carries a flipFrom rect", () => {
+    const { container } = renderWorld({ x: 10, y: 10, width: 210, height: 300 });
+    const world = container.querySelector(".world");
+    // The FLIP is driven by a `.world--entering` class on the root that stays on
+    // until the transition ends (jsdom never fires transitionend, so it persists).
+    expect(world?.classList.contains("world--entering")).toBe(true);
+    // The inverted card carries a non-empty inline transform on first paint.
+    const card = container.querySelector(".world-card") as HTMLElement | null;
+    expect(card?.style.transform ?? "").not.toBe("");
+  });
+
+  it("does NOT run the entry treatment with no flipFrom (direct visit)", () => {
+    const { container } = renderWorld();
+    const world = container.querySelector(".world");
+    expect(world?.classList.contains("world--entering")).toBe(false);
+    const card = container.querySelector(".world-card") as HTMLElement | null;
+    expect(card?.style.transform ?? "").toBe("");
   });
 });

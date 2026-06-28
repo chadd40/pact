@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import { AppDataContext, type AppData } from "../data";
@@ -21,7 +21,6 @@ const JUMPS = [
 
 export function AppShell() {
   const { bump, busy, doSeed, doAdvance, doReset } = useDemo();
-  const location = useLocation();
   const navigate = useNavigate();
   const [pacts, setPacts] = useState<Pact[]>([]);
   const [pactsLoaded, setPactsLoaded] = useState(false);
@@ -83,9 +82,7 @@ export function AppShell() {
         {/* ── Pending donation toast ── */}
         <PactToast
           pact={pending ?? null}
-          onResolve={(id) =>
-            navigate(`/pact/${id}`, { state: { backgroundLocation: location } })
-          }
+          onResolve={(id) => navigate(`/pact/${id}`)}
         />
 
         {/* ── States / Demo menu (dev affordance — relocated from sidebar) ── */}
