@@ -1063,6 +1063,43 @@
   to { opacity: 1; transform: translateY(0) rotate(0); }
 }
 
+/* ── Web-mode handoff (copy-paste pact to desktop app) ──────────────────────── */
+.pc-web-handoff {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+.pc-handoff-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pc-handoff-msg {
+  font-size: 13px;
+  color: var(--pc-muted);
+  margin: 0;
+}
+.pc-handoff-blob {
+  width: 100%;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--pc-cream);
+  border: 1px solid rgba(239, 235, 225, 0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: none;
+  box-sizing: border-box;
+  cursor: text;
+  word-break: break-all;
+}
+.pc-handoff-blob:focus {
+  outline: 2px solid var(--pc-gold);
+  outline-offset: 2px;
+}
+
 /* ── Focus-visible (keyboard) on the dark-rail + deck controls ───────────────── */
 .pc-slot:focus-visible,
 .pc-pill:focus-visible,

@@ -5,6 +5,7 @@ import { useDemo } from "../App";
 import type { Charity, Pact } from "../types";
 import { PasteWebPact } from "../components/PasteWebPact";
 import { isDesktop } from "../lib/platform";
+import { encodeDraft } from "../lib/handoff";
 import type { PactDraft } from "../lib/handoff";
 import "./create.css";
 
@@ -99,6 +100,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const [charities, setCharities] = useState<Charity[]>([]);
   const [created, setCreated] = useState<Pact | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Web-mode handoff: clipboard copy state.
+  const [copied, setCopied] = useState(false);
+  const [blobText, setBlobText] = useState<string | null>(null);
 
   const stageRef = useRef(stage);
   stageRef.current = stage;
@@ -273,6 +277,32 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   const openPact = () => {
     if (created) navigate(`/pact/${created.id}`);
+  };
+
+  // Web mode: instead of sealing locally, encode a draft and hand it off to
+  // the desktop app via clipboard. Mirror the seal handler's goal/what_counts
+  // derivation exactly so the desktop side receives a faithful pact definition.
+  const copyPayload = async () => {
+    if (!charityId || !agentKey) return;
+    const draft: PactDraft = {
+      // Mirror seal handler: goalName = isCustom ? customTitle.trim() || "Your goal" : goalCard.title
+      goal: goalName,
+      // Mirror seal handler: description = isCustom ? customDesc.trim() || undefined : undefined
+      what_counts: isCustom ? customDesc.trim() || undefined : undefined,
+      frequency: { days_per_week: days, weeks },
+      stake_amount_cents: stake * 100,
+      charity_id: charityId,
+      agent: agentKey,
+    };
+    const blob = encodeDraft(draft);
+    setBlobText(blob);
+    try {
+      await navigator.clipboard.writeText(blob);
+      setCopied(true);
+    } catch {
+      // Clipboard blocked — blob is shown in the fallback textarea for manual copy.
+      setCopied(false);
+    }
   };
 
   // ── Card slot / flip transforms ─────────────────────────────────────────────
@@ -679,10 +709,35 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
               <button className="pc-continue" onClick={advance} disabled={!canContinue}>
                 Continue <Arrow />
               </button>
-            ) : (
+            ) : isDesktop() ? (
+              /* Desktop: seal locally as before */
               <button className="pc-continue seal" onClick={seal} disabled={!agentKey}>
                 Seal the pact <Arrow />
               </button>
+            ) : (
+              /* Web: emit a copy-paste handoff payload for the desktop app */
+              <div className="pc-web-handoff">
+                <button
+                  className="pc-continue seal"
+                  onClick={copyPayload}
+                  disabled={!agentKey}
+                >
+                  {copied ? "Copied!" : "Copy your pact"} <Arrow />
+                </button>
+                {blobText && (
+                  <div className="pc-handoff-hint">
+                    <p className="pc-handoff-msg m">Open the Pact app and paste this in</p>
+                    <textarea
+                      className="pc-handoff-blob"
+                      readOnly
+                      value={blobText}
+                      rows={3}
+                      aria-label="Pact payload — copy and paste this into the Pact desktop app"
+                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
