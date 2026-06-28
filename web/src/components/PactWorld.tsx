@@ -7,7 +7,9 @@ import { SubmitSheet } from "./SubmitSheet";
 import { CoachPane } from "./CoachPane";
 import { LinkModal } from "./LinkModal";
 import { DeclineModal } from "./DeclineModal";
-import { CardBack, AGENTS } from "../screens/Create";
+import { CardBack, CustomCardFront, AGENTS } from "../screens/Create";
+import { GoalGlyph } from "./GoalGlyph";
+import { cardArtFor } from "../lib/cardArt";
 import { dollars, formatDate } from "../lib";
 import type { CoachingMessage, Pact, Packet } from "../types";
 // CardBack's editorial `.cb-*` styles live in create.css. It's imported by
@@ -58,47 +60,52 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
 
   // ── Create-style flip-open entry (Task 8) ──────────────────────────────────
   // Home.openPact navigates here with `state.flipFrom` = the clicked carousel
-  // card's on-screen rect. We run a CSS/JS FLIP (First-Last-Invert-Play with a
-  // rotateY) on `.world-card`: start at the card's box (rotated 180°, scaled to
-  // fit), then play to the world-card's natural centered rect over ~.62s — the
-  // editorial back flips into view. Deliberately NOT Framer `layout`/`layoutId`,
-  // which fought the carousel's CSS transforms and caused the jiggle.
-  // Capture `flipFrom` ONCE — the entry is meaningful only on the first render.
-  // (Demo bump / refetch must not re-arm the flip; React Router keeps state on the
-  // entry, so reading it on later renders is fine, but we still latch it.)
+  // card's on-screen rect. We run a true two-faced create-style flip (no Framer
+  // layout), separating POSITION from ROTATION:
+  //   · the OUTER wrapper (.world-card, wrapRef) takes the position FLIP —
+  //     translate/scale from the clicked card's rect back to identity.
+  //   · the FLIP container (.world-flip, flipRef, preserve-3d) takes the rotateY —
+  //     starts at 0° (showing the FRONT art, matching the clicked card) and plays
+  //     to 180° (revealing the editorial back), which is also its rest state.
+  // Two backface-hidden faces mean a face is always visible during the flip — the
+  // single-face version was invisible for its first half (it faced away).
+  // Capture `flipFrom` ONCE — meaningful only on the first render. (Demo bump /
+  // refetch must not re-arm the flip; we latch it in a ref.)
   const flipFromRef = useRef<FlipRect | null>(
     (location.state as { flipFrom?: FlipRect } | null)?.flipFrom ?? null
   );
-  const worldRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);   // position FLIP target
+  const flipRef = useRef<HTMLDivElement>(null);   // rotation target
   const [entering, setEntering] = useState(false);
   const ranFlip = useRef(false);
 
-  // The `.world-card` only mounts once `pact` has loaded (before that we render a
-  // "Loading…" placeholder). So the FLIP can't run on the very first paint when
-  // the pact is fetched async — gate on the card being present and re-run (via the
-  // `pact` dep) once it mounts. The `ranFlip` latch keeps it to a single run.
+  // The card only mounts once `pact` has loaded (before that we render a "Loading…"
+  // placeholder). So the FLIP can't run on the very first paint when the pact is
+  // fetched async — gate on the card being present and re-run (via the `pact` dep)
+  // once it mounts. The `ranFlip` latch keeps it to a single run.
   useLayoutEffect(() => {
     if (ranFlip.current) return;          // once per PactWorld instance
     const flipFrom = flipFromRef.current;
     if (!flipFrom) { ranFlip.current = true; return; }  // direct/keyboard → no flip
-    const card = cardRef.current;
-    if (!card) return;                    // card not mounted yet (pact still loading)
+    const wrap = wrapRef.current;
+    const flip = flipRef.current;
+    if (!wrap || !flip) return;           // card not mounted yet (pact still loading)
     ranFlip.current = true;
     // Respect reduced-motion. `matchMedia` may be absent in test/jsdom — guard it.
     const reduce =
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
+    if (reduce) return;                   // CSS rest class shows the editorial back
+
+    setEntering(true);                    // drop the rest class; show the front at 0°
 
     // LAST — the card's natural centered box. FIRST — the carousel card's rect.
-    const last = card.getBoundingClientRect();
+    const last = wrap.getBoundingClientRect();
     if (last.width === 0 || last.height === 0) {
-      // No real layout (e.g. jsdom): still flag the entry so the class/treatment
-      // is applied, but skip the (meaningless) numeric transform math.
-      setEntering(true);
-      card.style.transform = "rotateY(180deg)";
+      // No real layout (e.g. jsdom): flag the entry + a marker inline transform so
+      // the treatment is observable, but skip the (meaningless) numeric math.
+      wrap.style.transform = "translate(0px, 0px)";
       return;
     }
     const dx = flipFrom.x - last.x;
@@ -106,37 +113,46 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
     const sx = flipFrom.width / last.width;
     const sy = flipFrom.height / last.height;
 
-    // INVERT — jump to the card's position/scale, rotated to the front, no anim.
-    card.style.transition = "none";
-    card.style.transformOrigin = "top left";
-    card.style.transform =
-      `translate(${dx}px, ${dy}px) scale(${sx}, ${sy}) rotateY(180deg)`;
-    setEntering(true);
+    // INVERT — wrapper jumps to the clicked card's position/scale; flip container
+    // sits at 0° (front showing), both with no transition.
+    wrap.style.transition = "none";
+    wrap.style.transformOrigin = "top left";
+    wrap.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    flip.style.transition = "none";
+    flip.style.transform = "rotateY(0deg)";
 
     let raf2 = 0;
     const onEnd = (e: TransitionEvent) => {
-      if (e.propertyName !== "transform") return;
-      card.style.transition = "";
-      card.style.transform = "";
-      card.style.transformOrigin = "";
-      card.removeEventListener("transitionend", onEnd);
+      if (e.propertyName !== "transform" || e.target !== wrap) return;
+      // Clear the wrapper's inline position (so resize isn't broken). Leave the
+      // flip container at its rest 180° — handled by the CSS `--rest` class once
+      // `entering` flips false; clearing the inline transform lets that take over.
+      wrap.style.transition = "";
+      wrap.style.transform = "";
+      wrap.style.transformOrigin = "";
+      flip.style.transition = "";
+      flip.style.transform = "";
+      wrap.removeEventListener("transitionend", onEnd);
       setEntering(false);
     };
 
-    // PLAY — next frame, release to identity with the transition on. A double rAF
-    // guarantees the browser has committed the inverted frame before animating.
+    // PLAY — next frame, release the wrapper to identity and rotate the flip
+    // container to 180° (revealing the editorial back). A double rAF guarantees the
+    // inverted frame is committed before the transition starts.
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
-        card.style.transition = "transform .62s cubic-bezier(.2,.72,.26,1)";
-        card.style.transform = "none";
-        card.addEventListener("transitionend", onEnd);
+        wrap.style.transition = "transform .62s cubic-bezier(.2,.72,.26,1)";
+        wrap.style.transform = "none";
+        flip.style.transition = "transform .62s cubic-bezier(.2,.72,.26,1)";
+        flip.style.transform = "rotateY(180deg)";
+        wrap.addEventListener("transitionend", onEnd);
       });
     });
 
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      card.removeEventListener("transitionend", onEnd);
+      wrap.removeEventListener("transitionend", onEnd);
     };
     // The card mounts only after `pact` loads, so re-run when it appears.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +230,9 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
   const cbAgent = AGENTS.find((a) => a.key === pact.agent) ?? AGENTS[0];
   const cbCharity = charityById[pact.charity_id] ?? null;
   const sealedDate = formatDate(pact.started_at ?? pact.created_at).toUpperCase();
+  // Card FRONT art — the SAME art the Home carousel shows for this pact, so the
+  // flip-open front matches the card the user clicked (Task 8 two-faced flip).
+  const cbArt = cardArtFor(pact);
 
   // Coach strip avatar/name (active/evaluating). Fall back to Hermes when the
   // pact's agent has no avatar in the catalog.
@@ -427,7 +446,7 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
   };
 
   return (
-    <div ref={worldRef} className={`world world--${mode}${entering ? " world--entering" : ""}`}>
+    <div className={`world world--${mode}${entering ? " world--entering" : ""}`}>
       <div className="world-stage">
         {/* Top chrome: standalone gets a back button; overlay gets a close X. */}
         {mode === "standalone" ? (
@@ -444,28 +463,50 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
         {err && <div className="pd-err">{err}</div>}
 
         <div className="world-grid">
-          {/* LEFT — the editorial card back, fed with the live pact. On entry it
-              flips open from the carousel card (CSS/JS FLIP driven by cardRef in
-              the layout effect above — no Framer layout). */}
-          <div ref={cardRef} className="world-card">
-            <CardBack
-              goalName={pact.title}
-              days={days}
-              weeks={weeks}
-              weeksWord={weeksWord}
-              stake={pact.stake_amount_cents / 100}
-              charity={cbCharity}
-              agent={cbAgent}
-              owner={pact.owner}
-              sealedDate={sealedDate}
-              titleReady
-              freqReady
-              stakeReady
-              charityReady
-              agentReady
-              signed
-              zoneState={() => "done"}
-            />
+          {/* LEFT — a true two-faced create-style flip (no Framer layout):
+              · .world-card  = outer wrapper, takes the POSITION FLIP (translate/
+                scale from the clicked card's rect) — see wrapRef + the effect.
+              · .world-flip  = preserve-3d container, takes the ROTATION. At rest
+                it shows the BACK (rotateY 180°, via the CSS class — persists after
+                the inline cleanup); on entry it starts at 0° (front) and plays to
+                180° to reveal the editorial back.
+              · two faces, each backface-hidden: FRONT = the same carousel art for
+                this pact; BACK = the editorial <CardBack/> (pre-rotated 180°). */}
+          <div ref={wrapRef} className="world-card">
+            <div ref={flipRef} className={`world-flip${entering ? "" : " world-flip--rest"}`}>
+              <div className="world-face world-face-front">
+                {cbArt.kind === "photo" ? (
+                  <CustomCardFront imageSrc={cbArt.src} title={cbArt.title} />
+                ) : cbArt.kind === "art" ? (
+                  <img className="world-front-art" src={cbArt.src} alt={pact.title} draggable={false} />
+                ) : (
+                  <div className="world-front-glyph">
+                    <GoalGlyph title={pact.title} size={48} />
+                    <div className="world-front-glyph-title">{pact.title}</div>
+                  </div>
+                )}
+              </div>
+              <div className="world-face world-face-back">
+                <CardBack
+                  goalName={pact.title}
+                  days={days}
+                  weeks={weeks}
+                  weeksWord={weeksWord}
+                  stake={pact.stake_amount_cents / 100}
+                  charity={cbCharity}
+                  agent={cbAgent}
+                  owner={pact.owner}
+                  sealedDate={sealedDate}
+                  titleReady
+                  freqReady
+                  stakeReady
+                  charityReady
+                  agentReady
+                  signed
+                  zoneState={() => "done"}
+                />
+              </div>
+            </div>
           </div>
 
           {/* RIGHT — status-keyed panel. */}

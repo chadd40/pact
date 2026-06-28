@@ -164,22 +164,41 @@ describe("PactWorld (active, standalone)", () => {
   });
 
   // ── Flip-open entry animation (Task 8) ──────────────────────────────────────
+  it("renders the two-faced flip (front art + editorial back)", () => {
+    const { container } = renderWorld();
+    // The card is a true two-faced flip: an outer wrapper, a preserve-3d flip
+    // container, and front + back faces. Both faces must be in the DOM so a face
+    // is always visible while the container rotates.
+    expect(container.querySelector(".world-flip")).toBeTruthy();
+    expect(container.querySelector(".world-face-front")).toBeTruthy();
+    expect(container.querySelector(".world-face-back")).toBeTruthy();
+  });
+
   it("runs the entry treatment when navigation state carries a flipFrom rect", () => {
     const { container } = renderWorld({ x: 10, y: 10, width: 210, height: 300 });
     const world = container.querySelector(".world");
     // The FLIP is driven by a `.world--entering` class on the root that stays on
     // until the transition ends (jsdom never fires transitionend, so it persists).
     expect(world?.classList.contains("world--entering")).toBe(true);
-    // The inverted card carries a non-empty inline transform on first paint.
-    const card = container.querySelector(".world-card") as HTMLElement | null;
-    expect(card?.style.transform ?? "").not.toBe("");
+    // The wrapper carries the inverted position transform on first paint.
+    const wrap = container.querySelector(".world-card") as HTMLElement | null;
+    expect(wrap?.style.transform ?? "").not.toBe("");
+    // While entering, the flip container is NOT in its rest (back-showing) class —
+    // it starts at 0° (front) and animates to the back.
+    const flip = container.querySelector(".world-flip");
+    expect(flip?.classList.contains("world-flip--rest")).toBe(false);
   });
 
   it("does NOT run the entry treatment with no flipFrom (direct visit)", () => {
     const { container } = renderWorld();
     const world = container.querySelector(".world");
     expect(world?.classList.contains("world--entering")).toBe(false);
-    const card = container.querySelector(".world-card") as HTMLElement | null;
-    expect(card?.style.transform ?? "").toBe("");
+    const wrap = container.querySelector(".world-card") as HTMLElement | null;
+    expect(wrap?.style.transform ?? "").toBe("");
+    // At rest (direct visit) the flip container shows the editorial back via the
+    // CSS rest class (rotateY 180°), with no inline transform.
+    const flip = container.querySelector(".world-flip") as HTMLElement | null;
+    expect(flip?.classList.contains("world-flip--rest")).toBe(true);
+    expect(flip?.style.transform ?? "").toBe("");
   });
 });

@@ -743,26 +743,63 @@
   width: 100%; max-width: 832px; margin: 0 auto;
 }
 
-/* LEFT — the editorial CardBack. Mirrors the create card's 416×582 ratio scaled
-   to ~300px wide; .cb fills it (height:100%) with the dark editorial surface. */
+/* LEFT — a true two-faced create-style flip (mirrors create.css .pc-flip/.pc-face).
+   · .world-card  = outer wrapper: holds size + drop shadow, takes the POSITION
+     FLIP. NOT clipped (3D children must not be flattened) and NO backface-hidden.
+   · .world-flip  = preserve-3d rotation layer. Rest = the editorial BACK (180°).
+   · .world-face  = the two faces, each backface-hidden, clipped + rounded. */
 .world-card {
   flex: none; width: 300px; height: 420px;
-  border-radius: 24px; overflow: hidden;
-  background: var(--pc-card-2);
+  position: relative;
+  border-radius: 24px;
   box-shadow: 0 42px 84px -34px rgba(20, 18, 12, 0.6), 0 6px 18px -8px rgba(20, 18, 12, 0.36);
   color: var(--pc-on-card);
 }
+.world-flip {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+}
+/* Rest state (settled / direct link / reduced-motion): show the editorial back.
+   Applied via class — NOT inline — so it persists after the entry cleanup clears
+   the inline transform. */
+.world-flip--rest { transform: rotateY(180deg); }
+.world-face {
+  position: absolute; inset: 0;
+  border-radius: 24px; overflow: hidden;
+  background: var(--pc-card-2);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* The back face is pre-rotated 180° so it reads correctly once the flip container
+   lands at rest (also 180°). NOTE: the class is `world-face-back`, NOT `world-back`
+   — `.world-back` is the stage's back-navigation button. */
+.world-face-back { transform: rotateY(180deg); }
+
+/* FRONT face art — mirrors the Home carousel front variants (photo / template /
+   glyph) so the flip opens from the exact card the user clicked. */
+.world-front-art { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; }
+.world-front-glyph {
+  width: 100%; height: 100%;
+  background: #16150f;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; color: #e8ddcd; padding: 24px; box-sizing: border-box;
+}
+.world-front-glyph-title {
+  font-size: 19px; font-weight: 600; letter-spacing: -0.02em;
+  color: #e8ddcd; text-align: center; line-height: 1.2;
+}
+
 /* The card-back's own padding is tuned for the larger create card — tighten it a
-   touch at this size so all five sections breathe inside 420px. */
-.world-card .cb { padding: 26px 26px 24px; }
-.world-card .cb-title { font-size: 32px; }
-.world-card .cb-stake { font-size: 44px; }
-.world-card .cb-rule { margin: 15px 0; }
-.world-card .cb-section + .cb-section { margin-top: 13px; }
+   touch at this size so all five sections breathe inside the 420px back face. */
+.world-face-back .cb { padding: 26px 26px 24px; }
+.world-face-back .cb-title { font-size: 32px; }
+.world-face-back .cb-stake { font-size: 44px; }
+.world-face-back .cb-rule { margin: 15px 0; }
+.world-face-back .cb-section + .cb-section { margin-top: 13px; }
 /* The signer is the live pact's owner, which can be a long email at this card
    size — keep the signature on one line inside the card foot. */
-.world-card .cb-foot { margin-top: auto; }
-.world-card .cb-sign-name {
+.world-face-back .cb-foot { margin-top: auto; }
+.world-face-back .cb-sign-name {
   font-size: 26px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -808,14 +845,15 @@
 }
 
 /* ── Create-style flip-open entry (Task 8) ──────────────────────────────────
-   PactWorld runs a CSS/JS FLIP on `.world-card` when opened from a carousel card
-   (the inline transform is set imperatively in PactWorld). The stage carries the
-   perspective so the rotateY reads as a 3D flip (mirrors create.css's .pc-world),
-   and the right panel slides/fades in over the same window. */
+   PactWorld runs a two-faced CSS/JS FLIP when opened from a carousel card: the
+   wrapper (.world-card) takes the position FLIP and the .world-flip container the
+   rotateY (both set imperatively in PactWorld). The stage carries the perspective
+   so the rotation reads as a 3D flip (mirrors create.css's .pc-world), and the
+   right panel slides/fades in over the same window. */
 .world-stage { perspective: 1850px; perspective-origin: 50% 46%; }
-.world-card { transform-style: preserve-3d; backface-visibility: hidden; }
 
 .world--entering .world-card { will-change: transform; z-index: 2; }
+.world--entering .world-flip { will-change: transform; }
 .world--entering .world-panel {
   opacity: 0;
   transform: translateX(22px);
@@ -827,9 +865,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* No flip / slide — the world simply appears. (PactWorld also skips the JS FLIP
-     under reduced-motion, so no inline transform is ever set.) */
-  .world--entering .world-card { will-change: auto; }
+  /* No flip / slide — the world simply appears showing the editorial back.
+     (PactWorld also skips the JS FLIP under reduced-motion, so the .world-flip
+     keeps its rest 180° via the --rest class and no inline transform is set.) */
+  .world--entering .world-card,
+  .world--entering .world-flip { will-change: auto; }
   .world--entering .world-panel {
     opacity: 1; transform: none; animation: none;
   }
