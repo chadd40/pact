@@ -584,6 +584,118 @@
   }
 }
 
+/* ════════════════════════ STATS FLYOUT ════════════════════════ */
+/* Container: inline-flex row — panel sits LEFT of the collapsed box */
+.flyout {
+  position: relative;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  outline: none;
+}
+
+/* The collapsible panel (left side, hidden by default) */
+.flyout-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--pc-hair);
+  border-radius: 12px 0 0 12px;
+  padding: 8px 14px;
+  gap: 0;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.28s ease, opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+/* Expand on hover or keyboard focus within flyout */
+.flyout:hover .flyout-panel,
+.flyout:focus-within .flyout-panel {
+  max-width: 560px;
+  opacity: 1;
+}
+
+/* Individual stat cell */
+.flyout-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 12px;
+  position: relative;
+}
+
+/* Vertical divider between stat cells */
+.flyout-div {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 24px;
+  background: var(--pc-hair);
+}
+
+.flyout-stat-num {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1b1a17;
+}
+
+.flyout-stat-label {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #76736a;
+  white-space: nowrap;
+}
+
+/* Always-visible collapsed box (right side) */
+.flyout-collapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--pc-hair);
+  border-radius: 999px;
+  padding: 7px 13px;
+  cursor: default;
+  user-select: none;
+}
+
+.flyout-collapsed-num {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1b1a17;
+}
+
+.flyout-collapsed-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #76736a;
+}
+
+.flyout-chevron {
+  color: #76736a;
+  flex: none;
+  transition: transform 0.25s ease;
+}
+
+/* Rotate chevron 180° when expanded */
+.flyout:hover .flyout-chevron,
+.flyout:focus-within .flyout-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flyout-panel { transition: none; }
+  .flyout-chevron { transition: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-tilt, .home-card, .pd-stamp, .ov-sheet, .ov-pane, .lm, .dm, .ss-scan-line, .lm-spinner { animation: none !important; transition: none !important; }
   .lm-menu { animation: none; }
