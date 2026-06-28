@@ -722,3 +722,94 @@
 @media (prefers-reduced-motion: reduce) {
   .toast-pulse, .toast-dot-pulse, .toast-dot { animation: none; }
 }
+
+/* ════════════════════════ PACT WORLD ════════════════════════
+   The pact detail "world": the editorial card (the create-flow CardBack fed with
+   the live pact) on the LEFT, a status-keyed panel on the RIGHT. Mirrors the
+   create world's card metrics (416×582 → ~300px wide here) and rail width. The
+   status panels (.pd-active children, verdict/donate/terminal) are reused from
+   the legacy detail styles above; here they only need to sit inside .world-panel. */
+.world { min-height: 100%; background: var(--pc-ivory); }
+.world--standalone { display: flex; flex-direction: column; }
+
+.world-stage {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 56px 34px; position: relative;
+}
+
+/* Top chrome — back (standalone) / close (overlay), pinned to the stage corner. */
+.world-back, .world-close {
+  position: absolute; top: 20px; left: 24px; z-index: 4;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 13px 0 10px; border-radius: 10px;
+  border: 1px solid #e6e4de; background: #fff; color: #56524a;
+  font-family: var(--pc-sans); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.world-close { left: auto; right: 24px; width: 34px; padding: 0; justify-content: center; }
+.world-back:hover, .world-close:hover { background: var(--pc-ivory-2); }
+
+/* Two-column world: editorial card (left) + status panel (right). */
+.world-grid {
+  display: flex; align-items: stretch; gap: 40px;
+  width: 100%; max-width: 832px; margin: 0 auto;
+}
+
+/* LEFT — the editorial CardBack. Mirrors the create card's 416×582 ratio scaled
+   to ~300px wide; .cb fills it (height:100%) with the dark editorial surface. */
+.world-card {
+  flex: none; width: 300px; height: 420px;
+  border-radius: 24px; overflow: hidden;
+  background: var(--pc-card-2);
+  box-shadow: 0 42px 84px -34px rgba(20, 18, 12, 0.6), 0 6px 18px -8px rgba(20, 18, 12, 0.36);
+  color: var(--pc-on-card);
+}
+/* The card-back's own padding is tuned for the larger create card — tighten it a
+   touch at this size so all five sections breathe inside 420px. */
+.world-card .cb { padding: 26px 26px 24px; }
+.world-card .cb-title { font-size: 32px; }
+.world-card .cb-stake { font-size: 44px; }
+.world-card .cb-rule { margin: 15px 0; }
+.world-card .cb-section + .cb-section { margin-top: 13px; }
+/* The signer is the live pact's owner, which can be a long email at this card
+   size — keep the signature on one line inside the card foot. */
+.world-card .cb-foot { margin-top: auto; }
+.world-card .cb-sign-name {
+  font-size: 26px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* RIGHT — the status panel. ~452px to fill out the 832px world beside the card. */
+.world-panel {
+  flex: 1; min-width: 0; max-width: 452px;
+  display: flex; flex-direction: column;
+}
+/* The active panel (.pd-col) flows top→bottom; verdict/terminal/review/donate
+   cards center within the panel column. */
+.world-panel > .pd-col { flex: 1; }
+.world-panel > .pd-review-card,
+.world-panel > .pd-verdict,
+.world-panel > .pd-donate,
+.world-panel > .pd-terminal {
+  width: 100%; margin: auto 0;
+}
+
+/* Coach strip: the agent name is italicized (was a plain mono caption). */
+.pd-coach-name { font-style: italic; }
+.pd-coach-strip .pd-coach-av img { width: 22px; height: 22px; object-fit: contain; display: block; }
+
+/* ── Overlay mode (Task 8 builds the flip on this) ── */
+.world--overlay { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; }
+.world--overlay .world-backdrop { position: absolute; inset: 0; background: rgba(22, 21, 15, 0.42); backdrop-filter: blur(2px); }
+.world--overlay .world-stage {
+  position: relative; z-index: 1; flex: none;
+  width: min(920px, 94vw); max-height: 92vh; overflow: auto;
+  background: #fff; border-radius: 22px;
+  box-shadow: 0 40px 100px -30px rgba(22, 21, 15, 0.55);
+  padding: 48px 40px;
+}
+
+@media (max-width: 760px) {
+  .world-grid { flex-direction: column; align-items: center; }
+  .world-panel { max-width: 100%; width: 100%; }
+}

@@ -19,7 +19,9 @@ interface DemoCtx {
   doReset: () => Promise<void>;
 }
 
-const DemoContext = createContext<DemoCtx | null>(null);
+// Exported so tests can wrap a screen in a stub provider (no network) without
+// mounting the full <App> shell. Not used by app code outside this module.
+export const DemoContext = createContext<DemoCtx | null>(null);
 export const useDemo = () => {
   const ctx = useContext(DemoContext);
   if (!ctx) throw new Error("useDemo outside provider");

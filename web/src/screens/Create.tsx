@@ -50,7 +50,7 @@ const DOWNLOAD_URL = "https://github.com/pact-app/pact/releases/latest";
 const OWNER_NAME = "Your Name";
 
 // Agents the card can be "kept honest by".
-interface AgentDef {
+export interface AgentDef {
   key: string;
   name: string; // as written on the card back
   blurb: string;
@@ -58,7 +58,7 @@ interface AgentDef {
   tag: "rec" | "connect";
   glyph?: JSX.Element;
 }
-const AGENTS: AgentDef[] = [
+export const AGENTS: AgentDef[] = [
   { key: "Hermes", name: "Hermes Agent", blurb: "Your built-in coach", avatar: "/agents/Hermes.svg", tag: "rec" },
   { key: "Claude Code", name: "Claude Code", blurb: "From your dev workflow", avatar: "/agents/Claude.svg", tag: "connect" },
   { key: "your agent", name: "Your own agent", blurb: "Any MCP agent, via API", avatar: "/agents/Nemoclaw.svg", tag: "connect" },
@@ -1038,7 +1038,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 // Mirrors the workout_card_back.svg layout: commitment → on the line → cause →
 // keeper → signature. Each section fades from a shimmer skeleton into its value
 // as the user fills the pact out.
-interface CardBackProps {
+export interface CardBackProps {
   goalName: string;
   days: number;
   weeks: number;
@@ -1057,7 +1057,7 @@ interface CardBackProps {
   zoneState: (n: number) => string;
 }
 
-function CardBack(p: CardBackProps) {
+export function CardBack(p: CardBackProps) {
   return (
     <div className="cb">
       <div className="cb-top">
