@@ -1,0 +1,22 @@
+/* web/src/components/paste-web-pact.css */
+.pwp-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 12px;
+  border: 1px solid var(--hair, rgba(0,0,0,.12));
+  background: var(--card, #fff); color: var(--ink, #1a1a1a);
+  font: inherit; font-size: 13px; cursor: pointer; opacity: .85;
+}
+.pwp-chip:hover { opacity: 1; }
+.pwp-panel { position: relative; display: flex; align-items: flex-start; gap: 8px; max-width: 420px; }
+.pwp-input {
+  flex: 1; min-height: 64px; resize: vertical;
+  padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--hair, rgba(0,0,0,.12));
+  font: inherit; font-size: 13px;
+}
+.pwp-submit {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px;
+  border: none; background: var(--accent, #1a1a1a); color: #fff;
+  font-size: 16px; cursor: pointer;
+}
+.pwp-error { position: absolute; top: 100%; left: 0; margin-top: 6px; color: var(--bad, #c0392b); font-size: 12px; }
