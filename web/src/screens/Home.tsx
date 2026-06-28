@@ -1,35 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 import { api, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import { useAppData } from "../data";
-import { dollars, formatDate, pactNo } from "../lib";
+import { dollars, formatDate } from "../lib";
+import { cardArtFor } from "../lib/cardArt";
+import { statusDot } from "../lib/pactStatus";
+import { pickStatement } from "../lib/motivation";
+import { GoalGlyph } from "../components/GoalGlyph";
+import { CustomCardFront } from "./Create";
 import type { Charity, Pact, Profile } from "../types";
 
 const STEP = 210;
 const CAROUSEL = new Set(["active", "evaluating"]);
-
-// Map a goal title to one of the card glyphs (mirrors the mockup's icon set).
-function goalGlyph(title: string) {
-  const t = title.toLowerCase();
-  if (/work\s?out|gym|run|exercise|lift|train|10k|cardio|yoga/.test(t)) return "dumbbell";
-  if (/read|book|study|write|sketch|journal/.test(t)) return "book";
-  if (/phone|screen|scroll|sleep|night|bed|wake|6am/.test(t)) return "moon";
-  if (/meditat|breath|calm|quiet|plunge|cold/.test(t)) return "lotus";
-  return "star";
-}
-function Glyph({ name }: { name: string }) {
-  const p = {
-    dumbbell: <path d="M3 9v6M6 7.5v9M18 7.5v9M21 9v6M6 12h12" />,
-    book: <><path d="M5 4a1 1 0 0 1 1-1h12v16H6a1 1 0 0 0-1 1Z" /><path d="M18 3v16" /></>,
-    moon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />,
-    lotus: <path d="M5 19c8 1 14-5 14-14 0 0-13-1-13 8a6 6 0 0 0 2 6Z" />,
-    star: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" />,
-  }[name];
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="24" height="24">{p}</svg>
-  );
-}
 
 function greeting(nowMs: number): string {
   const h = new Date(nowMs).getHours();
@@ -38,11 +22,33 @@ function greeting(nowMs: number): string {
   return `${day} ${part.toLowerCase()}`;
 }
 
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+    <path d="M5 12.5 10 17l9-11" />
+  </svg>
+);
+const HazardIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+const AlertIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
+
 export function Home() {
   const { bump, nowIso } = useDemo();
   const { pacts: allPacts, pactsLoaded, charityById } = useAppData();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [statement] = useState(() => pickStatement());
 
   // carousel state
   const [active, setActive] = useState(0);
@@ -91,28 +97,15 @@ export function Home() {
   const cardCount = useRef(0);
   cardCount.current = carousel.length + 1; // +1 for the "New pact" card
 
-  // stats
+  // ledger win-rate (used in ledger sub-head)
   const kept = profile?.kept ?? 0;
   const failed = profile?.failed ?? 0;
   const winRate = kept + failed > 0 ? Math.round((100 * kept) / (kept + failed)) : null;
-  const donated = all
-    .filter((p) => p.status === "donated")
-    .reduce((s, p) => s + p.stake_amount_cents, 0);
-  const stats = [
-    { big: String(profile?.current_streak ?? 0), label: "Current streak" },
-    { big: String(profile?.best_streak ?? 0), label: "Best streak" },
-    { big: winRate == null ? "—" : `${winRate}%`, label: "Win rate" },
-    { big: String(carousel.length), label: "Active pacts" },
-    { big: dollars(donated), label: "Donated" },
-  ];
 
-  // data-derived headline
-  const atRisk = carousel.find((p) => p.progress?.behind);
-  const near = carousel.find((p) => p.progress && p.progress.pct >= 80 && p.progress.pct < 100);
-  let headline = "Make something binding.";
-  if (atRisk) headline = `${atRisk.title} is slipping — ${dollars(atRisk.stake_amount_cents)} is on the line.`;
-  else if (near) headline = "One session from a clean week.";
-  else if (carousel.length) headline = `You're on track across ${carousel.length} pact${carousel.length === 1 ? "" : "s"}.`;
+  const openPact = (id: string) => {
+    if (suppressClick.current) return;
+    navigate(`/pact/${id}`, { state: { backgroundLocation: location } });
+  };
 
   const onDown = (e: React.PointerEvent) => {
     dragInfo.current = { startX: e.clientX, moved: false };
@@ -133,7 +126,6 @@ export function Home() {
     if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
     else if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
   };
-  const openCard = (id: string) => { if (suppressClick.current) return; navigate(`/pact/${id}`); };
 
   const cardStyle = (i: number): React.CSSProperties => {
     const frac = drag ? drag.dx / STEP : 0;
@@ -157,15 +149,7 @@ export function Home() {
       <div className="home-head">
         <div>
           <div className="home-eyebrow m">{greeting(nowIso ? new Date(nowIso).getTime() : Date.now())}</div>
-          <div className="home-headline">{headline}</div>
-        </div>
-        <div className="home-stats">
-          {stats.map((s) => (
-            <div className="home-stat" key={s.label}>
-              <div className="home-stat-num m">{s.big}</div>
-              <div className="home-stat-label">{s.label}</div>
-            </div>
-          ))}
+          <div className="home-headline">{statement}</div>
         </div>
       </div>
 
@@ -175,9 +159,8 @@ export function Home() {
         <div className="home-stage" role="group" aria-label="Active pacts carousel — use left and right arrow keys, or click a card" onKeyDown={onStageKey} onPointerDown={onDown} onMouseMove={onTilt} onMouseLeave={onLeave}>
           <div className="home-tilt" ref={tiltRef}>
             {carousel.map((p, i) => {
-              const cad = p.cadence;
-              const prog = p.progress;
-              const behind = prog?.behind ?? false;
+              const art = cardArtFor(p);
+              const dot = statusDot(p);
               return (
                 <div
                   key={p.id}
@@ -186,35 +169,30 @@ export function Home() {
                   aria-label={`Open ${p.title} — ${dollars(p.stake_amount_cents)} on the line`}
                   className="home-card real"
                   style={cardStyle(i)}
-                  onClick={() => openCard(p.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCard(p.id); } }}
+                  onClick={() => openPact(p.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPact(p.id); } }}
                 >
-                  <div className="home-card-top">
-                    <div className="home-card-glyph"><Glyph name={goalGlyph(p.title)} /></div>
-                    <div className={`home-card-flag ${behind ? "risk" : "ok"}`}>
-                      <span className="dot" />{behind ? "At risk" : "On track"}
-                    </div>
-                  </div>
-                  <div className="home-card-name-wrap">
-                    <div className="home-card-name">{p.title}</div>
-                    <div className="home-card-sub">
-                      {cad ? `${cad.days_per_week} days a week` : `${p.target_count}×`}
-                    </div>
-                  </div>
-                  <div className="home-card-row">
-                    <div>
-                      <div className="home-card-k m">On the line</div>
-                      <div className="home-card-stake m">{dollars(p.stake_amount_cents)}</div>
-                    </div>
-                    <div className="ar">
-                      <div className="home-card-k m">Logged</div>
-                      <div className="home-card-streak">{prog?.valid_count ?? 0} day{(prog?.valid_count ?? 0) === 1 ? "" : "s"}</div>
-                    </div>
-                  </div>
-                  <div className="home-card-foot">
-                    <span className="home-card-script">pact</span>
-                    <span className="home-card-no m">No. {pactNo(p.id)}</span>
-                  </div>
+                  <motion.div
+                    className="home-cardfront"
+                    layoutId={`pact-card-${p.id}`}
+                  >
+                    <span
+                      className={`home-dot ${dot}`}
+                      aria-label={dot === "green" ? "On track" : dot === "amber" ? "At risk" : "Off track"}
+                    >
+                      {dot === "green" ? <CheckIcon /> : dot === "amber" ? <HazardIcon /> : <AlertIcon />}
+                    </span>
+                    {art.kind === "photo"
+                      ? <CustomCardFront imageSrc={art.src} title={art.title} />
+                      : art.kind === "art"
+                      ? <img className="home-cardart" src={art.src} alt={p.title} draggable={false} />
+                      : (
+                        <div className="home-cardglyph">
+                          <GoalGlyph title={p.title} size={40} />
+                          <div className="home-cardglyph-title">{p.title}</div>
+                        </div>
+                      )}
+                  </motion.div>
                 </div>
               );
             })}

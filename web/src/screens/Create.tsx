@@ -109,7 +109,7 @@ const DownloadIcon = ({ size = 18 }: { size?: number }) => (
 // chosen picture fills the top window (the images are 1130×1121, the exact window
 // size, so they land 1:1 top-aligned) and the goal title replaces [GOAL_TEXT] as
 // live Geist text (auto-shrunk to stay on one line in the ~900px column).
-function CustomCardFront({ imageSrc, title }: { imageSrc: string; title: string }) {
+export function CustomCardFront({ imageSrc, title }: { imageSrc: string; title: string }) {
   const t = (title || "").trim() || "Your goal";
   const fontSize = Math.max(46, Math.min(104, Math.round(900 / Math.max(1, t.length * 0.58))));
   return (

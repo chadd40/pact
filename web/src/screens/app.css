@@ -76,10 +76,7 @@
 .home-head { padding: 26px 34px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .home-eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9488; }
 .home-headline { margin-top: 5px; font-size: 25px; font-weight: 600; color: #1b1a17; letter-spacing: -0.025em; max-width: 540px; }
-.home-stats { display: flex; gap: 8px; flex-wrap: wrap; }
-.home-stat { background: #fff; border: 1px solid var(--pc-hair); border-radius: 11px; padding: 9px 13px; text-align: center; min-width: 64px; }
-.home-stat-num { font-size: 18px; font-weight: 600; color: #1b1a17; }
-.home-stat-label { margin-top: 1px; font-size: 10px; font-weight: 600; color: #76736a; white-space: nowrap; }
+/* .home-stats removed — moved to StatsFlyout in the shell */
 
 .home-shelf { flex: none; height: 348px; position: relative; }
 .home-shelf-label { position: absolute; top: 18px; left: 34px; z-index: 6; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9488; }
@@ -90,27 +87,20 @@
   position: absolute; left: 50%; top: 50%; width: 210px; height: 300px;
   border-radius: 20px; overflow: hidden; cursor: pointer;
   backface-visibility: hidden; box-shadow: 0 30px 56px -26px rgba(22, 21, 15, 0.55);
-  padding: 20px 18px; display: flex; flex-direction: column;
 }
-.home-card.real { background: #16150f; border: 1px solid #2c2a22; color: #efebe1; background-image: radial-gradient(110% 70% at 22% 6%, rgba(214, 178, 120, 0.16), transparent 55%); }
-.home-card.new { background: linear-gradient(155deg, rgba(27, 26, 23, 0.05), rgba(27, 26, 23, 0.01)); border: 1.5px dashed #c9c5ba; align-items: center; justify-content: center; text-align: center; color: #1b1a17; }
-.home-card-top { display: flex; align-items: flex-start; justify-content: space-between; }
-.home-card-glyph { width: 44px; height: 44px; border-radius: 13px; background: #efebe1; color: #16150f; display: flex; align-items: center; justify-content: center; }
-.home-card-flag { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
-.home-card-flag.ok { color: #9fcdb4; }
-.home-card-flag.risk { color: #e7a98f; }
-.home-card-flag .dot, .pd-hero-flag .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.home-card-name-wrap { margin-top: auto; }
-.home-card-name { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
-.home-card-sub { margin-top: 4px; font-size: 13px; color: #a39d8e; }
-.home-card-row { margin-top: 14px; display: flex; align-items: flex-end; justify-content: space-between; }
-.home-card-row .ar { text-align: right; }
-.home-card-k { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d7768; }
-.home-card-stake { margin-top: 2px; font-size: 20px; font-weight: 600; color: #fbf7ee; }
-.home-card-streak { margin-top: 3px; font-size: 13px; font-weight: 600; color: #efebe1; }
-.home-card-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid #2c2a22; display: flex; align-items: center; justify-content: space-between; }
-.home-card-script { font-family: var(--pc-script); font-size: 22px; line-height: 0.7; color: #6f6a5e; }
-.home-card-no { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #5f5a4f; }
+.home-card.real { background: #16150f; border: 1px solid #2c2a22; }
+.home-card.new { background: linear-gradient(155deg, rgba(27, 26, 23, 0.05), rgba(27, 26, 23, 0.01)); border: 1.5px dashed #c9c5ba; padding: 20px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #1b1a17; }
+/* card front (replaces inner card markup for real pacts) */
+.home-cardfront { position: relative; width: 210px; height: 300px; cursor: pointer; }
+.home-cardart { width: 100%; height: 100%; object-fit: cover; display: block; }
+.home-cardglyph { width: 100%; height: 100%; background: #16150f; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #e8ddcd; padding: 20px; box-sizing: border-box; }
+.home-cardglyph-title { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: #e8ddcd; text-align: center; line-height: 1.2; }
+.home-dot { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; z-index: 2; color: #fff; }
+.home-dot.green { background: var(--pc-kept); }
+.home-dot.amber { background: #d8a425; }
+.home-dot.red { background: var(--pc-accent); }
+
+.pd-hero-flag .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .home-card-new-plus { width: 56px; height: 56px; border-radius: 16px; background: #1b1a17; color: #fff; display: flex; align-items: center; justify-content: center; }
 .home-card-new-title { margin-top: 16px; font-size: 19px; font-weight: 600; }
 .home-card-new-sub { margin-top: 6px; font-size: 13px; color: #76736a; max-width: 150px; }
