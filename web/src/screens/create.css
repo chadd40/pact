@@ -1122,3 +1122,21 @@
     background: rgba(239, 235, 225, 0.1);
   }
 }
+
+/* ── Embedded mode (on the landing deck section) ──────────────────────────────
+   The real create flow, dropped into a sized container on the marketing page.
+   Drop the full-viewport sizing + page chrome; the landing supplies its own
+   headline and frame. The fixed world still scales to fit via --pc-scale. */
+.pc-root.pc-embedded {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+.pc-embedded .pc-vignette,
+.pc-embedded .pc-brand,
+.pc-embedded .pc-heading,
+.pc-embedded .pc-mobile-note {
+  display: none;
+}
