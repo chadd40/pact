@@ -7,7 +7,7 @@
     "core:default",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{ "name": "binaries/pact-sidecar", "sidecar": true, "args": true }]
+      "allow": [{ "name": "binaries/pact-sidecar", "sidecar": true, "args": false }]
     }
   ]
 }
