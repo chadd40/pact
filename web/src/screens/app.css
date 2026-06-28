@@ -243,6 +243,12 @@
 .pd-receipt-row .b { font-size: 14px; font-weight: 600; color: #1b1a17; }
 .pd-receipt-row .risk { font-size: 18px; font-weight: 600; color: var(--pc-accent); }
 .pd-receipt-row .muted { color: #9a9488; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
+.pd-receipt-row .ok { color: #316f48; font-weight: 600; }
+.pd-receipt-row .pending { color: #9a6a32; font-weight: 600; }
+.pd-receipt-form { margin: 14px auto 0; max-width: 420px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; text-align: left; }
+.pd-receipt-input { min-width: 0; height: 36px; border-radius: 10px; border: 1px solid #e1ddd3; background: #fff; padding: 0 12px; font: 13px/1 var(--pc-sans); color: #1b1a17; }
+.pd-receipt-input:focus { outline: 2px solid rgba(176, 67, 42, 0.22); border-color: rgba(176, 67, 42, 0.45); }
+.pd-receipt-err { grid-column: 1 / -1; font-size: 12px; color: var(--pc-accent); }
 
 /* shared detail button */
 .pd-btn { height: 50px; padding: 0 24px; border-radius: 12px; border: 1px solid #16150f; background: #16150f; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-family: var(--pc-sans); }
@@ -441,27 +447,20 @@
 .lm-navbtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 11px;
+  padding: 7px 10px;
   background: #fff;
   border: 1px solid #d8cdb8;
-  border-radius: 14px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 .lm-nav.open .lm-navbtn {
+  background: #f0ece3;
   border-color: #c9bda0;
 }
 .lm-logo {
   height: 27px;
   width: auto;
-}
-.lm-navcaret {
-  color: var(--pc-muted);
-  transition: transform 0.25s ease;
-}
-.lm-nav.open .lm-navcaret {
-  transform: rotate(180deg);
 }
 .lm-menu {
   position: absolute;
@@ -479,9 +478,7 @@
   /* Match the logo button: white background + medium-tan border. */
   background: #fff;
   border: 1px solid #d8cdb8;
-  /* Square off the top corners so the dropdown reads as a continuation of the
-     button above it; keep the bottom corners rounded. */
-  border-radius: 6px 6px 16px 16px;
+  border-radius: 10px;
   box-shadow: 0 18px 44px -24px rgba(21, 20, 15, 0.32);
   padding: 12px;
   display: flex;
@@ -499,7 +496,7 @@
   text-align: left;
   background: none;
   border: none;
-  border-radius: 11px;
+  border-radius: 8px;
   padding: 11px 12px;
   font-family: var(--pc-sans);
   font-size: 16px;

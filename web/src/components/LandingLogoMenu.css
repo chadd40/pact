@@ -1,0 +1,129 @@
+.lp-chrome {
+  --l-ink: #15140f;
+  --l-cream: #f4ecda;
+  --l-card: #fbf6ea;
+  --l-line: #e3d8bf;
+  --l-accent-2: #e0936f;
+  --l-muted-2: #a89c83;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(16px, 2.4vw, 22px) clamp(18px, 3vw, 34px);
+  pointer-events: none;
+}
+.lp-logo {
+  height: 27px;
+  width: auto;
+  display: block;
+  pointer-events: auto;
+}
+.lp-nav {
+  position: relative;
+  pointer-events: auto;
+}
+.lp-navbtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  background: rgba(251, 246, 234, 0.92);
+  border: 1px solid var(--l-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 22px -12px rgba(21, 20, 15, 0.4);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lp-navbtn:hover {
+  transform: translateY(-1px);
+}
+.lp-nav.open .lp-navbtn {
+  background: rgba(229, 221, 204, 0.96);
+  box-shadow: 0 12px 30px -14px rgba(21, 20, 15, 0.5);
+}
+.lp-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transform-origin: top left;
+  animation: lpMenuIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.lp-menu-card {
+  background: rgba(251, 246, 234, 0.98);
+  border: 1px solid var(--l-line);
+  border-radius: 10px;
+  box-shadow: 0 26px 64px -26px rgba(21, 20, 15, 0.5);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(14px);
+}
+.lp-menu-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--l-muted-2);
+  padding: 6px 12px 8px;
+}
+.lp-menu-item {
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-family: var(--pc-sans);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--l-ink);
+  cursor: pointer;
+  transition: background 0.15s ease, padding-left 0.15s ease;
+}
+.lp-menu-item:hover {
+  background: rgba(21, 20, 15, 0.05);
+  padding-left: 16px;
+}
+.lp-menu-download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: var(--l-ink);
+  color: var(--l-cream);
+  border-radius: 10px;
+  padding: 15px;
+  font-family: var(--pc-sans);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 20px 44px -22px rgba(21, 20, 15, 0.6);
+  transition: transform 0.2s ease;
+}
+.lp-menu-download:hover {
+  transform: translateY(-1px);
+}
+.lp-menu-download svg {
+  color: var(--l-accent-2);
+}
+@keyframes lpMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 720px) {
+  .lp-menu {
+    width: 270px;
+  }
+}

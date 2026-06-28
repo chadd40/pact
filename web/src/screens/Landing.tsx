@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Create } from "./Create";
+import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { asset } from "../lib/asset";
 import "./landing.css";
 
@@ -40,10 +41,6 @@ const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string
   { t: "I wish I learned guitar", pos: { right: "28%", top: "11%" }, d: "1.9s", dur: "14s" },
 ];
 
-// Desktop app download. Pact ships as a GitHub DMG — point at the latest release.
-// Swap this to the real repo once the release is published.
-const DOWNLOAD_URL = "https://github.com/chadd40/pact/releases/latest";
-
 // The scroll-revealed iMessage script. `side` says who's "composing" it — an
 // incoming line ("in") shows the friend's typing dots first; an outgoing line
 // ("out") gets typed into the composer, then sent.
@@ -72,6 +69,7 @@ function phoneTime(): string {
 
 export function Landing() {
   const navigate = useNavigate();
+  const location = useLocation();
   // The link / cards all lead into the new-user onboarding (create → link agent → link Link).
   const onboard = () => navigate("/create");
 
@@ -80,14 +78,12 @@ export function Landing() {
   const stageWrapRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
-  const navRef = useRef<HTMLDivElement>(null);
 
   const [revealed, setRevealed] = useState(0); // # of messages shown
   const [phase, setPhase] = useState<"idle" | "in" | "out">("idle"); // pre-reveal beat
   const [target, setTarget] = useState(2); // scroll-driven reveal target
   const [goal, setGoal] = useState(0); // cycling wish
   const [clock, setClock] = useState(phoneTime);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const revealedRef = useRef(0);
   revealedRef.current = revealed;
@@ -205,29 +201,20 @@ export function Landing() {
     if (m) m.scrollTop = m.scrollHeight;
   }, [revealed, phase, goal]);
 
-  // Close the nav menu on outside-click / Escape.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
-
-  const goTo = (id: string) => {
-    setMenuOpen(false);
+  const goTo = (id: LandingMenuTarget) => {
     if (id === "top") {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const scrollTarget = (location.state as { scrollTo?: LandingMenuTarget } | null)?.scrollTo;
+  useEffect(() => {
+    if (!scrollTarget) return;
+    const id = window.setTimeout(() => goTo(scrollTarget), 0);
+    return () => window.clearTimeout(id);
+  }, [scrollTarget]);
 
   // What's being typed into the composer right now (outgoing beat).
   const composing = phase === "out";
@@ -236,46 +223,7 @@ export function Landing() {
   return (
     <div className="landing">
       {/* ── Fixed chrome · logo dropdown nav ─────────────────────────────────── */}
-      <div className="lp-chrome">
-        <div className={"lp-nav" + (menuOpen ? " open" : "")} ref={navRef}>
-          <button
-            type="button"
-            className="lp-navbtn"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label="Pact menu"
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            <img src={asset("/primary_logo.svg")} alt="Pact" className="lp-logo" />
-            <svg className="lp-navcaret" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          {menuOpen && (
-            <div className="lp-menu" role="menu">
-              <div className="lp-menu-card">
-                <div className="lp-menu-eyebrow m">Pact</div>
-                <button className="lp-menu-item" role="menuitem" onClick={() => goTo("top")}>
-                  Home
-                </button>
-                <button className="lp-menu-item" role="menuitem" onClick={() => goTo("integrations")}>
-                  Integrations
-                </button>
-                <button className="lp-menu-item" role="menuitem" onClick={() => goTo("faq")}>
-                  FAQ
-                </button>
-              </div>
-              <a className="lp-menu-download" href={DOWNLOAD_URL} target="_blank" rel="noreferrer" role="menuitem">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                  <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Download Pact
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
+      <LandingLogoMenu onGoTo={goTo} />
 
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}
       <div className="lp-pin" ref={pinRef}>
@@ -622,7 +570,7 @@ export function Landing() {
       <footer className="lp-bigfoot">
         <div className="lp-bigfoot-links">
           <button onClick={() => goTo("top")}>Home</button>
-          <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+          <a href={PACT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
             Download
           </a>
           <span className="lp-bigfoot-copy m">Put it on the line · ✦ · 2026</span>

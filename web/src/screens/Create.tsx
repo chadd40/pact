@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError, DEMO_OWNER } from "../api";
 import { useDemo } from "../App";
 import type { Charity, Pact } from "../types";
+import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { PasteWebPact } from "../components/PasteWebPact";
 import { isDesktop } from "../lib/platform";
 import { encodeDraft } from "../lib/handoff";
@@ -47,9 +48,6 @@ const CUSTOM_ARTS = [
   "/create/create_4.png",
   "/create/create_5.png",
 ];
-
-// Desktop app download — the GitHub DMG release (mirrors the landing page).
-const DOWNLOAD_URL = "https://github.com/chadd40/pact/releases/latest";
 
 // Shown as the signature line on the card back. Until accounts exist, the signer's
 // real name isn't known at creation time — show a placeholder. Swap to the
@@ -414,6 +412,10 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     }
   };
 
+  const goToLanding = (target: LandingMenuTarget) => {
+    navigate("/", { state: { scrollTo: target } });
+  };
+
   // Encode the current choices into a copy-paste handoff blob. Mirrors the seal
   // handler's goal/what_counts derivation exactly so the desktop side receives a
   // faithful pact definition (now including the signer's name).
@@ -545,14 +547,16 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <div className={embedded ? "pc-root pc-embedded" : "pc-root"} ref={rootRef}>
-      {/* Brand lockup — the landing-page logo, pinned to the viewport corner like the
-          landing chrome. Lives outside the scaled stage so its position matches landing
-          exactly. Hidden in embedded mode (the landing provides its own chrome).
-          Clickable: returns home (the dashboard, once the app build lands). */}
+      {/* Top-left chrome lives outside the scaled stage. Web reuses the landing
+          dropdown menu; desktop keeps its existing brand lockup + paste slot. */}
       {!embedded && (
-        <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact, back to home">
-          <img className="pc-brand-logo" src={asset("/primary_logo.svg")} alt="Pact" />
-        </button>
+        isDesktop() ? (
+          <button type="button" className="pc-brand" onClick={() => navigate("/")} aria-label="Pact, back to home">
+            <img className="pc-brand-logo" src={asset("/primary_logo.svg")} alt="Pact" />
+          </button>
+        ) : (
+          <LandingLogoMenu onGoTo={goToLanding} />
+        )
       )}
       {isDesktop() && stage === 0 && (
         <div className="pc-paste-slot">
@@ -1005,7 +1009,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                     Two steps to put it on the line: get the Pact app, then paste your signed pact in.
                   </p>
                   <div className="pc-done-steps">
-                    <a className="pc-done-download" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                    <a className="pc-done-download" href={PACT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
                       <DownloadIcon /> Download the app
                     </a>
                     <button className="pc-done-copy" onClick={copyBlob}>

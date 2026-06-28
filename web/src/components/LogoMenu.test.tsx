@@ -9,6 +9,11 @@ afterEach(cleanup);
 const setup = () => render(<MemoryRouter><LogoMenu /></MemoryRouter>);
 
 describe("LogoMenu", () => {
+  it("uses the compact logo without a caret", () => {
+    const { container } = setup();
+    expect(screen.getByAltText("Pact").getAttribute("src")).toContain("compact_nav_pact.svg");
+    expect(container.querySelector(".lm-navcaret")).toBeNull();
+  });
   it("is closed initially and opens on click", async () => {
     setup();
     expect(screen.queryByRole("menu")).toBeNull();
