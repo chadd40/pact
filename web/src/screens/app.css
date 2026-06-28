@@ -173,7 +173,7 @@
 .pd-chip .b { color: #1b1a17; font-weight: 600; }
 .pd-cancel { margin-top: 14px; align-self: flex-start; background: transparent; border: 0; font-size: 13px; font-weight: 600; color: #9a9488; cursor: pointer; }
 .pd-coach-strip { margin-top: auto; background: #fff; border: 1px solid var(--pc-hair); border-radius: 14px; padding: 13px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; max-width: 560px; text-align: left; }
-.pd-coach-av { width: 34px; height: 34px; border-radius: 10px; background: #16150f; color: #fff; flex: none; display: flex; align-items: center; justify-content: center; }
+.pd-coach-av { width: 34px; height: 34px; border-radius: 10px; background: #e8ddcd; color: #fff; flex: none; display: flex; align-items: center; justify-content: center; }
 .pd-coach-body { flex: 1; min-width: 0; }
 .pd-coach-body .m { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #9a9488; }
 .pd-coach-last { font-size: 13.5px; color: #27261f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -739,8 +739,8 @@
 
 /* Two-column world: editorial card (left) + status panel (right). */
 .world-grid {
-  display: flex; align-items: stretch; gap: 40px;
-  width: 100%; max-width: 832px; margin: 0 auto;
+  display: flex; align-items: flex-start; gap: 40px;
+  width: 100%; max-width: 908px; margin: 0 auto;
 }
 
 /* LEFT — a true two-faced create-style flip (mirrors create.css .pc-flip/.pc-face).
@@ -749,10 +749,12 @@
    · .world-flip  = preserve-3d rotation layer. Rest = the editorial BACK (180°).
    · .world-face  = the two faces, each backface-hidden, clipped + rounded. */
 .world-card {
-  flex: none; width: 300px; height: 420px;
+  flex: none; width: 416px; height: 582px;
   position: relative;
-  border-radius: 24px;
-  box-shadow: 0 42px 84px -34px rgba(20, 18, 12, 0.6), 0 6px 18px -8px rgba(20, 18, 12, 0.36);
+  /* --card-radius (28px) is scoped to create.css's .pc-root, which isn't an
+     ancestor here — so fall back to 28px to match the create card exactly. */
+  border-radius: var(--card-radius, 28px);
+  box-shadow: 0 42px 84px -30px rgba(20, 18, 12, .62), 0 6px 18px -8px rgba(20, 18, 12, .4);
   color: var(--pc-on-card);
 }
 .world-flip {
@@ -765,7 +767,7 @@
 .world-flip--rest { transform: rotateY(180deg); }
 .world-face {
   position: absolute; inset: 0;
-  border-radius: 24px; overflow: hidden;
+  border-radius: var(--card-radius, 28px); overflow: hidden;
   background: var(--pc-card-2);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
@@ -789,18 +791,12 @@
   color: #e8ddcd; text-align: center; line-height: 1.2;
 }
 
-/* The card-back's own padding is tuned for the larger create card — tighten it a
-   touch at this size so all five sections breathe inside the 420px back face. */
-.world-face-back .cb { padding: 26px 26px 24px; }
-.world-face-back .cb-title { font-size: 32px; }
-.world-face-back .cb-stake { font-size: 44px; }
-.world-face-back .cb-rule { margin: 15px 0; }
-.world-face-back .cb-section + .cb-section { margin-top: 13px; }
-/* The signer is the live pact's owner, which can be a long email at this card
-   size — keep the signature on one line inside the card foot. */
+/* The card-back renders at its native create size/padding (the card is now the
+   full 416×582 create size), so no shrink overrides are needed. The signer can
+   be a long email/name — keep the signature on one line inside the card foot
+   (no font-size override; let the native .cb-sign-name size apply). */
 .world-face-back .cb-foot { margin-top: auto; }
 .world-face-back .cb-sign-name {
-  font-size: 26px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -832,17 +828,6 @@
 /* Coach strip: the agent name is italicized (was a plain mono caption). */
 .pd-coach-name { font-style: italic; }
 .pd-coach-strip .pd-coach-av img { width: 22px; height: 22px; object-fit: contain; display: block; }
-
-/* ── Overlay mode (Task 8 builds the flip on this) ── */
-.world--overlay { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; }
-.world--overlay .world-backdrop { position: absolute; inset: 0; background: rgba(22, 21, 15, 0.42); backdrop-filter: blur(2px); }
-.world--overlay .world-stage {
-  position: relative; z-index: 1; flex: none;
-  width: min(920px, 94vw); max-height: 92vh; overflow: auto;
-  background: #fff; border-radius: 22px;
-  box-shadow: 0 40px 100px -30px rgba(22, 21, 15, 0.55);
-  padding: 48px 40px;
-}
 
 /* ── Create-style flip-open entry (Task 8) ──────────────────────────────────
    PactWorld runs a two-faced CSS/JS FLIP when opened from a carousel card: the

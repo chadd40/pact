@@ -126,7 +126,7 @@ function renderWorld(flipFrom?: { x: number; y: number; width: number; height: n
     <MemoryRouter initialEntries={[entry]}>
       <DemoContext.Provider value={DEMO}>
         <AppDataContext.Provider value={APP_DATA}>
-          <PactWorld pactId="p1" mode="standalone" initialPact={activePact()} />
+          <PactWorld pactId="p1" initialPact={activePact()} />
         </AppDataContext.Provider>
       </DemoContext.Provider>
     </MemoryRouter>

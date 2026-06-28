@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from pact import broker
 from pact.accounts import link_for
@@ -103,6 +103,9 @@ class CreateIn(BaseModel):
     # Custom goals: the owner's own "what counts as a check-in" definition.
     description: str | None = None
     card_art: str | None = None
+    # The name the owner signed when sealing the pact (free text, shown on the
+    # editorial card back). Capped to a sane length.
+    signer_name: str | None = Field(default=None, max_length=80)
 
 
 class EnqueueTaskIn(BaseModel):
@@ -206,6 +209,7 @@ def create_app(
                 settings=settings,
                 description=body.description,
                 card_art=body.card_art,
+                signer_name=body.signer_name,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))

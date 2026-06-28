@@ -101,6 +101,7 @@ class Pact(BaseModel):
     charity_url: str
     agent: str | None = None
     card_art: str | None = None
+    signer_name: str | None = None
     proof_source: str = "manual"
     freezes_allowed: int = 1
     freezes_used: int = 0

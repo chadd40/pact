@@ -27,9 +27,6 @@ const HERMES_AVATAR = "/agents/Hermes.svg";
 
 export interface PactWorldProps {
   pactId: string;
-  mode: "standalone" | "overlay";
-  /** Overlay mode: invoked by the backdrop / close button. */
-  onClose?: () => void;
   /**
    * Test seam (used ONLY by PactWorld.test.tsx): seed the rendered pact directly
    * so the component tree renders without the live api.getPact/getCoach/packet
@@ -40,7 +37,7 @@ export interface PactWorldProps {
 
 interface FlipRect { x: number; y: number; width: number; height: number; }
 
-export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps) {
+export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const { bump, signalChange } = useDemo();
   const nowMs = useClock();
   const { charityById } = useAppData();
@@ -189,8 +186,7 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
   };
 
   const goBack = () => {
-    if (mode === "overlay") onClose?.();
-    else navigate("/dashboard");
+    navigate("/dashboard");
   };
 
   if (err && !pact) {
@@ -446,19 +442,13 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
   };
 
   return (
-    <div className={`world world--${mode}${entering ? " world--entering" : ""}`}>
+    <div className={`world world--standalone${entering ? " world--entering" : ""}`}>
       <div className="world-stage">
-        {/* Top chrome: standalone gets a back button; overlay gets a close X. */}
-        {mode === "standalone" ? (
-          <button className="world-back" onClick={goBack} aria-label="Back to home">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="17" height="17"><path d="M15 6l-6 6 6 6" /></svg>
-            Back
-          </button>
-        ) : (
-          <button className="world-close" onClick={() => onClose?.()} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="17" height="17"><path d="M6 6l12 12M18 6 6 18" /></svg>
-          </button>
-        )}
+        {/* Top chrome: standalone back button to the dashboard. */}
+        <button className="world-back" onClick={goBack} aria-label="Back to home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="17" height="17"><path d="M15 6l-6 6 6 6" /></svg>
+          Back
+        </button>
 
         {err && <div className="pd-err">{err}</div>}
 
@@ -495,7 +485,7 @@ export function PactWorld({ pactId, mode, onClose, initialPact }: PactWorldProps
                   stake={pact.stake_amount_cents / 100}
                   charity={cbCharity}
                   agent={cbAgent}
-                  owner={pact.owner}
+                  owner={pact.signer_name || pact.owner}
                   sealedDate={sealedDate}
                   titleReady
                   freqReady

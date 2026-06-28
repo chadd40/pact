@@ -491,3 +491,84 @@ async def test_api_create_rejects_unknown_card_art(tmp_path):
             },
         )
         assert r.status_code == 422, r.text
+
+
+def test_lifecycle_structured_create_persists_signer_name(tmp_path):
+    clock, settings = _clock(), _settings()
+    pact = create_pact_structured(
+        goal_title="Custom goal",
+        goal_template=None,
+        days_per_week=3,
+        weeks=4,
+        stake_amount_cents=20000,
+        charity_id=_CHARITY,
+        agent="Hermes",
+        consent_acknowledged=True,
+        owner="c@example.com",
+        clock=clock,
+        settings=settings,
+        signer_name="Cole Haddad",
+    )
+    assert pact.signer_name == "Cole Haddad"
+
+
+def test_lifecycle_structured_create_signer_name_defaults_none(tmp_path):
+    clock, settings = _clock(), _settings()
+    pact = create_pact_structured(
+        goal_title="Run 3x a week",
+        goal_template=None,
+        days_per_week=3,
+        weeks=4,
+        stake_amount_cents=20000,
+        charity_id=_CHARITY,
+        agent="Hermes",
+        consent_acknowledged=True,
+        owner="c@example.com",
+        clock=clock,
+        settings=settings,
+    )
+    assert pact.signer_name is None
+
+
+@pytest.mark.anyio
+async def test_api_create_persists_signer_name(tmp_path):
+    app, repo, clock, settings = _build(tmp_path)
+    async with _client(app) as client:
+        r = await client.post(
+            "/api/pacts/create",
+            json={
+                "goal_title": "Custom goal",
+                "days_per_week": 3,
+                "weeks": 4,
+                "stake_amount_cents": 20000,
+                "charity_id": _CHARITY,
+                "agent": "Hermes",
+                "consent_acknowledged": True,
+                "owner": "c@example.com",
+                "signer_name": "Cole Haddad",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["signer_name"] == "Cole Haddad"
+        assert repo.get_pact(r.json()["id"]).signer_name == "Cole Haddad"
+
+
+@pytest.mark.anyio
+async def test_api_create_signer_name_defaults_null(tmp_path):
+    app, repo, clock, settings = _build(tmp_path)
+    async with _client(app) as client:
+        r = await client.post(
+            "/api/pacts/create",
+            json={
+                "goal_title": "Run 3x a week",
+                "days_per_week": 3,
+                "weeks": 4,
+                "stake_amount_cents": 20000,
+                "charity_id": _CHARITY,
+                "agent": "Hermes",
+                "consent_acknowledged": True,
+                "owner": "runner@example.com",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["signer_name"] is None

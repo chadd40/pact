@@ -88,6 +88,7 @@ export interface Pact {
   charity_url: string;
   agent?: string | null;
   card_art?: string | null;
+  signer_name?: string | null;
   proof_source: string;
   freezes_allowed: number;
   freezes_used: number;

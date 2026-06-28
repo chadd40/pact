@@ -382,6 +382,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         owner: DEMO_OWNER,
         description: isCustom ? customDesc.trim() || undefined : undefined,
         card_art: isCustom ? customArt ?? undefined : undefined,
+        signer_name: signerName.trim() || undefined,
       });
       setCreated(pact);
       signalChange();

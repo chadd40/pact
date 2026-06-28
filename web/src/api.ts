@@ -82,6 +82,7 @@ export const api = {
     owner: string;
     description?: string | null; // custom goals: owner's "what counts" definition
     card_art?: string | null; // custom goals: chosen /create/create_N.png photo
+    signer_name?: string | null; // the name the owner signed when sealing
   }) => request<Pact>("/api/pacts/create", { json: payload }),
 
   confirmPact: (
