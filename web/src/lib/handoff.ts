@@ -29,15 +29,16 @@ function checksum(draft: PactDraft): string {
 }
 
 // Stable key order so the checksum is reproducible across encode/decode.
+// what_counts is omitted when absent so it round-trips faithfully as undefined.
 function canonical(d: PactDraft) {
-  return {
+  const base = {
     goal: d.goal,
-    what_counts: d.what_counts ?? "",
     frequency: { days_per_week: d.frequency.days_per_week, weeks: d.frequency.weeks },
     stake_amount_cents: d.stake_amount_cents,
     charity_id: d.charity_id,
     agent: d.agent,
   };
+  return d.what_counts ? { ...base, what_counts: d.what_counts } : base;
 }
 
 function toB64url(s: string): string {

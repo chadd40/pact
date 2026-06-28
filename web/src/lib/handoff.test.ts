@@ -34,6 +34,22 @@ describe("handoff codec", () => {
     expect(decodeDraft(cut).ok).toBe(false);
   });
 
+  it("round-trips a draft without what_counts", () => {
+    const d: PactDraft = {
+      goal: "Meditate",
+      frequency: { days_per_week: 7, weeks: 2 },
+      stake_amount_cents: 2000,
+      charity_id: "against_malaria_foundation",
+      agent: "Hermes",
+    };
+    const r = decodeDraft(encodeDraft(d));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.draft).toEqual(d);
+      expect(r.draft.what_counts).toBeUndefined();
+    }
+  });
+
   it("rejects a wrong version", () => {
     // hand-build a v2 payload
     const bad =
