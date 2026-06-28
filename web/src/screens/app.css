@@ -487,8 +487,106 @@
 @keyframes ss-scan { 0% { top: -8%; } 100% { top: 104%; } }
 @keyframes ss-dots { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 
+/* ── LogoMenu dropdown (lm-* = logo-menu) ────────────────────────────────── */
+.lm-nav {
+  position: relative;
+  pointer-events: auto;
+}
+.lm-navbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 11px;
+  background: rgba(251, 250, 247, 0.92);
+  border: 1px solid var(--pc-hair);
+  border-radius: 16px;
+  box-shadow: 0 8px 22px -12px rgba(21, 20, 15, 0.4);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lm-navbtn:hover {
+  transform: translateY(-1px);
+}
+.lm-nav.open .lm-navbtn {
+  box-shadow: 0 12px 30px -14px rgba(21, 20, 15, 0.5);
+}
+.lm-logo {
+  height: 28px;
+}
+.lm-navcaret {
+  color: var(--pc-muted);
+  transition: transform 0.25s ease;
+}
+.lm-nav.open .lm-navcaret {
+  transform: rotate(180deg);
+}
+.lm-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transform-origin: top left;
+  animation: lmMenuIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 100;
+}
+.lm-menu-card {
+  background: rgba(251, 250, 247, 0.98);
+  border: 1px solid var(--pc-hair);
+  border-radius: 18px;
+  box-shadow: 0 26px 64px -26px rgba(21, 20, 15, 0.5);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(14px);
+}
+.lm-menu-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pc-muted-2);
+  padding: 6px 12px 8px;
+}
+.lm-menu-item {
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 11px;
+  padding: 11px 12px;
+  font-family: var(--pc-sans);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--pc-ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, padding-left 0.15s ease;
+}
+.lm-menu-item:hover {
+  background: rgba(21, 20, 15, 0.05);
+  padding-left: 16px;
+}
+.lm-menu-item.active {
+  color: var(--pc-ink, #16150f);
+  font-weight: 600;
+}
+@keyframes lmMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-tilt, .home-card, .pd-stamp, .ov-sheet, .ov-pane, .lm, .dm, .ss-scan-line, .lm-spinner { animation: none !important; transition: none !important; }
+  .lm-menu { animation: none; }
 }
 
 /* Narrow viewports: this build is desktop-first (mirrors the Create flow notice). */
