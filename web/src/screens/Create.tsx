@@ -109,12 +109,27 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   // Import a draft from the web → prefill the flow and land on the agent step.
   // stake_amount_cents ÷ 100 → dollars (the seal handler writes stake * 100).
-  // Any imported goal is free text so we treat it as a custom goal (CUSTOM_INDEX).
+  // If the draft carries a goal_template, find the matching GOALS card and restore
+  // it as a template goal (same card index as a manually picked one). Otherwise
+  // fall back to the custom-goal path (CUSTOM_INDEX + free-text title/what_counts).
   const importDraft = (d: PactDraft) => {
-    setGoalIndex(CUSTOM_INDEX);
-    setActive(CUSTOM_INDEX);
-    setCustomTitle(d.goal);
-    setCustomDesc(d.what_counts ?? "");
+    const templateIndex = d.goal_template
+      ? GOALS.findIndex((g) => g.template === d.goal_template)
+      : -1;
+    if (templateIndex >= 0) {
+      // Template goal: restore the exact card. Mirror what select() does for a
+      // non-custom card — set goalIndex + active, leave customTitle/customDesc blank.
+      setGoalIndex(templateIndex);
+      setActive(templateIndex);
+      setCustomTitle("");
+      setCustomDesc("");
+    } else {
+      // Custom goal: treat the goal string as free text.
+      setGoalIndex(CUSTOM_INDEX);
+      setActive(CUSTOM_INDEX);
+      setCustomTitle(d.goal);
+      setCustomDesc(d.what_counts ?? "");
+    }
     setDays(d.frequency.days_per_week);
     setWeeks(d.frequency.weeks);
     setStake(Math.round(d.stake_amount_cents / 100));
@@ -295,6 +310,8 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     const draft: PactDraft = {
       // Mirror seal handler: goalName = isCustom ? customTitle.trim() || "Your goal" : goalCard.title
       goal: goalName,
+      // Mirror seal handler: goal_template = goalCard.template (null for custom)
+      ...(isCustom ? {} : { goal_template: goalCard.template ?? undefined }),
       // Mirror seal handler: description = isCustom ? customDesc.trim() || undefined : undefined
       what_counts: isCustom ? customDesc.trim() || undefined : undefined,
       frequency: { days_per_week: days, weeks },

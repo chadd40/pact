@@ -50,6 +50,33 @@ describe("handoff codec", () => {
     }
   });
 
+  it("round-trips a draft with goal_template", () => {
+    const d: PactDraft = {
+      goal: "Work out",
+      goal_template: "workout",
+      frequency: { days_per_week: 5, weeks: 4 },
+      stake_amount_cents: 10000,
+      charity_id: "against_malaria_foundation",
+      agent: "Hermes",
+    };
+    const r = decodeDraft(encodeDraft(d));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.draft.goal_template).toBe("workout");
+  });
+
+  it("round-trips a draft without goal_template (goal_template stays undefined)", () => {
+    const d: PactDraft = {
+      goal: "Meditate",
+      frequency: { days_per_week: 7, weeks: 2 },
+      stake_amount_cents: 2000,
+      charity_id: "against_malaria_foundation",
+      agent: "Hermes",
+    };
+    const r = decodeDraft(encodeDraft(d));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.draft.goal_template).toBeUndefined();
+  });
+
   it("rejects a wrong version", () => {
     // hand-build a v2 payload
     const bad =

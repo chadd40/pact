@@ -2,6 +2,7 @@
 // copy-paste blob and decoded + re-validated in the desktop app. No server.
 export type PactDraft = {
   goal: string;
+  goal_template?: string;
   what_counts?: string;
   frequency: { days_per_week: number; weeks: number };
   stake_amount_cents: number;
@@ -29,7 +30,8 @@ function checksum(draft: PactDraft): string {
 }
 
 // Stable key order so the checksum is reproducible across encode/decode.
-// what_counts is omitted when absent so it round-trips faithfully as undefined.
+// Optional fields (goal_template, what_counts) are omitted when absent so they
+// round-trip faithfully as undefined for drafts that lack them.
 function canonical(d: PactDraft) {
   const base = {
     goal: d.goal,
@@ -38,7 +40,8 @@ function canonical(d: PactDraft) {
     charity_id: d.charity_id,
     agent: d.agent,
   };
-  return d.what_counts ? { ...base, what_counts: d.what_counts } : base;
+  const withTemplate = d.goal_template ? { ...base, goal_template: d.goal_template } : base;
+  return d.what_counts ? { ...withTemplate, what_counts: d.what_counts } : withTemplate;
 }
 
 function toB64url(s: string): string {
