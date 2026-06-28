@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 pact = "pact.cli:main"
+pact-sidecar = "pact.sidecar:main"
 
 [dependency-groups]
 dev = [
@@ -21,6 +22,7 @@ dev = [
     "httpx",
     "pytest-asyncio",
     "anyio[trio]",
+    "pyinstaller",
 ]
 
 [tool.pytest.ini_options]

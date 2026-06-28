@@ -113,6 +113,10 @@ def build_app(env: Mapping[str, str] | None = None):
         # Startup: one reconciliation sweep so a server restarted mid-pact settles
         # any active pact past its deadline and closes any elapsed dispute window.
         reconcile_on_startup(repo, clock, payment, settings)
+        # Readiness signal for a host process (Tauri shell) that waits on stdout
+        # before opening its window. Gated so dev/test runs stay quiet.
+        if os.environ.get("PACT_EMIT_READY"):
+            print("PACT_SIDECAR_READY", flush=True)
 
         # Autonomous ticker: only on a real-time clock with the scheduler enabled.
         # In demo mode (FixedClock) time is driven by /demo/advance-day, so the

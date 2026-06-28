@@ -27,6 +27,15 @@ export class ApiError extends Error {
   }
 }
 
+// In the packaged desktop app the SPA is served from tauri://localhost and must
+// reach the sidecar at 127.0.0.1:8000; the Rust shell injects __PACT_API_BASE__
+// before any page script runs. In the browser/dev it stays "" (relative paths +
+// Vite proxy).
+const API_BASE: string =
+  (typeof window !== "undefined" &&
+    (window as unknown as { __PACT_API_BASE__?: string }).__PACT_API_BASE__) ||
+  "";
+
 async function request<T>(
   path: string,
   init?: RequestInit & { json?: unknown }
@@ -37,7 +46,7 @@ async function request<T>(
     opts.headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
     opts.body = JSON.stringify(init.json);
   }
-  const res = await fetch(path, opts);
+  const res = await fetch(API_BASE + path, opts);
   if (!res.ok) {
     let detail = res.statusText;
     try {

@@ -20,6 +20,11 @@ class Settings:
     reasoning_timeout_polls: int = 0
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 60
+    cors_origins: tuple[str, ...] = (
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "http://localhost:5173",
+    )
 
 
 def _int(env: Mapping[str, str], key: str, default: int) -> int:
@@ -35,6 +40,13 @@ def _int(env: Mapping[str, str], key: str, default: int) -> int:
 def _str(env: Mapping[str, str], key: str, default: str) -> str:
     raw = env.get(key)
     return default if raw is None else raw
+
+
+def _csv(env: Mapping[str, str], key: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = env.get(key)
+    if raw is None:
+        return default
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 
 _TRUE = {"1", "true", "yes", "on"}
@@ -76,4 +88,13 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         reasoning_timeout_polls=_int(env, "PACT_REASONING_TIMEOUT_POLLS", 0),
         scheduler_enabled=_bool(env, "PACT_SCHEDULER_ENABLED", True),
         scheduler_interval_seconds=_int(env, "PACT_SCHEDULER_INTERVAL_SECONDS", 60),
+        cors_origins=_csv(
+            env,
+            "PACT_CORS_ORIGINS",
+            (
+                "tauri://localhost",
+                "http://tauri.localhost",
+                "http://localhost:5173",
+            ),
+        ),
     )
