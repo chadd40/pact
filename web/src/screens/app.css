@@ -478,7 +478,9 @@
 .lm-menu-card {
   background: #f0e9da;
   border: 1px solid #c9bda0;
-  border-radius: 16px;
+  /* Square off the top corners so the dropdown reads as a continuation of the
+     button above it; keep the bottom corners rounded. */
+  border-radius: 6px 6px 16px 16px;
   box-shadow: 0 18px 44px -24px rgba(21, 20, 15, 0.32);
   padding: 12px;
   display: flex;
