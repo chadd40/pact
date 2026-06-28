@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api, DEMO_OWNER } from "../api";
 import type { LinkStatus } from "../types";
 import "./onboard.css";
 
 export function Onboard() {
   const navigate = useNavigate();
+  const pactId = (useLocation().state as { pactId?: string } | null)?.pactId;
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -14,7 +15,7 @@ export function Onboard() {
 
   const connect = async () => {
     setBusy("link");
-    try { await api.linkConnect(DEMO_OWNER); setLink(await api.linkStatus(DEMO_OWNER)); }
+    try { setLink(await api.linkConnect(DEMO_OWNER)); }
     finally { setBusy(null); }
   };
   const mint = async () => {
@@ -46,9 +47,20 @@ export function Onboard() {
         {token && <code className="onb-token">{token}</code>}
       </section>
 
-      <button className="onb-finish" disabled={!fundingDone} onClick={() => navigate("/dashboard")}>
-        {fundingDone ? "Go to dashboard" : "Connect funding to continue"}
-      </button>
+      <div className="onb-actions">
+        <button className="onb-finish" disabled={!fundingDone} onClick={() => navigate("/dashboard")}>
+          {fundingDone ? "Go to dashboard" : "Connect funding to continue"}
+        </button>
+        {pactId && (
+          <button
+            className="onb-view-pact"
+            disabled={!fundingDone}
+            onClick={() => navigate(`/pact/${pactId}`)}
+          >
+            View your pact →
+          </button>
+        )}
+      </div>
     </div>
   );
 }
