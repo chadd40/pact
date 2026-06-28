@@ -7,6 +7,7 @@ import { PasteWebPact } from "../components/PasteWebPact";
 import { isDesktop } from "../lib/platform";
 import { encodeDraft } from "../lib/handoff";
 import type { PactDraft } from "../lib/handoff";
+import { CC_TOP, CC_GLYPH, CC_SUBTITLE, CC_PACT, CC_INDEX, CC_GRAD } from "./customCardFrame";
 import "./create.css";
 
 // ── Goal deck ─────────────────────────────────────────────────────────────────
@@ -103,6 +104,53 @@ const DownloadIcon = ({ size = 18 }: { size?: number }) => (
     <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" />
   </svg>
 );
+
+// Custom-goal card front, built from the designer's custom_card.svg frame: the
+// chosen picture fills the top window (the images are 1130×1121, the exact window
+// size, so they land 1:1 top-aligned) and the goal title replaces [GOAL_TEXT] as
+// live Geist text (auto-shrunk to stay on one line in the ~900px column).
+function CustomCardFront({ imageSrc, title }: { imageSrc: string; title: string }) {
+  const t = (title || "").trim() || "Your goal";
+  const fontSize = Math.max(46, Math.min(104, Math.round(900 / Math.max(1, t.length * 0.58))));
+  return (
+    <svg className="pc-cc-svg" viewBox="0 0 1130 1584" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <defs
+        dangerouslySetInnerHTML={{
+          __html: `<clipPath id="cc-top"><path d="${CC_TOP}"/></clipPath>` +
+            CC_GRAD.replace(/paint0_linear_33_40/g, "cc-grad"),
+        }}
+      />
+      <rect width="1130" height="1584" rx="74" fill="#181818" />
+      <image
+        href={imageSrc}
+        x="0"
+        y="0"
+        width="1130"
+        height="1121"
+        clipPath="url(#cc-top)"
+        preserveAspectRatio="xMidYMid slice"
+      />
+      <path d={CC_TOP} fill="url(#cc-grad)" />
+      <rect x="111" y="120" width="160" height="160" rx="17" fill="#10100C" />
+      <path d={CC_GLYPH} fill="#E8DDCD" />
+      <text
+        x="116"
+        y="1283"
+        fontFamily="Geist, system-ui, sans-serif"
+        fontWeight="700"
+        fontSize={fontSize}
+        letterSpacing="-2"
+        fill="#E8DDCD"
+      >
+        {t}
+      </text>
+      <path d={CC_SUBTITLE} fill="#D6CABA" />
+      <path d={CC_PACT} fill="#81786B" />
+      <path d={CC_INDEX} fill="#81786B" />
+      <circle cx="228" cy="1503" r="7" fill="#b0432a" />
+    </svg>
+  );
+}
 
 export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
@@ -554,18 +602,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                       {g.art ? (
                         <img className="pc-art" src={g.art} alt="" draggable={false} />
                       ) : isHero && customArt ? (
-                        // Custom goal with a picked picture: image + goal name baked on,
-                        // mirroring the template card fronts.
-                        <div className="pc-custom-art">
-                          <img className="pc-art" src={customArt} alt="" draggable={false} />
-                          <div className="pc-custom-art-foot">
-                            <div className="pc-custom-art-title">{goalName}</div>
-                            <div className="cf-foot m">
-                              <span>pact</span>
-                              <span>✦</span>
-                            </div>
-                          </div>
-                        </div>
+                        // Custom goal with a picked picture: the designer's card
+                        // frame with the image + live goal title.
+                        <CustomCardFront imageSrc={customArt} title={goalName} />
                       ) : (
                         <div className="pc-custom-front">
                           <div className="cf-plus">
