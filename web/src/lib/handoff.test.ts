@@ -77,6 +77,20 @@ describe("handoff codec", () => {
     if (r.ok) expect(r.draft.goal_template).toBeUndefined();
   });
 
+  it("round-trips card_art for a custom-goal draft", () => {
+    const draft = {
+      goal: "Custom goal",
+      frequency: { days_per_week: 3, weeks: 4 },
+      stake_amount_cents: 20000,
+      charity_id: "against_malaria_foundation",
+      agent: "Hermes",
+      card_art: "/create/create_3.png",
+    };
+    const decoded = decodeDraft(encodeDraft(draft));
+    expect(decoded.ok).toBe(true);
+    if (decoded.ok) expect(decoded.draft.card_art).toBe("/create/create_3.png");
+  });
+
   it("rejects a wrong version", () => {
     // hand-build a v2 payload
     const bad =

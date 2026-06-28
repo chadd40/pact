@@ -214,7 +214,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     setCharityId(d.charity_id);
     setAgentKey(d.agent);
     setSignerName(d.signer_name ?? "");
-    setCustomArt(null);
+    setCustomArt(d.card_art ?? null);
     setEditorReady(true);
     // Everything but the signature is filled — land on the name step ready to sign.
     setStage(5);
@@ -381,6 +381,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         consent_acknowledged: true,
         owner: DEMO_OWNER,
         description: isCustom ? customDesc.trim() || undefined : undefined,
+        card_art: isCustom ? customArt ?? undefined : undefined,
       });
       setCreated(pact);
       signalChange();
@@ -416,6 +417,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       charity_id: charityId,
       agent: agentKey,
       signer_name: signerName.trim() || undefined,
+      card_art: isCustom ? customArt ?? undefined : undefined,
     };
     return encodeDraft(draft);
   };

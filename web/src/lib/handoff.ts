@@ -9,6 +9,7 @@ export type PactDraft = {
   charity_id: string;
   agent: string;
   signer_name?: string;
+  card_art?: string;
 };
 
 export type PactDraftTransfer = {
@@ -43,7 +44,8 @@ function canonical(d: PactDraft) {
   };
   const withTemplate = d.goal_template ? { ...base, goal_template: d.goal_template } : base;
   const withCounts = d.what_counts ? { ...withTemplate, what_counts: d.what_counts } : withTemplate;
-  return d.signer_name ? { ...withCounts, signer_name: d.signer_name } : withCounts;
+  const withSigner = d.signer_name ? { ...withCounts, signer_name: d.signer_name } : withCounts;
+  return d.card_art ? { ...withSigner, card_art: d.card_art } : withSigner;
 }
 
 function toB64url(s: string): string {

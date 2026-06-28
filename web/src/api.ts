@@ -81,6 +81,7 @@ export const api = {
     consent_acknowledged: boolean;
     owner: string;
     description?: string | null; // custom goals: owner's "what counts" definition
+    card_art?: string | null; // custom goals: chosen /create/create_N.png photo
   }) => request<Pact>("/api/pacts/create", { json: payload }),
 
   confirmPact: (
