@@ -172,6 +172,26 @@ def test_user_reply_answers_screenshot_proof_questions_without_generic_fallback(
     assert "Pick the next visible rep" not in outbound.body
 
 
+def test_user_reply_treats_attachment_only_messages_as_proof_review() -> None:
+    clock = FixedClock(datetime(2026, 6, 22, 9, 0, 0, tzinfo=timezone.utc))
+    pact = _pact(clock)
+    provider = TestLLMProvider()
+
+    inbound, outbound = user_reply(
+        pact,
+        "",
+        [],
+        provider,
+        clock,
+        attachments=[{"filename": "workout-proof.png", "content_type": "image/png", "size_bytes": 1234}],
+    )
+
+    assert inbound.attachments[0]["filename"] == "workout-proof.png"
+    assert "1 attachment" in outbound.body
+    assert "check" in outbound.body.lower()
+    assert "Work out 5x this week" in outbound.body
+
+
 class CapturingCoachProvider:
     def __init__(self) -> None:
         self.input: dict = {}

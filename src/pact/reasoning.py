@@ -254,6 +254,11 @@ class TestLLMProvider:
             else:
                 next_step = "Pick the next visible rep and remove one bit of friction before you leave this chat."
             message = f"For {title}: {pace_line}{attachment_line} {next_step}"
+        elif attachments:
+            message = (
+                f"For {title}: {pace_line}{attachment_line} "
+                "I'll check the upload against this pact's proof rules; if the image is unclear, send one cleaner angle."
+            )
         else:
             message = f"{pace_line}{attachment_line}"
         return {"message": message}
