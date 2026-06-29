@@ -7,7 +7,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 _repo_root = os.path.dirname(SPECPATH)
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("imagehash", "scipy", "numpy", "PIL", "pywt", "nemoguardrails"):
+for pkg in ("imagehash", "scipy", "numpy", "PIL", "pywt"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

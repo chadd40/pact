@@ -110,6 +110,18 @@ def build_connector_health(
             "action": "Install /pact skill and run pact serve.",
         },
         {
+            "key": "nvidia",
+            "name": "NVIDIA Agent",
+            "kind": "mcp",
+            "status": token_status("ready"),
+            "installed": token_ready,
+            "capabilities": ["text"],
+            "detail": "NVIDIA's agent (NemoClaw, on Nemotron) connects through the Pact MCP — the server is agent-agnostic, so no bespoke integration is needed.",
+            "action": "Point the NVIDIA agent at the Pact MCP server with your token.",
+            "command": command,
+            "config": mcp_config,
+        },
+        {
             "key": "mcp",
             "name": "MCP",
             "kind": "mcp",

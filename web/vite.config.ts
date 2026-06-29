@@ -17,12 +17,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Backend target defaults to the local API on :8000; override with
+      // PACT_API_PROXY to point the dev server at an alternate backend port.
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: process.env.PACT_API_PROXY || "http://127.0.0.1:8000",
         changeOrigin: true,
       },
       "/demo": {
-        target: "http://127.0.0.1:8000",
+        target: process.env.PACT_API_PROXY || "http://127.0.0.1:8000",
         changeOrigin: true,
       },
     },

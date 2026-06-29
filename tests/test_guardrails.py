@@ -1,8 +1,8 @@
-"""The NeMo Guardrails ("NemoGuard") spend guard.
+"""The deterministic spend guard.
 
-Confirms the deterministic policy genuinely runs through the NeMo Guardrails
-runtime (rail == 'nemoguard'), and that the per-owner policy is assembled from
-the profile's spend limit + the known-charity allowlist.
+Confirms the per-owner policy is assembled from the profile's spend limit + the
+known-charity allowlist, and that the guard allows/denies correctly. (The gate is
+plain deterministic policy — no NeMo Guardrails framework.)
 """
 
 from pact.guardrails import SpendGuard, policy_for_profile
@@ -21,7 +21,7 @@ def _req(**overrides) -> SpendRequest:
     return SpendRequest(**base)
 
 
-def test_guard_allows_within_policy_runs_through_nemoguard():
+def test_guard_allows_within_policy():
     guard = SpendGuard(
         SpendPolicy(
             max_cents=5000,
@@ -30,9 +30,8 @@ def test_guard_allows_within_policy_runs_through_nemoguard():
     )
     decision = guard.check(_req())
     assert decision.allowed is True
-    # The decision must come from the NeMo Guardrails runtime, not the fallback.
-    assert decision.rail == "nemoguard"
-    assert guard.active_rail == "nemoguard"
+    assert decision.rail == "spend_policy"
+    assert guard.active_rail == "spend_policy"
 
 
 def test_guard_denies_over_limit():
@@ -40,7 +39,6 @@ def test_guard_denies_over_limit():
     decision = guard.check(_req(amount_cents=1000))
     assert decision.allowed is False
     assert "limit" in decision.reason.lower()
-    assert decision.rail == "nemoguard"
 
 
 def test_guard_denies_unverified_failure():

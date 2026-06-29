@@ -99,3 +99,20 @@ async def test_connector_health_uses_token_prefix_and_worker_heartbeat_without_l
     assert mcp["status"] == "ready"
     assert "<agent-token>" in mcp["command"]
     assert raw_token not in mcp["command"]
+
+
+@pytest.mark.anyio
+async def test_connector_health_lists_nvidia_agent_via_agnostic_mcp(tmp_path):
+    # The NVIDIA agent is supported by listing it as an MCP connector — Pact's MCP
+    # is agent-agnostic, so no bespoke per-agent integration is needed.
+    app, _repo, _clock = _build_app(tmp_path)
+
+    async with _client(app) as client:
+        response = await client.get("/api/connectors/health", params={"owner": OWNER})
+
+    assert response.status_code == 200, response.text
+    nvidia = next(conn for conn in response.json()["connectors"] if conn["key"] == "nvidia")
+    assert nvidia["name"] == "NVIDIA Agent"
+    assert nvidia["kind"] == "mcp"
+    assert "agent-agnostic" in nvidia["detail"]
+    assert "pact mcp" in nvidia["command"]

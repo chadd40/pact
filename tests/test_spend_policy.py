@@ -1,4 +1,4 @@
-"""The deterministic spend policy that NemoGuard enforces before any money moves.
+"""The deterministic spend policy the gate enforces before any money moves.
 
 This is the LLM-free core of the spend gate: given a proposed spend and the
 owner's policy, decide allow/deny with a human-readable reason. The NeMo

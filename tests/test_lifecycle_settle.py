@@ -190,10 +190,10 @@ def test_dispute_overturns_within_window_then_final():
         submit_dispute(dp1, disputed, clock, payment)
 
 
-# ── NemoGuard spend gate ────────────────────────────────────────────────────
+# ── spend gate ──────────────────────────────────────────────────────────────
 # The spend gate runs before any money moves in close_dispute_window. A denial
 # parks the pact at donation_declined (a clean terminal, no money) and records
-# the guardrail's reason; an approval lets the existing donation path run.
+# the policy reason; an approval lets the existing donation path run.
 
 from pact.spend_policy import GateDecision, SpendRequest  # noqa: E402
 

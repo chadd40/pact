@@ -1,16 +1,14 @@
-"""Deterministic spend policy — the LLM-free core of the NemoGuard spend gate.
+"""Deterministic spend policy — the core of the agent spend gate.
 
 Pact lets a user authorise an agent to spend money ("agent may spend up to $X,
 to approved charities, only on a verified miss"). Before any donation fires, the
 proposed spend is checked against that policy. This module is pure: no I/O, no
-model calls, no NeMo Guardrails import — just the decision. The NeMo Guardrails
-runtime (``pact.guardrails``) wraps this as a registered action so the check
-genuinely runs through a guardrail; the settlement chokepoints
-(``pact.lifecycle`` / the live donation endpoints) call the resulting gate
-before ``payment.create_donation``.
+model calls — just the decision. ``pact.guardrails`` builds the per-owner policy
+and exposes the gate; the settlement chokepoints (``pact.lifecycle`` / the live
+donation endpoints) call it before ``payment.create_donation``.
 
 Keeping the decision deterministic means the money path's correctness never
-depends on an LLM or a network round-trip — the guardrail is enforcement, not a
+depends on an LLM or a network round-trip — the gate is enforcement, not a
 suggestion.
 """
 
@@ -52,8 +50,7 @@ class SpendPolicy:
 class GateDecision:
     """The outcome of a spend check, with a human-readable reason for the UI and
     the evidence packet. ``rail`` records which layer produced the decision
-    (``spend_policy`` for the deterministic core, ``nemoguard`` when run through
-    the NeMo Guardrails runtime)."""
+    (``spend_policy`` for the deterministic gate)."""
 
     allowed: bool
     reason: str
@@ -62,8 +59,8 @@ class GateDecision:
 
 @runtime_checkable
 class SpendGate(Protocol):
-    """Anything that can rule on a proposed spend. The deterministic policy, the
-    NeMo Guardrails-backed ``SpendGuard``, and test fakes all satisfy this."""
+    """Anything that can rule on a proposed spend. The ``SpendGuard`` and test
+    fakes all satisfy this."""
 
     def check(self, request: SpendRequest) -> GateDecision:
         ...

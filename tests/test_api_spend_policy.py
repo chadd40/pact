@@ -1,6 +1,6 @@
-"""End-to-end: the spend-policy endpoints and the NemoGuard gate wired into
-settlement. Proves a low agent spend limit blocks a real donation through the
-API, and raising it lets the donation fire."""
+"""End-to-end: the spend-policy endpoints and the deterministic spend gate wired
+into settlement. Proves a low agent spend limit blocks a real donation through
+the API, and raising it lets the donation fire."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -64,7 +64,7 @@ def _failed_pact(pid: str, stake_cents: int) -> Pact:
 
 
 @pytest.mark.asyncio
-async def test_policy_roundtrip_and_nemoguard_gate(tmp_path):
+async def test_policy_roundtrip_and_spend_gate(tmp_path):
     app, repo = _build(tmp_path)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -78,13 +78,13 @@ async def test_policy_roundtrip_and_nemoguard_gate(tmp_path):
         )
         assert r.status_code == 200, r.text
         assert r.json()["spend_limit_cents"] == 100
-        assert r.json()["rail"] == "nemoguard"  # real guardrails runtime
+        assert r.json()["rail"] == "spend_policy"  # deterministic gate
 
         r = await client.get("/api/policy", params={"owner": OWNER})
         assert r.json()["spend_limit_cents"] == 100
         assert "against_malaria_foundation" in r.json()["charity_allowlist"]
 
-        # A $5 stake exceeds the $1 limit → NemoGuard blocks the donation.
+        # A $5 stake exceeds the $1 limit → the spend gate blocks the donation.
         repo.save_pact(_failed_pact("pact_block", 500))
         r = await client.post("/api/pacts/pact_block/settle")
         assert r.status_code == 200, r.text

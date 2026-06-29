@@ -483,9 +483,9 @@ def create_app(
         return pact
 
     def _spend_gate_for(owner: str):
-        """The NemoGuard spend gate for an owner, built from their stored policy
-        (agent spend limit + approved charities). Every agent-initiated donation
-        passes through this before money can move."""
+        """The spend gate for an owner, built from their stored policy (agent
+        spend limit + approved charities). Every agent-initiated donation passes
+        through this deterministic check before money can move."""
         return build_spend_guard(repo.get_profile(owner))
 
     def _require_agent_session(
@@ -960,9 +960,9 @@ def create_app(
             )
         # Only open the approval if it hasn't already fired/opened.
         if _live_money_enabled() and pact.spend_request_id is None:
-            # NemoGuard spend gate: clear the owner's policy before opening any
-            # live Link spend request. A denial is a clean terminal decline (no
-            # charge) surfaced to the UI with the guardrail's reason.
+            # Spend gate: clear the owner's policy before opening any live Link
+            # spend request. A denial is a clean terminal decline (no charge)
+            # surfaced to the UI with the policy reason.
             gate_decision = _spend_gate_for(pact.owner).check(
                 SpendRequest(
                     owner=pact.owner,
@@ -977,7 +977,7 @@ def create_app(
                 _record_terminal(pact)
                 raise HTTPException(
                     status_code=403,
-                    detail=f"Spend blocked by NemoGuard: {gate_decision.reason}",
+                    detail=f"Spend blocked by policy: {gate_decision.reason}",
                 )
             try:
                 result = payment.create_donation(pact, f"{pact.id}:donation")

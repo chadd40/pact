@@ -335,7 +335,7 @@ def _build_verdict(
         summary = (
             f"{valid} of {pact.target_count} valid proofs by deadline. Pact failed."
         )
-    # An optional note (e.g. a NemoGuard spend-block reason) is folded into the
+    # An optional note (e.g. a spend-block reason) is folded into the
     # summary so the UI and the evidence packet surface why money did not move.
     if note:
         summary = f"{summary} {note}"
@@ -524,9 +524,9 @@ def close_dispute_window(
             return pact, _build_verdict(
                 pact, proofs, valid, PactStatus.failed, PaymentAction.none, None
             )
-        # NemoGuard spend gate: the agent's proposed donation must clear the
-        # owner's policy (amount ceiling + approved charities + verified miss)
-        # before any money can move. A denial is a clean terminal outcome —
+        # Spend gate: the agent's proposed donation must clear the owner's policy
+        # (amount ceiling + approved charities + verified miss) before any money
+        # can move. A denial is a clean terminal outcome —
         # donation_declined, stake declined, no charge — with the guardrail's
         # reason surfaced in the verdict. This is the agent-initiated spend path;
         # a human forfeit (execute_forfeit_donation) is authorised directly by the

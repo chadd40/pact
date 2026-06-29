@@ -10,11 +10,6 @@ dependencies = [
     "pillow",
     "imagehash",
     "python-multipart>=0.0.32",
-    # NVIDIA NeMo Guardrails enforces the agent spend policy before any money
-    # moves (see pact.guardrails). The gate runs LLM-free, so no NVIDIA key is
-    # required; pact.guardrails falls back to the deterministic policy if this
-    # package is absent (e.g. a slimmed packaged build).
-    "nemoguardrails>=0.22",
 ]
 
 [project.optional-dependencies]
