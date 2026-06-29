@@ -6,8 +6,8 @@ import { useLocalOwner } from "./owner";
 // ── Demo clock + actions context ────────────────────────────────────────────
 // The backend runs on a FixedClock in demo mode. We mirror "now" here so screens
 // can render live countdowns and pace against the same instant the server uses.
-// The demo controls (seed / advance / reset) live here too and are surfaced by
-// the app shell's States menu.
+// The demo actions stay in context for tests and internal flows, without a
+// user-facing app-shell control.
 interface DemoCtx {
   nowIso: string | null;
   setNow: (iso: string) => void;

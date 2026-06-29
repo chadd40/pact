@@ -341,10 +341,22 @@ def run_checkout(
             outcome = "unknown"
             try:
                 body = page.inner_text("body").lower()
-                if any(m in body for m in ("thank you", "your donation", "confirmation", "receipt", "donation id")):
-                    reference, outcome = "confirmed", "confirmed"
-                elif any(m in body for m in ("declined", "card was declined", "incorrect", "invalid", "not supported", "try again", "couldn't process", "could not process", "error")):
+                # Check DECLINE first with specific phrases — generic words like
+                # "confirmation"/"receipt" appear in the page chrome and would
+                # otherwise false-positive as success.
+                decline_markers = (
+                    "card was declined", "was declined", "known test card",
+                    "card is not supported", "card number is incorrect",
+                    "payment failed", "could not process", "couldn't process",
+                )
+                success_markers = (
+                    "thank you for your", "your donation was", "donation is complete",
+                    "donation receipt", "thanks for your gift",
+                )
+                if any(m in body for m in decline_markers):
                     outcome = "declined"
+                elif any(m in body for m in success_markers):
+                    reference, outcome = "confirmed", "confirmed"
             except Exception:
                 pass
             if screenshot_path:

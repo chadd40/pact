@@ -48,26 +48,6 @@
   overflow-y: auto;
 }
 
-/* ── States / Demo menu ──────────────────────────────────────────────────── */
-.as-states { position: fixed; left: 18px; bottom: 18px; z-index: 80; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-.as-states-toggle {
-  height: 38px; padding: 0 15px; border: 0; border-radius: 999px;
-  background: #16150f; color: #f4ecda; display: flex; align-items: center; gap: 8px;
-  cursor: pointer; box-shadow: 0 12px 30px -10px rgba(22, 21, 15, 0.5);
-  font-size: 12.5px; font-weight: 600; font-family: var(--pc-sans);
-}
-.as-states-menu { width: 220px; background: #16150f; border-radius: 14px; padding: 10px; box-shadow: 0 20px 50px -16px rgba(22, 21, 15, 0.5); }
-.as-states-head { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8474; padding: 8px 8px 6px; }
-.as-states-act, .as-states-jump {
-  width: 100%; text-align: left; border: 0; background: transparent;
-  padding: 8px 9px; border-radius: 8px; font-size: 12.5px; font-weight: 500;
-  color: #e5e1d6; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: var(--pc-sans);
-}
-.as-states-act { color: #fbf7ee; font-weight: 600; }
-.as-states-act:hover, .as-states-jump:hover { background: rgba(239, 235, 225, 0.08); }
-.as-states-act:disabled { opacity: 0.5; cursor: default; }
-.as-states-dot { width: 6px; height: 6px; border-radius: 50%; }
-
 /* ════════════════════════ HOME ════════════════════════ */
 .home { display: flex; flex-direction: column; min-height: 100%; }
 .home-head { padding: var(--app-content-top) var(--app-page-x) 0; display: flex; align-items: center; justify-content: flex-start; gap: 18px; }

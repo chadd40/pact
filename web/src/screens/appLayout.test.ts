@@ -44,4 +44,12 @@ describe("app shell layout CSS", () => {
     expect(css).not.toMatch(/\.flyout(?:[\s:{.#])/);
     expect(existsSync(resolve(here, "../components/StatsFlyout.tsx"))).toBe(false);
   });
+
+  it("removes the legacy demo States menu from the app chrome", () => {
+    const appShell = readFileSync(resolve(here, "../components/AppShell.tsx"), "utf8");
+
+    expect(css).not.toContain(".as-states");
+    expect(appShell).not.toContain("VITE_SHOW_DEMO_STATES");
+    expect(appShell).not.toContain("States");
+  });
 });
