@@ -193,16 +193,28 @@ def _fill_stripe_card(page, card: dict) -> None:
                     continue
         return False
 
+    # charity: water uses a single combined Stripe iframe; fields are matched by
+    # name, autocomplete, placeholder, or aria-label (verified against the live
+    # card step).
     ok_num = fill_in_any_frame(
-        ["input[name='cardnumber']", "input[autocomplete='cc-number']"],
+        [
+            "input[name='cardnumber']", "input[autocomplete='cc-number']",
+            "input[placeholder='Card number']", "input[aria-label*='card number' i]",
+        ],
         card["number"], "number",
     )
     ok_exp = fill_in_any_frame(
-        ["input[name='exp-date']", "input[autocomplete='cc-exp']"],
+        [
+            "input[name='exp-date']", "input[autocomplete='cc-exp']",
+            "input[placeholder*='MM']", "input[aria-label*='expiration' i]",
+        ],
         exp, "expiry",
     )
     ok_cvc = fill_in_any_frame(
-        ["input[name='cvc']", "input[autocomplete='cc-csc']"],
+        [
+            "input[name='cvc']", "input[autocomplete='cc-csc']",
+            "input[placeholder='CVC']", "input[aria-label*='CVC' i]", "input[aria-label*='security code' i]",
+        ],
         card["cvc"], "cvc",
     )
     # Postal/ZIP may be a plain page input or its own frame.
@@ -224,11 +236,20 @@ def run_checkout(
     amount_cents: int,
     mode: str,
     confirm: bool,
+    donor_first: str = "Pact",
+    donor_last: str = "Donor",
+    donor_email: str = "",
     screenshot_path: str | None = None,
     headless: bool = True,
     timeout_ms: int = 45000,
 ) -> dict:
-    """Drive the donate flow. Returns a PAN-free result dict."""
+    """Drive charity: water's 4-step donate wizard. Returns a PAN-free result.
+
+    Flow verified against the live page: (1) one-time + amount + "Give",
+    (2) monthly upsell + "Give $X", (3) donor info + "Next", (4) Stripe card +
+    final "Give $X" (real money — gated)."""
+    import re
+
     try:
         from playwright.sync_api import sync_playwright
     except Exception as exc:  # pragma: no cover - optional dep
@@ -241,6 +262,7 @@ def run_checkout(
     card = load_card(card_file)
     dollars = f"{amount_cents / 100:.0f}" if amount_cents % 100 == 0 else f"{amount_cents / 100:.2f}"
     submit = should_submit(mode, confirm)
+    give_amount = re.compile(r"Give\s*\$", re.I)  # both the upsell + final submit
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=headless)
@@ -248,26 +270,43 @@ def run_checkout(
         page.set_default_timeout(timeout_ms)
         try:
             page.goto(donation_url, wait_until="domcontentloaded")
-            # The Unbounce popup appears on a delay, so settle then dismiss twice.
+            # The Unbounce popup appears on a delay, so settle then dismiss.
             page.wait_for_timeout(3500)
             _dismiss_overlays(page)
             _dismiss_overlays(page)
 
-            # Step 1: choose one-time and set the amount (re-dismiss first — the
-            # popup re-covers the widget intermittently).
+            # Step 1: one-time + amount + "Give".
             _dismiss_overlays(page)
             try:
                 page.get_by_text("Give once", exact=False).first.click(timeout=8000)
             except Exception:
-                _log("'Give once' toggle not found — continuing (may already be one-time)")
-            amount = page.get_by_role("spinbutton").first
-            amount.fill(dollars, timeout=8000)
-
-            # Step 2: advance to the card step. (exact=False matches the "Give"
-            # submit; verified to reach the Stripe step.) Then wait for the Stripe
-            # card iframe to actually mount before attempting to fill.
+                _log("'Give once' toggle not found — continuing")
+            page.get_by_role("spinbutton").first.fill(dollars, timeout=8000)
             _dismiss_overlays(page)
-            page.get_by_role("button", name="Give", exact=False).first.click(timeout=8000)
+            page.get_by_role("button", name="Give", exact=True).first.click(timeout=8000)
+
+            # Step 2: monthly upsell → proceed with the one-time "Give $X".
+            page.wait_for_timeout(2000)
+            _dismiss_overlays(page)
+            try:
+                page.get_by_role("button", name=give_amount).first.click(timeout=10000)
+            except Exception:
+                _log("upsell 'Give $X' proceed button not found — flow may have changed")
+
+            # Step 3: donor info → "Next".
+            page.wait_for_timeout(1500)
+            _dismiss_overlays(page)
+            try:
+                page.get_by_role("textbox", name=re.compile("First Name", re.I)).first.fill(donor_first, timeout=8000)
+                page.get_by_role("textbox", name=re.compile("Last Name", re.I)).first.fill(donor_last, timeout=8000)
+                page.get_by_role("textbox", name=re.compile("Email", re.I)).first.fill(
+                    donor_email or "donor@example.com", timeout=8000
+                )
+                page.get_by_role("button", name="Next", exact=False).first.click(timeout=8000)
+            except Exception as exc:
+                _log(f"donor-info step issue: {exc}")
+
+            # Step 4: the Stripe card step.
             try:
                 page.wait_for_selector(
                     "iframe[src*='js.stripe.com'], iframe[title*='card' i]", timeout=20000
@@ -275,8 +314,6 @@ def run_checkout(
             except Exception:
                 _log("stripe card iframe did not mount within timeout")
             _dismiss_overlays(page)
-
-            # Step 3: fill the card from the file.
             _fill_stripe_card(page, card)
 
             if screenshot_path:
@@ -290,16 +327,17 @@ def run_checkout(
                     status="reached_card_step", submitted=False, mode=mode,
                     donation_url=donation_url, amount_cents=amount_cents,
                     screenshot=screenshot_path,
-                    note="card filled; submit gated (set mode=live + confirm to donate for real)",
+                    note="walked all 4 steps + filled the card; final submit gated "
+                         "(needs mode=live + confirm to donate for real)",
                 )
 
-            # Step 4 (gated): the irreversible submit. Real money moves here.
-            page.get_by_role("button", name="Donate", exact=False).first.click(timeout=8000)
+            # Final submit (gated): the card-step "Give $X". Real money moves here.
+            page.get_by_role("button", name=give_amount).last.click(timeout=8000)
             page.wait_for_load_state("networkidle", timeout=timeout_ms)
             reference = None
             try:
                 body = page.inner_text("body")
-                for marker in ("confirmation", "thank you", "receipt", "donation id"):
+                for marker in ("thank you", "confirmation", "receipt", "your donation", "donation id"):
                     if marker in body.lower():
                         reference = "confirmed"
                         break
