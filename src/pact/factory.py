@@ -5,10 +5,26 @@ from pact.config import Settings
 from pact.payment import PaymentProvider, get_payment_provider
 from pact.reasoning import (
     BrokerReasoningProvider,
+    NemotronProvider,
     ReasoningProvider,
     TestLLMProvider,
 )
 from pact.repository import Repository
+
+
+def _default_fallback(settings: Settings) -> ReasoningProvider:
+    """The deterministic backend brain. When a Nemotron API key is configured,
+    wrap the stub in NemotronProvider so the fallback reasons on Nemotron 3 Ultra
+    (via NIM) for draft/coach/verdict; otherwise the bare deterministic stub."""
+    stub = TestLLMProvider()
+    if settings.nemotron_api_key:
+        return NemotronProvider(
+            stub,
+            api_key=settings.nemotron_api_key,
+            base_url=settings.nemotron_base_url,
+            model=settings.nemotron_model,
+        )
+    return stub
 
 
 def build_reasoning_provider(
@@ -39,7 +55,7 @@ def build_reasoning_provider(
     if mode in ("stub", "test_llm"):
         return TestLLMProvider()
 
-    fb = fallback if fallback is not None else TestLLMProvider()
+    fb = fallback if fallback is not None else _default_fallback(settings)
     allow_fallback = mode != "agent_only"
     return BrokerReasoningProvider(
         repo,

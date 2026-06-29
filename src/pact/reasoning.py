@@ -266,6 +266,170 @@ class TestLLMProvider:
         return {"summary": summary}
 
 
+class NemotronProvider:
+    """Reasoning on NVIDIA Nemotron (via NIM, OpenAI-compatible).
+
+    Handles the CREATIVE reasoning — draft (goal → structured pact), coach, and
+    verdict prose — by calling Nemotron. Anti-cheat judging (judge_proof) stays
+    DETERMINISTIC (delegated to the stub), and the §9 safety refusals are applied
+    by the stub BEFORE any model call, so a model can never green-light an unsafe
+    goal. Every Nemotron call is wrapped: on any error (no key, network, bad JSON)
+    it falls back to the deterministic stub, so the app always answers.
+
+    ``client`` is injectable (anything exposing ``chat.completions.create``) so
+    tests run without the openai SDK or network.
+    """
+
+    def __init__(
+        self,
+        fallback: "ReasoningProvider",
+        *,
+        api_key: str | None = None,
+        base_url: str = "https://integrate.api.nvidia.com/v1",
+        model: str = "nvidia/llama-3.1-nemotron-70b-instruct",
+        client=None,
+        timeout: float = 30.0,
+    ) -> None:
+        self.fallback = fallback
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+        self._client = client
+        self.timeout = timeout
+
+    def capabilities(self) -> set[str]:
+        return {"text"}
+
+    def _get_client(self):
+        if self._client is not None:
+            return self._client
+        if not self.api_key:
+            raise RuntimeError("no Nemotron API key configured")
+        from openai import OpenAI  # lazy: optional dependency
+
+        self._client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)
+        return self._client
+
+    def _chat(self, system: str, user: str) -> str:
+        client = self._get_client()
+        resp = client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=0.4,
+        )
+        return resp.choices[0].message.content or ""
+
+    @staticmethod
+    def _extract_json(text: str) -> dict:
+        import json
+
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            raise ValueError("no JSON object in model response")
+        return json.loads(text[start : end + 1])
+
+    def resolve(self, task: ReasoningTask) -> dict:
+        if task.type == TaskType.draft:
+            return self._draft(task)
+        if task.type == TaskType.coach:
+            return self._coach(task)
+        if task.type == TaskType.verdict:
+            return self._verdict(task)
+        # Anti-cheat / proof judging stays deterministic.
+        return self.fallback.resolve(task)
+
+    def _draft(self, task: ReasoningTask) -> dict:
+        # Safety + shape first: the stub applies the §9 refusal gate and gives a
+        # valid fallback. A refused goal never reaches the model.
+        stub = self.fallback.resolve(task)
+        if stub.get("refused"):
+            return stub
+        prompt = str(task.input.get("prompt", "")).strip()
+        try:
+            content = self._chat(
+                "You turn a personal commitment into a concrete, checkable pact. "
+                "Reply with ONLY a JSON object: {\"title\": str (<=60 chars), "
+                "\"goal\": str, \"target_count\": int (1-30, how many distinct days), "
+                "\"recommended_stake_cents\": int (1000-50000)}. No prose.",
+                f"Commitment: {prompt}",
+            )
+            data = self._extract_json(content)
+            target = int(data["target_count"])
+            if not (1 <= target <= 30):
+                raise ValueError("target_count out of range")
+            stake = int(data.get("recommended_stake_cents", stub["recommended_stake_cents"]))
+            stake = max(1000, min(stake, 50000))
+            title = str(data["title"]).strip()[:60] or stub["title"]
+            goal = str(data["goal"]).strip() or stub["goal"]
+        except Exception:
+            return stub  # any failure → deterministic draft
+        # Build the rubric deterministically (anti-cheat structure, not creative)
+        # so it is always valid and consistent with the chosen target_count.
+        mdd = max(target - 1, 1)
+        result = dict(stub)
+        result.update({
+            "title": title,
+            "goal": goal,
+            "target_count": target,
+            "recommended_stake_cents": stake,
+            "reason": "Drafted on Nemotron; goal is concrete and checkable.",
+            "rubric": {
+                **stub["rubric"],
+                "min_distinct_days": mdd,
+                "count_target": target,
+                "rigor_floor": {
+                    **stub["rubric"].get("rigor_floor", {}),
+                    "min_distinct_days": max(mdd - 1, 1),
+                },
+            },
+        })
+        return result
+
+    def _coach(self, task: ReasoningTask) -> dict:
+        try:
+            valid = int(task.input.get("valid", 0))
+            target = int(task.input.get("target", 0))
+            days_left = int(task.input.get("days_left", 0))
+            charity = str(task.input.get("charity", "your chosen charity"))
+            title = str(task.input.get("title") or task.input.get("goal") or "this pact")
+            user_message = str(task.input.get("user_message") or "").strip()
+            content = self._chat(
+                "You are a terse, supportive accountability coach. One or two "
+                "sentences, concrete next step, no emojis. Plain text only.",
+                f"Pact: {title}. Progress: {valid}/{target} done, {days_left} days left. "
+                f"Missing the goal sends the stake to {charity}. "
+                + (f"The user said: {user_message}" if user_message else "Send a check-in nudge."),
+            )
+            message = content.strip()
+            if not message:
+                raise ValueError("empty coach message")
+            return {"message": message}
+        except Exception:
+            return self.fallback.resolve(task)
+
+    def _verdict(self, task: ReasoningTask) -> dict:
+        try:
+            valid = int(task.input.get("valid", 0))
+            target = int(task.input.get("target", 0))
+            outcome = "succeeded" if valid >= target else "failed"
+            content = self._chat(
+                "Write a one-sentence, factual verdict summary for a commitment "
+                "pact. No emojis. Plain text only.",
+                f"{valid} of {target} valid distinct-day proofs by the deadline. "
+                f"The pact {outcome}.",
+            )
+            summary = content.strip()
+            if not summary:
+                raise ValueError("empty verdict summary")
+            return {"summary": summary}
+        except Exception:
+            return self.fallback.resolve(task)
+
+
 class ReasoningUnavailable(Exception):
     """Raised when agent reasoning is required (no fallback allowed) but no
     worker posted a result before the poll budget was exhausted."""

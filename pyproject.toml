@@ -23,6 +23,10 @@ dependencies = [
 # packaged build stay lean; install with `uv pip install -e '.[checkout]'` and
 # `playwright install chromium` to run real donations.
 checkout = ["playwright>=1.40"]
+# Tier 3 routes the backend fallback reasoning through NVIDIA Nemotron via NIM
+# (OpenAI-compatible). Optional + lazy-imported (see pact.reasoning); set
+# PACT_NEMOTRON_API_KEY to enable. Absent = deterministic stub fallback.
+nemotron = ["openai>=1.0"]
 
 [project.scripts]
 pact = "pact.cli:main"
