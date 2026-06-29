@@ -1,6 +1,6 @@
 ---
 name: pact
-description: Pact — the self-binding commitment engine. A thin Hermes client over the Pact API. Use to create, track, prove, coach, and settle commitment pacts where money goes to charity on failure. The skill is the BRAIN on the skill path: it reasons inline (draft / judge proof / coach / verdict) and POSTs structured results back to the backend. Triggers on "/pact", "make a pact", "stake on this goal", "pact status", "pact serve".
+description: Pact — the self-binding commitment engine. A thin Hermes client over the Pact API, callable as raw HTTP or via the bundled MCP tools (`pact mcp`). Use to make, review, prove, coach, and settle commitment pacts where money goes to charity on failure, and to recall what you've told the user about each pact before coaching. The skill is the BRAIN on the skill path: it reasons inline (draft / judge proof / coach / verdict) and POSTs structured results back to the backend. Triggers on "/pact", "make a pact", "stake on this goal", "pact status", "pact serve".
 ---
 
 # /pact — the Pact Hermes skill
@@ -77,7 +77,7 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
 Pact lifecycle (the skill calls these directly):
 
 - `POST /api/pacts/draft` — `{ prompt }` → 200 drafted pact + frozen rubric. A refusal for an unsafe/self-harm goal comes back as **422 with `detail` = the supportive refusal message** — read `detail` and surface it, don't treat it as a generic error.
-- `POST /api/pacts` — `{ pact_id, stake_amount_cents, charity_id }` → confirm + start.
+- `POST /api/pacts` — `{ pact_id, stake_amount_cents, charity_id, consent_acknowledged }` → confirm + start. `consent_acknowledged` must be **true** (set it only after the user acknowledges money goes to charity on failure) or the call 422s.
 - `POST /api/pacts/{id}/owner` — `{ owner }` set the owner.
 - `POST /api/pacts/{id}/start` — activate (no money moves).
 - `GET /api/pacts/{id}` — pact state, proofs, coaching thread, payment status.
@@ -116,6 +116,41 @@ Ops:
 - `POST /api/tick` — run the scheduler once (reconcile, close dispute windows, persist nudges
   to outbox).
 - `GET /api/preflight?owner=&charity_id=&amount_cents=` — live-money readiness checks.
+
+## MCP tools (equivalent to the raw HTTP above)
+
+Any MCP-compatible agent can drive Pact through the bundled MCP server instead of
+hand-rolling HTTP. Start it once and point your agent at it:
+
+```
+pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>
+```
+
+The tools are **thin pass-throughs** to the endpoints above — same shapes, same
+results. The split is unchanged: **you are the brain** (draft the pact + rubric, judge
+proofs against that rubric, write coaching grounded in pace, write the verdict); the
+tool just persists what you reasoned. A tool cannot use your model, so no tool reasons
+for you. Each tool returns one JSON text block (the whole response). A refusal or a
+missing pact comes back as an error whose message carries the API `detail` — read it.
+
+The six capabilities map to tools as follows:
+
+| Capability | Tools |
+| --- | --- |
+| **Make a pact** | `pact_draft` (natural language → draft + frozen rubric), `pact_create` (structured terms, **creates AND activates** in one shot), `pact_confirm` (stake + charity, activates a draft), `pact_set_owner`, `pact_start`. Use `pact_charities` to pick a charity. `pact_create` and `pact_confirm` require `consent_acknowledged=true` — set it only after the user acknowledges money goes to charity on failure, else they 422. |
+| **Review a pact** | `pact_list_pacts`, `pact_get` (state + progress + cadence), `pact_list_proofs`, `pact_packet` (verdict + coaching log), `pact_profile` (streak/history), `pact_connector_health`. |
+| **Recall what you told the user** | `pact_get_coaching` — read the full thread **before** you coach so your next message stays consistent with what you already said. |
+| **Coach around evidence** | `pact_coach` (send a message into the thread). Recall first with `pact_get_coaching`. |
+| **Submit evidence** | `pact_issue_proof_token` → `pact_submit_proof` (text/log/url) or `pact_submit_proof_image` (reads a local image file and uploads it). The backend judges the proof against the frozen rubric and returns the verdict. |
+| **Submit evidence decisions** | `pact_settle` (judge pending proofs now, compute the verdict, fire donation if failed); or the broker loop — `pact_list_reasoning_tasks` → `pact_claim_reasoning_task` → reason inline → `pact_post_reasoning_result`. The posted `result` **is** the decision (judge `{status, reason, checklist}`, coach `{message}`, verdict prose, or a draft). |
+
+**Two decision paths.** Direct: you own a pact by id, so `pact_submit_proof[_image]`
+(judged inline) and/or `pact_settle` finalizes it. Broker: for a task the website
+enqueued — in this product the website is only the landing page + `/create`, so the one
+task it enqueues is the **draft**; after that it hands the user off to download and
+install the app, where you are the primary brain. The broker tools need an agent token
+with the `claim_tasks` + `post_results` scopes; the direct tools work without auth in
+`local_dev`.
 
 ## Safety
 

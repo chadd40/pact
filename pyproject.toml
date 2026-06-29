@@ -10,6 +10,10 @@ dependencies = [
     "pillow",
     "imagehash",
     "python-multipart>=0.0.32",
+    # Official MCP Python SDK (FastMCP) powers `pact mcp`, the agent-agnostic
+    # surface over the Pact API. Lazy-imported in pact.mcp so only the `mcp`
+    # subcommand pays the import cost.
+    "mcp>=1.2",
 ]
 
 [project.optional-dependencies]
