@@ -887,7 +887,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                           aria-pressed={sel}
                           aria-label={c.name}
                         >
-                          <img src={c.stamp} alt="" loading="lazy" />
+                          <img src={asset(c.stamp)} alt="" loading="lazy" />
                         </button>
                       </Tooltip>
                     );
@@ -1132,7 +1132,7 @@ export function CardBack(p: CardBackProps) {
         <div className="cb-eyebrow m">If you fail, it funds</div>
         {p.charityReady && p.charity ? (
           <div className={`cb-row ${p.zoneState(3)}`}>
-            <img className="cb-seal" src={p.charity.stamp} alt="" />
+            <img className="cb-seal" src={asset(p.charity.stamp)} alt="" />
             <span className="cb-row-name m">{p.charity.name}</span>
           </div>
         ) : (

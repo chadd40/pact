@@ -1,4 +1,5 @@
 import { useAppData } from "../data";
+import { asset } from "../lib/asset";
 
 // Browse the charity catalog — where forfeited stakes go. Read from shared AppData.
 export function Charities() {
@@ -18,7 +19,7 @@ export function Charities() {
         <div className="ch-grid">
           {charities.map((c) => (
             <a key={c.id} className="ch-card" href={c.donation_url} target="_blank" rel="noreferrer">
-              <div className="ch-stamp">{c.stamp ? <img src={c.stamp} alt={c.name} /> : null}</div>
+              <div className="ch-stamp">{c.stamp ? <img src={asset(c.stamp)} alt={c.name} /> : null}</div>
               <div className="ch-name">{c.name}</div>
               <div className="ch-cat m">{c.category}</div>
               <div className="ch-visit">Visit
