@@ -76,7 +76,7 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
 
 Pact lifecycle (the skill calls these directly):
 
-- `POST /api/pacts/draft` — `{ prompt }` → drafted pact + frozen rubric (or refusal).
+- `POST /api/pacts/draft` — `{ prompt }` → 200 drafted pact + frozen rubric. A refusal for an unsafe/self-harm goal comes back as **422 with `detail` = the supportive refusal message** — read `detail` and surface it, don't treat it as a generic error.
 - `POST /api/pacts` — `{ pact_id, stake_amount_cents, charity_id }` → confirm + start.
 - `POST /api/pacts/{id}/owner` — `{ owner }` set the owner.
 - `POST /api/pacts/{id}/start` — activate (no money moves).
