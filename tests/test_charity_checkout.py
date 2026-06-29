@@ -66,7 +66,7 @@ def test_build_result_is_pan_free_and_shaped():
     assert r["status"] == "reached_card_step"
     assert r["submitted"] is False
     assert set(r) == {
-        "status", "submitted", "mode", "donation_url",
+        "status", "submitted", "outcome", "mode", "donation_url",
         "amount_cents", "reference", "screenshot", "error", "note",
     }
 

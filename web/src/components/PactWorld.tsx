@@ -10,8 +10,9 @@ import { CardBack, CustomCardFront, AGENTS } from "../screens/Create";
 import { GoalGlyph } from "./GoalGlyph";
 import { cardArtFor } from "../lib/cardArt";
 import { asset } from "../lib/asset";
+import { paymentMethodLabel } from "../lib/funding";
 import { dollars, formatDate, formatDateTime } from "../lib";
-import type { CoachingMessage, DonationCard, Pact, Packet, ProofStatus } from "../types";
+import type { CoachingMessage, DonationCard, LinkStatus, Pact, Packet, ProofStatus } from "../types";
 // CardBack's editorial `.cb-*` styles live in create.css. It's imported by
 // Create.tsx, but PactWorld can render standalone (e.g. tests, deep links) before
 // Create is in the bundle — import it here so the card always styles correctly.
@@ -53,6 +54,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const [err, setErr] = useState<string | null>(null);
   const [checkoutCard, setCheckoutCard] = useState<DonationCard | null>(null);
   const [cardErr, setCardErr] = useState<string | null>(null);
+  const [link, setLink] = useState<LinkStatus | null>(null);
   const [receiptRef, setReceiptRef] = useState("");
   const [receiptErr, setReceiptErr] = useState<string | null>(null);
 
@@ -134,19 +136,25 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     flip.style.transform = "rotateY(0deg)";
 
     let raf2 = 0;
-    const onEnd = (e: TransitionEvent) => {
-      if (e.propertyName !== "transform" || e.target !== wrap) return;
-      // Clear the wrapper's inline position (so resize isn't broken). Leave the
-      // flip container at its rest 180° — handled by the CSS `--rest` class once
-      // `entering` flips false; clearing the inline transform lets that take over.
+    let settleTimer = 0;
+    // SETTLE — drop to the resting layout: clear the inline FLIP styles so the
+    // card sits back in its grid slot, and flip `entering` false so the CSS
+    // `--rest` class shows the editorial back (180°). Idempotent, so it's safe to
+    // call from transitionend, the fallback timer, or cleanup.
+    const settle = () => {
+      window.clearTimeout(settleTimer);
+      wrap.removeEventListener("transitionend", onEnd);
       wrap.style.transition = "";
       wrap.style.transform = "";
       wrap.style.transformOrigin = "";
       flip.style.transition = "";
       flip.style.transform = "";
-      wrap.removeEventListener("transitionend", onEnd);
       setEntering(false);
     };
+    function onEnd(e: TransitionEvent) {
+      if (e.propertyName !== "transform" || e.target !== wrap) return;
+      settle();
+    }
 
     // PLAY — next frame, release the wrapper to identity and rotate the flip
     // container to 180° (revealing the editorial back). A double rAF guarantees the
@@ -158,13 +166,22 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
         flip.style.transition = PAPER_TURN;
         flip.style.transform = "rotateY(180deg)";
         wrap.addEventListener("transitionend", onEnd);
+        // transitionend is unreliable — it never fires if the transition is
+        // interrupted or the tab is backgrounded mid-flip. Guarantee the card
+        // settles into its grid slot regardless.
+        settleTimer = window.setTimeout(settle, 1000);
       });
     });
 
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      wrap.removeEventListener("transitionend", onEnd);
+      // React 18 StrictMode double-invokes this effect (setup → cleanup → setup),
+      // and the `ranFlip` latch makes the second setup a no-op. If cleanup only
+      // cancelled the scheduled PLAY, the card would stay frozen at the INVERT
+      // transform — front face up, z-indexed on top of and overlapping the panel.
+      // Settle to rest instead so the resting layout is always restored.
+      settle();
     };
     // The card mounts only after `pact` loads, so re-run when it appears.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,6 +226,16 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       window.clearTimeout(proofPickerFallbackRef.current);
     }
   }, []);
+
+  // The real connected funding method, so the donation/approval screens show the
+  // user's actual card instead of a placeholder number.
+  useEffect(() => {
+    const owner = pact?.owner;
+    if (!owner) return;
+    let alive = true;
+    api.linkStatus(owner).then((s) => { if (alive) setLink(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [pact?.owner]);
 
   useEffect(() => {
     if (proofFlow !== "fresh" || !proofTokenExpiresAt) return;
@@ -661,7 +688,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
           </div>
           <div className="pd-donate-body">
             <div className="pd-method">
-              <div className="pd-method-left"><span className="pd-method-mark">L</span><div><div className="b">Link</div><div className="m">•••• 4242</div></div></div>
+              <div className="pd-method-left"><span className="pd-method-mark">L</span><div><div className="b">Link</div><div className="m">{paymentMethodLabel(link)}</div></div></div>
               <div className="m muted">default method</div>
             </div>
             <div className="pd-donate-actions">
@@ -875,6 +902,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
         <LinkModal
           pact={pact}
           charityName={charity?.name ?? "your charity"}
+          methodLabel={paymentMethodLabel(link)}
           onClose={() => setLinkOpen(false)}
           onDonated={async () => { setLinkOpen(false); await load(); signalChange(); }}
         />

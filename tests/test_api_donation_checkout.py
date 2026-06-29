@@ -105,6 +105,53 @@ async def test_checkout_submit_records_receipt(tmp_path):
     assert receipt is not None
     assert receipt.receipt_status == "provider_confirmed"
     assert receipt.receipt_source == "charity_checkout"
+    # Single-use: the card ref is dropped so a retry can't re-charge it.
+    assert repo.get_pact("pact_done").card_artifact_path is None
+
+
+@pytest.mark.asyncio
+async def test_checkout_declined_does_not_record_a_success_receipt(tmp_path):
+    # A submitted-but-declined charge must NOT be recorded as a donation; otherwise
+    # a failed charge masquerades as money that reached the charity.
+    def runner(pact, settings, *, confirm):
+        return {
+            "status": "submitted", "submitted": True, "outcome": "declined",
+            "reference": None, "note": "payment outcome=declined",
+        }
+
+    app, repo = _build(tmp_path, runner=runner)
+    repo.save_pact(_donated_pact("pact_decl", with_card=True))
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/api/pacts/pact_decl/donation/checkout", json={"confirm": True})
+        assert r.status_code == 200, r.text
+
+    receipt = repo.get_donation_receipt("pact_decl")
+    # A decline records either nothing or an explicit failure — never a receipt that
+    # reads as a completed donation (provider_confirmed / manual_receipt).
+    assert receipt is None or receipt.receipt_status == "failed_or_reversed"
+
+
+@pytest.mark.asyncio
+async def test_checkout_is_idempotent_against_a_confirmed_donation(tmp_path):
+    # Once confirmed, a second checkout must refuse — link-cli has no idempotency
+    # key for the checkout, so a re-submit would be a second real charge.
+    calls = {"n": 0}
+
+    def runner(pact, settings, *, confirm):
+        calls["n"] += 1
+        return {"status": "submitted", "submitted": True, "reference": "confirmed"}
+
+    app, repo = _build(tmp_path, runner=runner)
+    repo.save_pact(_donated_pact("pact_idem", with_card=True))
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post("/api/pacts/pact_idem/donation/checkout", json={"confirm": True})
+        assert first.status_code == 200, first.text
+        second = await client.post("/api/pacts/pact_idem/donation/checkout", json={"confirm": True})
+        assert second.status_code == 409
+
+    assert calls["n"] == 1  # the runner never ran a second charge
 
 
 def test_default_checkout_runner_uses_frozen_sidecar_helper(monkeypatch, tmp_path):

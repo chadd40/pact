@@ -14,11 +14,13 @@ type Phase = "confirm" | "awaiting" | "done" | "error";
 export function LinkModal({
   pact,
   charityName,
+  methodLabel = "your connected method",
   onClose,
   onDonated,
 }: {
   pact: Pact;
   charityName: string;
+  methodLabel?: string;
   onClose: () => void;
   onDonated: () => Promise<void> | void;
 }) {
@@ -138,7 +140,7 @@ export function LinkModal({
             <div className="lm-body">
               <div className="m lm-to">Donating to {charityName}</div>
               <div className="m lm-amount">{dollars(pact.stake_amount_cents)}</div>
-              <div className="lm-method"><span className="lm-card" /><span className="m">•••• 4242</span>
+              <div className="lm-method"><span className="lm-card" /><span className="m">{methodLabel}</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--pc-kept)" strokeWidth="2.2" width="16" height="16"><path d="M5 12.5 10 17l9-11" /></svg>
               </div>
               <button className="ov-btn" onClick={confirm}>Confirm {dollars(pact.stake_amount_cents)} donation</button>

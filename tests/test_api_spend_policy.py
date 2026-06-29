@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
+from pact.accounts import issue_token
 from pact.anticheat import TokenStore
 from pact.api import create_app
 from pact.clock import FixedClock
@@ -104,3 +105,30 @@ async def test_policy_roundtrip_and_spend_gate(tmp_path):
         ok = (await client.get("/api/pacts/pact_ok")).json()
         assert ok["status"] == "donated"
         assert ok["spend_request_id"]
+
+
+@pytest.mark.asyncio
+async def test_policy_set_is_owner_scoped_when_authed(tmp_path):
+    # The spend limit is the authorisation that bounds agent spending. When auth is
+    # on, a token must not be able to raise (or set) some OTHER owner's limit.
+    repo = Repository.connect(str(tmp_path / "pact.db"))
+    repo.init_schema()
+    clock = FixedClock(NOW)
+    settings = Settings(db_path=str(tmp_path / "pact.db"), auth_mode="agent_token")
+    app = create_app(repo, TestLLMProvider(), TestLinkProvider(), TokenStore(), clock, settings)
+    session, token = issue_token(OWNER, clock, scopes=["claim_tasks"])
+    repo.save_account_link(session)
+    auth = {"Authorization": f"Bearer {token}"}
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        mine = await client.post(
+            "/api/policy", json={"owner": OWNER, "spend_limit_cents": 5000}, headers=auth
+        )
+        assert mine.status_code == 200, mine.text
+
+        intruder = await client.post(
+            "/api/policy",
+            json={"owner": "intruder@example.com", "spend_limit_cents": 999999},
+            headers=auth,
+        )
+        assert intruder.status_code == 403

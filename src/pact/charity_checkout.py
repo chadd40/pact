@@ -80,6 +80,7 @@ def build_result(
     donation_url: str,
     amount_cents: int,
     reference: str | None = None,
+    outcome: str | None = None,
     screenshot: str | None = None,
     error: str | None = None,
     note: str = "",
@@ -88,6 +89,9 @@ def build_result(
     return {
         "status": status,  # submitted | reached_card_step | error
         "submitted": submitted,
+        # confirmed | declined | unknown | None — whether the charge actually went
+        # through. "submitted" only means we clicked Give; this is the real outcome.
+        "outcome": outcome,
         "mode": mode,
         "donation_url": donation_url,
         "amount_cents": amount_cents,
@@ -367,7 +371,7 @@ def run_checkout(
             return build_result(
                 status="submitted", submitted=True, mode=mode,
                 donation_url=donation_url, amount_cents=amount_cents,
-                reference=reference, screenshot=screenshot_path,
+                reference=reference, outcome=outcome, screenshot=screenshot_path,
                 note=f"submit clicked on charity: water; payment outcome={outcome}",
             )
         except Exception as exc:  # noqa: BLE001

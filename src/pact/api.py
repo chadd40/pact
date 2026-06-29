@@ -1065,7 +1065,16 @@ def create_app(
             raise HTTPException(
                 status_code=409, detail="no spend request to provision a card for"
             )
-        if pact.status not in (PactStatus.donation_pending, PactStatus.donated):
+        # A card carries real charge authority. In live mode the spend request is
+        # opened at initiate (donation_pending, pre-approval), so require the human to
+        # have actually approved (status donated) before handing out a card.
+        if _live_money_enabled():
+            if pact.status != PactStatus.donated:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"card requires an approved (donated) pact (status {pact.status.value})",
+                )
+        elif pact.status not in (PactStatus.donation_pending, PactStatus.donated):
             raise HTTPException(
                 status_code=409,
                 detail=f"card requires an approved donation (status {pact.status.value})",
@@ -1106,22 +1115,49 @@ def create_app(
                 status_code=409,
                 detail="no provisioned card — call POST /donation/card first",
             )
+        # Charge-once: a donation already confirmed for this pact must never be driven
+        # again — the charity checkout has no idempotency key, so a second submit is a
+        # second real charge.
+        existing = repo.get_donation_receipt(pact_id)
+        if existing and existing.receipt_status == "provider_confirmed":
+            raise HTTPException(
+                status_code=409, detail="donation already confirmed for this pact"
+            )
         confirm = bool(body.confirm) if body else False
         result = checkout_runner(pact, settings, confirm=confirm)
         if result.get("submitted"):
-            repo.save_donation_receipt(
-                DonationReceipt(
-                    pact_id=pact_id,
-                    receipt_status=(
-                        "provider_confirmed" if result.get("reference") else "manual_receipt"
-                    ),
-                    receipt_source="charity_checkout",
-                    receipt_ref=result.get("reference"),
-                    receipt_artifact_path=result.get("screenshot"),
-                    confirmed_at=clock.now(),
-                    confirmation_notes=result.get("note"),
+            # Record a donation ONLY on a confirmed outcome. "submitted" means we
+            # clicked Give — not that the charge succeeded. A decline is recorded as a
+            # failure; an unverifiable ("unknown") outcome records nothing so it can be
+            # reconciled rather than masquerading as a completed donation.
+            outcome = result.get("outcome")
+            confirmed = outcome == "confirmed" or (outcome is None and bool(result.get("reference")))
+            if confirmed:
+                repo.save_donation_receipt(
+                    DonationReceipt(
+                        pact_id=pact_id,
+                        receipt_status="provider_confirmed",
+                        receipt_source="charity_checkout",
+                        receipt_ref=result.get("reference"),
+                        receipt_artifact_path=result.get("screenshot"),
+                        confirmed_at=clock.now(),
+                        confirmation_notes=result.get("note"),
+                    )
                 )
-            )
+                # Single-use: drop the card ref so a retry can't re-charge it.
+                pact.card_artifact_path = None
+                repo.update_pact(pact)
+            elif outcome == "declined":
+                repo.save_donation_receipt(
+                    DonationReceipt(
+                        pact_id=pact_id,
+                        receipt_status="failed_or_reversed",
+                        receipt_source="charity_checkout",
+                        receipt_artifact_path=result.get("screenshot"),
+                        confirmed_at=clock.now(),
+                        confirmation_notes=result.get("note") or "charity checkout declined",
+                    )
+                )
         return result
 
     @app.post("/api/pacts/{pact_id}/donation/receipt")
@@ -1269,8 +1305,15 @@ def create_app(
         }
 
     @app.post("/api/policy")
-    def set_spend_policy(body: SpendPolicyIn):
+    def set_spend_policy(body: SpendPolicyIn, authorization: str | None = Header(default=None)):
         """Set the agent's per-donation spend ceiling ('agent may spend up to $X')."""
+        # The spend limit is the authorisation that bounds agent spending, so when auth
+        # is enabled a token may only set its OWN owner's policy (no-op in local_dev).
+        session = _require_agent_session(authorization)
+        if session is not None and session.owner != body.owner:
+            raise HTTPException(
+                status_code=403, detail="cannot set another owner's spend policy"
+            )
         prof = repo.get_profile(body.owner) or Profile(owner=body.owner)
         prof.spend_limit_cents = body.spend_limit_cents
         repo.save_profile(prof)

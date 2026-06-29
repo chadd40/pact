@@ -95,3 +95,28 @@ async def test_provision_card_requires_a_spend_request(tmp_path):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         r = await client.post("/api/pacts/pact_nosr/donation/card")
         assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_live_card_requires_human_approval_not_just_pending(tmp_path):
+    # Live two-phase: the spend request is opened at initiate (donation_pending,
+    # pre-approval). A card carries real charge authority, so it must NOT be
+    # provisionable until the human has actually approved (status donated).
+    repo = Repository.connect(str(tmp_path / "pact.db"))
+    repo.init_schema()
+    clock = FixedClock(NOW)
+    settings = Settings(
+        db_path=str(tmp_path / "pact.db"),
+        artifacts_dir=str(tmp_path / "artifacts"),
+        payment_mode="link_cli",
+        link_mode="live",
+    )
+    app = create_app(repo, TestLLMProvider(), TestLinkProvider(), TokenStore(), clock, settings)
+    pending = _donated_pact("pact_pending").model_copy(
+        update={"status": PactStatus.donation_pending, "stake_state": StakeState.executing}
+    )
+    repo.save_pact(pending)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/api/pacts/pact_pending/donation/card")
+        assert r.status_code == 409

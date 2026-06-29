@@ -109,6 +109,21 @@ export function Onboard() {
       );
     } finally { setBusy(null); }
   };
+  // The MCP/worker connector flips ready only after an out-of-app step (pasting the
+  // command into the agent). Re-probe on demand so a finished user unlocks without
+  // having to navigate away and back.
+  const recheck = async () => {
+    setBusy("recheck");
+    try {
+      const live = runtime?.live_money_enabled ?? true;
+      const [nextHealth, nextLink] = await Promise.all([
+        api.connectorHealth(owner).catch(() => null),
+        (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null),
+      ]);
+      if (nextHealth) setHealth(nextHealth);
+      if (nextLink) setLink(nextLink);
+    } finally { setBusy(null); }
+  };
 
   const agentDone = !!token || health?.agent_token.status === "ready";
   const liveMoneyEnabled = runtime?.live_money_enabled ?? true;
@@ -236,7 +251,18 @@ export function Onboard() {
         <div className="onb-mcp">
           <div className="onb-check-row">
             <span>{mcpReady ? "MCP server ready" : "Add the local Pact MCP server to your agent."}</span>
-            <StatusPill tone={mcpReady ? "ok" : "warn"}>{mcpReady ? "ready" : "waiting"}</StatusPill>
+            {mcpReady ? (
+              <StatusPill tone="ok">ready</StatusPill>
+            ) : (
+              <button
+                type="button"
+                className="onb-copy"
+                onClick={recheck}
+                disabled={busy === "recheck"}
+              >
+                {busy === "recheck" ? "Checking…" : "Re-check"}
+              </button>
+            )}
           </div>
           <label className="onb-url-field">
             <span className="m">Local Pact API URL</span>
@@ -291,7 +317,6 @@ export function Onboard() {
           {pactId && (
             <button
               className="onb-view-pact"
-              disabled={!canOpenDashboard}
               onClick={() => navigate(`/pact/${pactId}`)}
             >
               View pact

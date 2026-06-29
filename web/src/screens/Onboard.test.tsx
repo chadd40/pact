@@ -214,6 +214,34 @@ describe("Onboard", () => {
     expect(screen.getByText(/pact mcp --base-url/i)).toBeTruthy();
   });
 
+  it("lets the user view their sealed pact before agent setup is finished", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue(pact());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
+
+    renderOnboard();
+
+    const viewPact = await screen.findByRole("button", { name: /view pact/i });
+    // Viewing a just-sealed pact is read-only and must not require MCP/agent setup.
+    expect((viewPact as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("re-checks connector health on demand so a finished setup unlocks without leaving", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue(pact());
+    vi.mocked(api.connectorHealth)
+      .mockResolvedValueOnce(connectorHealthNeedsSetup())
+      .mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    expect(await screen.findByText(/Add the local Pact MCP server/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /re-check/i }));
+
+    await waitFor(() => expect(screen.getByText(/MCP server ready/i)).toBeTruthy());
+  });
+
   it("presents first-run setup as an agent chat instead of a checklist", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
     vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
@@ -339,7 +367,7 @@ describe("Onboard", () => {
     expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("keeps pact navigation locked until the agent and MCP setup are ready", async () => {
+  it("keeps the dashboard locked until setup is ready, but lets the user view their pact", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
     vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
@@ -348,9 +376,11 @@ describe("Onboard", () => {
 
     await screen.findByRole("log", { name: /hermes setup chat/i });
     expect(screen.getByText(/add the local pact mcp server/i)).toBeTruthy();
-    expect(screen.getByText("waiting")).toBeTruthy();
+    // Not-ready offers a re-check affordance (so the user isn't stranded), and the
+    // dashboard stays gated — but viewing the just-sealed pact is always allowed.
+    expect(screen.getByRole("button", { name: /re-check/i })).toBeTruthy();
     expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: /^view pact$/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^view pact$/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("refreshes live Link with preflight before deciding setup is ready", async () => {

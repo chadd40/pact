@@ -15,6 +15,15 @@ export function fundingIsReady(link: LinkStatus | null, liveMoneyEnabled = true)
   return link.ready === true || !!link.payment_method_id;
 }
 
+// The card line shown on the donation/approval screens. Always the real connected
+// method, or a neutral fallback — never a hardcoded card number.
+export function paymentMethodLabel(link: LinkStatus | null): string {
+  if (link?.payment_method_last4) {
+    return `${link.payment_method_label ?? "Link"} •••• ${link.payment_method_last4}`;
+  }
+  return "your connected method";
+}
+
 export function fundingDisplay(link: LinkStatus | null, liveMoneyEnabled = true): string | null {
   if (!fundingIsReady(link, liveMoneyEnabled)) return null;
   if (!link) return null;
