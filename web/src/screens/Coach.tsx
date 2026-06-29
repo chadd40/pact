@@ -18,6 +18,7 @@ export function Coach() {
   const navigate = useNavigate();
   const [feed, setFeed] = useState<CoachingMessage[]>([]);
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
+  const [copiedMcp, setCopiedMcp] = useState(false);
 
   // Pacts come from shared AppData; only the outbox feed is Coach-specific.
   useEffect(() => {
@@ -37,6 +38,18 @@ export function Coach() {
   const workerOnline = health?.worker.status === "online";
   const tokenReady = health?.agent_token.status === "ready";
   const mcpReady = health?.connectors.some((c) => c.key === "mcp" && c.status === "ready") ?? false;
+  const mcpCommand = health?.mcp.command ?? "";
+  const localApi = health?.runtime.base_url ?? "";
+  const copyMcp = async () => {
+    if (!mcpCommand) return;
+    try {
+      await navigator.clipboard.writeText(mcpCommand);
+      setCopiedMcp(true);
+      setTimeout(() => setCopiedMcp(false), 1800);
+    } catch {
+      /* clipboard may be unavailable in hardened contexts */
+    }
+  };
   const consoleRows: ChatMessage[] = feed.length
     ? feed.map((m) => {
       const p = byId[m.pact_id];
@@ -92,10 +105,23 @@ export function Coach() {
             </div>
           </div>
 
-          {health?.mcp.command && (
+          {mcpCommand && (
             <div className="coach-command-block">
-              <div className="coach-status-k m">MCP command</div>
-              <code className="coach-command m">{health.mcp.command}</code>
+              <div className="coach-command-head">
+                <div>
+                  <div className="coach-status-k m">MCP configuration</div>
+                  {localApi && (
+                    <div className="coach-local-api">
+                      <span>Local API</span>
+                      <code>{localApi}</code>
+                    </div>
+                  )}
+                </div>
+                <button className="coach-copy" aria-label="Copy MCP command" onClick={copyMcp}>
+                  {copiedMcp ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <code className="coach-command m">{mcpCommand}</code>
             </div>
           )}
 

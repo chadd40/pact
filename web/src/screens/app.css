@@ -522,6 +522,12 @@
 .coach-setup-row { min-height: 42px; border: 1px solid rgba(239, 235, 225, 0.12); border-radius: 12px; padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(239, 235, 225, 0.04); }
 .coach-status-k { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #a39d8e; }
 .coach-command-block { border-top: 1px solid rgba(239, 235, 225, 0.12); padding-top: 14px; }
+.coach-command-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.coach-local-api { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; color: #a39d8e; font-size: 11px; line-height: 1.35; }
+.coach-local-api span { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: #716b5e; }
+.coach-local-api code { color: #efebe1; font-family: var(--pc-mono); font-size: 11.5px; word-break: break-word; }
+.coach-copy { min-height: 30px; border: 1px solid rgba(239, 235, 225, 0.16); border-radius: 9px; background: rgba(239, 235, 225, 0.08); color: #efebe1; padding: 0 11px; cursor: pointer; font: 12px/1 var(--pc-sans); font-weight: 650; flex: none; }
+.coach-copy:hover { background: rgba(239, 235, 225, 0.12); border-color: rgba(239, 235, 225, 0.24); }
 .coach-command { margin-top: 8px; display: block; background: rgba(239, 235, 225, 0.08); border: 1px solid rgba(239, 235, 225, 0.12); border-radius: 12px; padding: 11px 13px; font-size: 11.5px; line-height: 1.45; color: #efebe1; word-break: break-word; }
 .coach-side-section { margin-top: auto; padding-top: 2px; }
 .coach-side-head { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #a39d8e; margin-bottom: 9px; }

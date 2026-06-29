@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Coach } from "./Coach";
 import { api, DEMO_OWNER } from "../api";
@@ -142,6 +142,9 @@ describe("Coach", () => {
   beforeEach(() => {
     vi.mocked(api.outbox).mockResolvedValue([message()]);
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
   });
 
   it("renders an agent console with the same chat surface used by pact chat", async () => {
@@ -157,5 +160,22 @@ describe("Coach", () => {
     expect(screen.getByLabelText(/hermes coach profile/i)).toBeTruthy();
     expect(screen.getByText(/pact mcp --base-url/i)).toBeTruthy();
     await waitFor(() => expect(container.querySelector(".coach-status-grid")).toBeNull());
+  });
+
+  it("shows copyable MCP configuration with the local API endpoint", async () => {
+    render(
+      <MemoryRouter>
+        <Coach />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/local api/i)).toBeTruthy();
+    expect(screen.getByText("http://127.0.0.1:8000")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy mcp command/i }));
+
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>"
+    ));
   });
 });
