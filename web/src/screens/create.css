@@ -1394,3 +1394,11 @@
 .pc-embedded .pc-mobile-note {
   display: none;
 }
+/* The fixed world reserves empty room at its top for the (here-hidden) heading,
+   which left a big gap between the landing lede and the first card. Shift the
+   embedded stage up to reclaim that dead space so the carousel sits centered
+   between the lede and the "Choose this card" pill. Only empty top space is
+   clipped by the embed's overflow:hidden. */
+.pc-embedded .pc-stage {
+  transform: translateY(calc(-1 * clamp(20px, 4vh, 48px))) scale(var(--pc-scale));
+}
