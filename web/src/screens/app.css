@@ -466,7 +466,10 @@
 .cp-msg.you { align-self: flex-end; background: #16150f; color: #efebe1; border-bottom-right-radius: 4px; }
 .cp-compose-wrap { flex: none; border-top: 1px solid var(--pc-hair-2); background: #fff; }
 .cp-attachments { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 18px 0; }
-.cp-attachment { max-width: 100%; min-height: 27px; display: inline-flex; align-items: center; border: 1px solid #e4e0d6; border-radius: 999px; background: var(--pc-ivory); color: #4c473d; padding: 0 10px; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-attachment { max-width: 100%; min-height: 27px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #e4e0d6; border-radius: 999px; background: var(--pc-ivory); color: #4c473d; padding: 0 6px 0 10px; font-size: 12px; font-weight: 600; overflow: hidden; white-space: nowrap; }
+.cp-attachment > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cp-attachment-remove { width: 19px; height: 19px; border: 0; border-radius: 999px; background: #ebe6dc; color: #625d53; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; padding: 0; }
+.cp-attachment-remove:hover { background: #ded7ca; color: #1b1a17; }
 .cp-message-attachments { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
 .cp-message-attachments span { display: inline-flex; max-width: 100%; min-height: 24px; align-items: center; border-radius: 999px; background: rgba(255,255,255,0.55); border: 1px solid rgba(22,21,15,0.12); padding: 0 8px; font-size: 11.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-compose { padding: 14px 18px; display: flex; align-items: center; gap: 10px; }

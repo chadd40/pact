@@ -38,6 +38,9 @@ export function CoachPane({
     if (!files.length) return;
     setAttachments((current) => [...current, ...files]);
   };
+  const removeAttachment = (index: number) => {
+    setAttachments((current) => current.filter((_, i) => i !== index));
+  };
 
   const rows: ChatMessage[] = messages.length
     ? messages.map((m) => ({
@@ -84,7 +87,17 @@ export function CoachPane({
               {attachments.length > 0 && (
                 <div className="cp-attachments" aria-label="Selected attachments">
                   {attachments.map((file, index) => (
-                    <span className="cp-attachment" key={`${file.name}-${index}`}>{file.name}</span>
+                    <span className="cp-attachment" key={`${file.name}-${index}`}>
+                      <span>{file.name}</span>
+                      <button
+                        type="button"
+                        className="cp-attachment-remove"
+                        aria-label={`Remove ${file.name}`}
+                        onClick={() => removeAttachment(index)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="11" height="11"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                      </button>
+                    </span>
                   ))}
                 </div>
               )}

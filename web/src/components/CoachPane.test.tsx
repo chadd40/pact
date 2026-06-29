@@ -91,4 +91,24 @@ describe("CoachPane", () => {
 
     expect(onSend).toHaveBeenCalledWith("please review", [file]);
   });
+
+  it("lets the user remove an accidental attachment before sending", async () => {
+    const onSend = vi.fn();
+    render(<CoachPane pact={pact()} messages={[]} onSend={onSend} onClose={() => {}} />);
+
+    const keep = new File(["keep"], "keep.png", { type: "image/png" });
+    const remove = new File(["remove"], "remove.png", { type: "image/png" });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [keep, remove] } });
+
+    await userEvent.click(screen.getByRole("button", { name: /remove remove\.png/i }));
+
+    expect(screen.queryByText("remove.png")).toBeNull();
+    expect(screen.getByText("keep.png")).toBeTruthy();
+
+    await userEvent.type(screen.getByRole("textbox", { name: /message hermes/i }), "use this one");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    expect(onSend).toHaveBeenCalledWith("use this one", [keep]);
+  });
 });
