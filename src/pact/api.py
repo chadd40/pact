@@ -62,6 +62,7 @@ from pact.payment import (
     payment_status_is_approved,
     payment_status_is_denied,
     payment_status_is_expired,
+    read_card_secret,
 )
 from pact.progress import compute_cadence, compute_progress
 from pact.profile import record_outcome
@@ -1102,6 +1103,35 @@ def create_app(
             "exp_year": cred.exp_year,
             "mode": cred.mode,
         }
+
+    @app.post("/api/pacts/{pact_id}/donation/card-credential")
+    def donation_card_credential(
+        pact_id: str, authorization: str | None = Header(default=None)
+    ):
+        """Return the FULL provisioned card (PAN/CVC/expiry) so the OWNER'S OWN AGENT can
+        pay on an arbitrary charity's donate page (agent-side crawl).
+
+        This intentionally hands the secret card to the agent — the trade-off accepted for
+        any-charity completion. It's bounded: the card is single-use and merchant-locked, so
+        the blast radius is one charge to one charity. Gated to the authorized agent/owner
+        (no-op in local_dev single-user). Provision the card first via /donation/card.
+        """
+        pact = _require(pact_id)
+        if not pact.card_artifact_path:
+            raise HTTPException(
+                status_code=409,
+                detail="no provisioned card — call POST /donation/card first",
+            )
+        session = _require_agent_session(authorization)
+        if session is not None and session.owner != pact.owner:
+            raise HTTPException(status_code=403, detail="not your pact's card")
+        try:
+            secret = read_card_secret(pact.card_artifact_path)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=502, detail=f"could not read provisioned card: {exc}"
+            ) from exc
+        return secret
 
     @app.post("/api/pacts/{pact_id}/donation/checkout")
     def donation_checkout(pact_id: str, body: DonationCheckoutIn | None = None):

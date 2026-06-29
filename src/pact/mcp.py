@@ -418,6 +418,63 @@ def build_server(client: Any):
             client.post_json(f"/api/reasoning-tasks/{task_id}/result", {"result": result})
         )
 
+    # -- donation completion (agent-side crawl) -----------------------------
+
+    @tool(
+        name="pact_provision_card",
+        description=(
+            "Provision the single-use, merchant-locked virtual card for a donated pact's "
+            "charity payment. Returns only non-secret metadata (last4/brand/expiry); the "
+            "PAN stays server-side. Call this before pact_card_credential. Live mode "
+            "requires the human to have approved the spend in Link first (status donated)."
+        ),
+    )
+    def pact_provision_card(pact_id: str) -> str:
+        return _dumps(client.post_json(f"/api/pacts/{pact_id}/donation/card", {}))
+
+    @tool(
+        name="pact_card_credential",
+        description=(
+            "Get the FULL single-use card (number/cvc/expiry) to enter on the chosen "
+            "charity's donate page (agent-side crawl). The card is single-use and locked to "
+            "that one charity — treat it as a secret, use it only on that charity's page. "
+            "Owner-scoped when auth is on. Provision the card first with pact_provision_card."
+        ),
+    )
+    def pact_card_credential(pact_id: str) -> str:
+        return _dumps(client.post_json(f"/api/pacts/{pact_id}/donation/card-credential", {}))
+
+    @tool(
+        name="pact_record_donation_receipt",
+        description=(
+            "Record/confirm the charity donation receipt after you paid on the charity's "
+            "page. Provide the evidence you have: a confirmation reference (receipt_ref), a "
+            "receipt URL (receipt_url), and/or a saved screenshot path (receipt_artifact_path). "
+            "Use receipt_status='provider_confirmed' only with real evidence. This flips the "
+            "pact from 'approved' to a charity-confirmed donation."
+        ),
+    )
+    def pact_record_donation_receipt(
+        pact_id: str,
+        receipt_status: str = "manual_receipt",
+        receipt_ref: str | None = None,
+        receipt_url: str | None = None,
+        receipt_source: str | None = None,
+        receipt_artifact_path: str | None = None,
+        confirmation_notes: str | None = None,
+    ) -> str:
+        body: dict[str, Any] = {"receipt_status": receipt_status}
+        for key, value in (
+            ("receipt_ref", receipt_ref),
+            ("receipt_url", receipt_url),
+            ("receipt_source", receipt_source),
+            ("receipt_artifact_path", receipt_artifact_path),
+            ("confirmation_notes", confirmation_notes),
+        ):
+            if value is not None:
+                body[key] = value
+        return _dumps(client.post_json(f"/api/pacts/{pact_id}/donation/receipt", body))
+
     return server
 
 

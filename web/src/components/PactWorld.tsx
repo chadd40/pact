@@ -755,7 +755,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
           <div className="pd-terminal-body">
             {receiptConfirmed
               ? "Receipt evidence is attached to the final packet."
-              : "Link approval is recorded. Add the charity receipt when you have it so the packet can say the payout landed."}
+              : "Link approval is recorded. Your agent pays the charity with the issued card and confirms the receipt — or add it here yourself."}
           </div>
           <div className="pd-receipt">
             <div className="pd-receipt-row top"><span className="b">{charity?.name ?? "charity"}</span><span className="m risk">{dollars(pact.stake_amount_cents)}</span></div>

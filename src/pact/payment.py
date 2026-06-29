@@ -86,6 +86,39 @@ def _write_card_file(path: str, data: dict) -> None:
         os.close(fd)
 
 
+def read_card_secret(card_file: str) -> dict:
+    """Read the FULL card credential (incl. PAN/CVC) from the 0600 card file.
+
+    This DELIBERATELY exposes the secret card so the owner's own agent can pay on an
+    arbitrary charity's donate page (agent-side crawl). The card is single-use and
+    merchant-locked, so the blast radius is one charge to one charity. Callers MUST
+    gate this on the authorized agent/owner before returning it.
+    """
+    with open(card_file, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    card = data.get("card") if isinstance(data.get("card"), dict) else data
+    if not isinstance(card, dict):
+        card = {}
+
+    def pick(*keys):
+        for key in keys:
+            value = card.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    exp_month = pick("exp_month", "expMonth", "expiry_month")
+    exp_year = pick("exp_year", "expYear", "expiry_year")
+    return {
+        "number": pick("number", "pan", "card_number"),
+        "cvc": pick("cvc", "cvv", "cvc2"),
+        "exp_month": int(exp_month) if exp_month is not None else None,
+        "exp_year": int(exp_year) if exp_year is not None else None,
+        "last4": pick("last4", "last_four", "lastFour"),
+        "brand": pick("brand", "network", "scheme"),
+    }
+
+
 def _extract_card_meta(payload: dict) -> dict:
     """Pull NON-secret card metadata (last4/brand/expiry) from a link-cli
     response. Never extracts the PAN — that stays in the --output-file."""

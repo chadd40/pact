@@ -201,7 +201,7 @@ export function Onboard() {
               {policy == null || busy === "limit" ? "checking" : policy.rail === "nemoguard" ? "NemoGuard" : "policy"}
             </StatusPill>
           </div>
-          <div className="onb-check-note">NemoGuard checks every missed-pact donation.</div>
+          <div className="onb-check-note">Your standing authorization: if you miss, your agent handles the donation to your chosen charity, up to this limit. NemoGuard checks every charge.</div>
           <form
             className="onb-limit-form"
             onSubmit={(event) => { event.preventDefault(); saveLimit(); }}

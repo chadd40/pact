@@ -61,6 +61,12 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
 - `/pact verdict <id>` — settle, then GET the evidence + verdict packet.
 - `/pact freeze <id>` — spend a freeze (extend the deadline by one period); pre-deadline only.
 - `/pact dispute <id>` — submit extra proof into the single dispute window (re-judged once, then final).
+- `/pact pay <id>` — **complete a failed pact's donation by crawling the charity page**:
+  provision the card (`donation/card`), fetch the full single-use card via
+  `donation/card-credential`, open the chosen charity's donate page in your own browser, pay
+  with that card, then confirm the receipt (`donation/receipt`). Only after the human approved
+  the spend in Link. Treat the card as a secret — it is single-use and locked to that one
+  charity. `donated` (Link approval) is NOT a charity-confirmed receipt; the receipt is.
 - `/pact renew <id>` — clone a finished pact's terms into a fresh pact.
 - `/pact me` — your streak + history ("kept N of last M").
 - `/pact serve [--owner]` — **worker mode**: poll the broker and resolve pending **website**
@@ -96,6 +102,24 @@ Pact lifecycle (the skill calls these directly):
 - `GET /api/pacts/{id}/coach` — read the coaching thread.
 - `GET /api/charities` — charity catalogue for the confirm picker.
 - `GET /api/profile?owner=` — streak + history for `/pact me`.
+
+Donation (charge-on-fail completion — the agent finishes paying the charity):
+
+- `POST /api/pacts/{id}/donation/initiate` — open the Link spend-request (→ awaiting the
+  human's approval in their Link app; no money moves yet).
+- `POST /api/pacts/{id}/donation/approve` — capture once the human approved in Link.
+- `GET /api/pacts/{id}/donation/status` — poll the donation state (idle/awaiting_approval/
+  donated/declined/reconcile).
+- `POST /api/pacts/{id}/donation/card` — provision the single-use, merchant-locked virtual
+  card. Returns only non-secret metadata (last4/brand/expiry); the PAN stays server-side.
+- `POST /api/pacts/{id}/donation/card-credential` — the FULL single-use card (number/cvc/
+  expiry) for the owner's agent to enter on the charity's donate page (agent-side crawl).
+  Secret; single-use and merchant-locked. Owner-scoped when auth is on.
+- `POST /api/pacts/{id}/donation/checkout` — `{ confirm }` drive the chosen charity's donate
+  page with the card and record the receipt. Idempotent (refuses a re-charge once confirmed);
+  records a donation ONLY on a confirmed outcome — never on a decline or unverified result.
+- `POST /api/pacts/{id}/donation/receipt` — record/confirm the charity receipt (agent-driven
+  completion, or manual entry by the owner).
 
 Broker (the website enqueues; `/pact serve` resolves):
 
@@ -133,7 +157,7 @@ tool just persists what you reasoned. A tool cannot use your model, so no tool r
 for you. Each tool returns one JSON text block (the whole response). A refusal or a
 missing pact comes back as an error whose message carries the API `detail` — read it.
 
-The six capabilities map to tools as follows:
+The capabilities map to tools as follows:
 
 | Capability | Tools |
 | --- | --- |
@@ -143,6 +167,7 @@ The six capabilities map to tools as follows:
 | **Coach around evidence** | `pact_coach` (send a message into the thread). Recall first with `pact_get_coaching`. |
 | **Submit evidence** | `pact_issue_proof_token` → `pact_submit_proof` (text/log/url) or `pact_submit_proof_image` (reads a local image file and uploads it). The backend judges the proof against the frozen rubric and returns the verdict. |
 | **Submit evidence decisions** | `pact_settle` (judge pending proofs now, compute the verdict, fire donation if failed); or the broker loop — `pact_list_reasoning_tasks` → `pact_claim_reasoning_task` → reason inline → `pact_post_reasoning_result`. The posted `result` **is** the decision (judge `{status, reason, checklist}`, coach `{message}`, verdict prose, or a draft). |
+| **Complete a donation** (agent-side crawl) | After a failed pact is approved (status `donated`): `pact_provision_card` → `pact_card_credential` (the full single-use, merchant-locked card), open the charity's donate page in your own browser and pay with that card, then `pact_record_donation_receipt` with your evidence. The card is a secret — use it only on that one charity's page. |
 
 **Two decision paths.** Direct: you own a pact by id, so `pact_submit_proof[_image]`
 (judged inline) and/or `pact_settle` finalizes it. Broker: for a task the website

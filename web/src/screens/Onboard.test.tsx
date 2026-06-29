@@ -242,6 +242,16 @@ describe("Onboard", () => {
     await waitFor(() => expect(screen.getByText(/MCP server ready/i)).toBeTruthy());
   });
 
+  it("frames the spend limit as the agent's standing authorization to donate on a miss", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    expect(await screen.findByText(/your agent handles the donation/i)).toBeTruthy();
+  });
+
   it("presents first-run setup as an agent chat instead of a checklist", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
     vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
@@ -339,7 +349,7 @@ describe("Onboard", () => {
 
     await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(DEMO_OWNER, 1500));
     expect(screen.getByText(/agent may spend up to \$15\.00/i)).toBeTruthy();
-    expect(screen.getByText(/NemoGuard checks every missed-pact donation/i)).toBeTruthy();
+    expect(screen.getByText(/NemoGuard checks every charge/i)).toBeTruthy();
   });
 
   it("does not unlock setup when live Link is connected but missing a ready payment method", async () => {

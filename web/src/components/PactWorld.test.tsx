@@ -367,6 +367,8 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByText("Donation approved")).toBeTruthy();
     expect(screen.getByText("Receipt unconfirmed")).toBeTruthy();
     expect(screen.getByRole("button", { name: /record receipt/i })).toBeTruthy();
+    // The completion is agent-driven (it pays the charity), not a UI dead-end.
+    expect(screen.getByText(/your agent pays the charity/i)).toBeTruthy();
   });
 
   it("provisions the approved checkout card without exposing the PAN", async () => {

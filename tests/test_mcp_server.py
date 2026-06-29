@@ -57,6 +57,8 @@ def test_server_registers_full_tool_set():
         # submit evidence decisions
         "pact_settle", "pact_list_reasoning_tasks",
         "pact_claim_reasoning_task", "pact_post_reasoning_result",
+        # donation completion (agent-side crawl)
+        "pact_provision_card", "pact_card_credential", "pact_record_donation_receipt",
     }
     assert expected.issubset(names)
 
@@ -323,6 +325,40 @@ def test_post_reasoning_result_wraps_result():
     assert fake.calls == [(
         "POST", "/api/reasoning-tasks/task_1/result", None, {"result": decision},
     )]
+
+
+# ---------------------------------------------------------------------------
+# Donation completion (agent-side crawl)
+# ---------------------------------------------------------------------------
+
+def test_provision_card_posts_to_donation_card():
+    fake = FakeClient(result={"provisioned": True, "last4": "4242"})
+    server = build_server(fake)
+    asyncio.run(server.call_tool("pact_provision_card", {"pact_id": "pact_7"}))
+    assert fake.calls == [("POST", "/api/pacts/pact_7/donation/card", None, {})]
+
+
+def test_card_credential_posts_to_card_credential_endpoint():
+    fake = FakeClient(result={"number": "4242424242424242", "cvc": "123"})
+    server = build_server(fake)
+    res = asyncio.run(server.call_tool("pact_card_credential", {"pact_id": "pact_7"}))
+    assert fake.calls == [("POST", "/api/pacts/pact_7/donation/card-credential", None, {})]
+    assert json.loads(_text(res))["number"] == "4242424242424242"
+
+
+def test_record_donation_receipt_posts_evidence_without_none_extras():
+    fake = FakeClient(result={"receipt_status": "provider_confirmed"})
+    server = build_server(fake)
+    asyncio.run(server.call_tool("pact_record_donation_receipt", {
+        "pact_id": "pact_7", "receipt_status": "provider_confirmed", "receipt_ref": "CW-123",
+    }))
+    method, path, _, body = fake.calls[0]
+    assert (method, path) == ("POST", "/api/pacts/pact_7/donation/receipt")
+    assert body["receipt_status"] == "provider_confirmed"
+    assert body["receipt_ref"] == "CW-123"
+    # Optional fields the agent did not pass must not be sent as null.
+    assert "receipt_url" not in body
+    assert "confirmation_notes" not in body
 
 
 # ---------------------------------------------------------------------------

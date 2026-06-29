@@ -49,7 +49,6 @@ export function LandingLogoMenu({ onGoTo }: LandingLogoMenuProps) {
         {open && (
           <div className="lp-menu" role="menu">
             <div className="lp-menu-card">
-              <div className="lp-menu-eyebrow m">Pact</div>
               <button className="lp-menu-item" role="menuitem" onClick={() => goTo("top")}>
                 Home
               </button>

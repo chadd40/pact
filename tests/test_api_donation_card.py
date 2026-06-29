@@ -97,6 +97,88 @@ async def test_provision_card_requires_a_spend_request(tmp_path):
         assert r.status_code == 409
 
 
+def _write_card_file(path: str) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(
+            {
+                "card": {
+                    "number": "4242424242424242",
+                    "cvc": "123",
+                    "exp_month": 12,
+                    "exp_year": 2030,
+                    "last4": "4242",
+                    "brand": "visa",
+                },
+                "mode": "test",
+            },
+            fh,
+        )
+
+
+@pytest.mark.asyncio
+async def test_card_credential_returns_the_secret_for_agent_side_crawl(tmp_path):
+    # Agent-side crawl: the owner's agent needs the full card (PAN/CVC) to pay on an
+    # arbitrary charity's donate page. The single-use, merchant-locked card is returned
+    # to the authorized caller (this deliberately exposes the PAN — see the endpoint).
+    app, repo, _ = _build(tmp_path)
+    card_file = str(tmp_path / "card.json")
+    _write_card_file(card_file)
+    pact = _donated_pact("pact_cred")
+    pact.card_artifact_path = card_file
+    pact.card_last4 = "4242"
+    repo.save_pact(pact)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/api/pacts/pact_cred/donation/card-credential")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["number"] == "4242424242424242"
+        assert body["cvc"] == "123"
+        assert body["exp_month"] == 12
+        assert body["exp_year"] == 2030
+        assert body["last4"] == "4242"
+
+
+@pytest.mark.asyncio
+async def test_card_credential_requires_a_provisioned_card(tmp_path):
+    app, repo, _ = _build(tmp_path)
+    repo.save_pact(_donated_pact("pact_nocred"))  # no card_artifact_path
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/api/pacts/pact_nocred/donation/card-credential")
+        assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_card_credential_is_owner_scoped_when_authed(tmp_path):
+    repo = Repository.connect(str(tmp_path / "pact.db"))
+    repo.init_schema()
+    clock = FixedClock(NOW)
+    settings = Settings(
+        db_path=str(tmp_path / "pact.db"),
+        artifacts_dir=str(tmp_path / "artifacts"),
+        auth_mode="agent_token",
+    )
+    app = create_app(repo, TestLLMProvider(), TestLinkProvider(), TokenStore(), clock, settings)
+    card_file = str(tmp_path / "card.json")
+    _write_card_file(card_file)
+    pact = _donated_pact("pact_scoped")
+    pact.card_artifact_path = card_file
+    repo.save_pact(pact)
+    from pact.accounts import issue_token
+
+    other_session, other_token = issue_token("intruder@example.com", clock, scopes=["claim_tasks"])
+    repo.save_account_link(other_session)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # A token for a different owner must not be able to pull this card's secret.
+        r = await client.post(
+            "/api/pacts/pact_scoped/donation/card-credential",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+        assert r.status_code == 403
+
+
 @pytest.mark.asyncio
 async def test_live_card_requires_human_approval_not_just_pending(tmp_path):
     # Live two-phase: the spend request is opened at initiate (donation_pending,
