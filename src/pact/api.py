@@ -915,7 +915,7 @@ def create_app(
             if payment_status_is_approved(result.status):
                 pact = _mark_live_approved(pact)
             elif payment_status_is_denied(result.status) or payment_status_is_expired(result.status):
-                pact = _mark_live_failed(pact, result.status)
+                pact = _mark_live_failed(pact)
             else:
                 repo.update_pact(pact)
         elif pact.spend_request_id is None and pact.stake_state != StakeState.executed:
