@@ -179,4 +179,30 @@ describe("Settings", () => {
     expect(screen.getByText(/pat_abcdef12/i)).toBeTruthy();
     expect(screen.getByText(/pact mcp --base-url/i)).toBeTruthy();
   });
+
+  it("surfaces setup endpoints and saves the owner from an explicit action", async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(false));
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    render(<Settings />);
+
+    expect(await screen.findByText(/local api/i)).toBeTruthy();
+    expect(screen.getByText("http://127.0.0.1:8000")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy mcp command/i }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>"
+    ));
+
+    const ownerInput = screen.getByDisplayValue(DEMO_OWNER);
+    fireEvent.change(ownerInput, {
+      target: { value: " new-owner@example.com " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save owner/i }));
+
+    await waitFor(() => expect(window.localStorage.getItem("pact.localOwner")).toBe("new-owner@example.com"));
+  });
 });

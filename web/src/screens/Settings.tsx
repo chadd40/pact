@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { fundingDisplay, fundingIsLocalOnly } from "../lib/funding";
 import { useLocalOwner } from "../owner";
@@ -70,6 +70,10 @@ export function Settings() {
     setOwner(ownerDraft);
     setToken(null);
   };
+  const submitOwner = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    saveOwner();
+  };
   const copyToken = async () => {
     if (!token) return;
     try { await navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
@@ -85,76 +89,106 @@ export function Settings() {
   const tokenLabel = health?.agent_token.status === "ready"
     ? `Token ${health.agent_token.token_prefix}`
     : "No agent token";
+  const localApi = health?.runtime.base_url ?? "Checking...";
+  const ownerChanged = ownerDraft.trim() !== owner;
+  const refreshHealth = async () => {
+    setBusy("health");
+    try { await refresh(); } finally { setBusy(null); }
+  };
 
   return (
     <div className="pg">
       <div className="pg-head">
         <div className="pg-eyebrow m">Account</div>
         <div className="pg-title">Settings</div>
-        <div className="pg-lede">Pact is local-first — one owner, your own agent. Connect a funding source so a missed pact can actually be charged, and link your agent so it can coach you.</div>
+        <div className="pg-lede">Pact is local-first — one owner, your own agent. Connect funding, verify the local API, and copy the MCP command your coach uses.</div>
+      </div>
+
+      <div className="set-overview">
+        <div className="set-overview-item">
+          <span className="m">Owner</span>
+          <strong>{owner}</strong>
+        </div>
+        <div className="set-overview-item">
+          <span className="m">Funding</span>
+          <strong>{link == null ? "Checking" : link.connected ? localOnlyFunding ? "Dry run" : "Ready" : "Not connected"}</strong>
+        </div>
+        <div className="set-overview-item">
+          <span className="m">Agent</span>
+          <strong>{health?.agent_token.status === "ready" ? "Token ready" : "Needs token"}</strong>
+        </div>
       </div>
 
       <div className="set-card">
         <div className="set-row">
-          <div>
+          <div className="set-row-main">
             <div className="set-k">Owner</div>
+            <div className="set-v">This email scopes local pacts, funding, and agent tokens.</div>
+          </div>
+          <form className="set-owner-form" onSubmit={submitOwner}>
             <input
+              aria-label="Owner email"
               className="set-input"
               value={ownerDraft}
               onChange={(e) => setOwnerDraft(e.target.value)}
               onBlur={saveOwner}
               onKeyDown={(e) => { if (e.key === "Enter") saveOwner(); }}
             />
-          </div>
+            <button className="set-copy primary" type="submit" disabled={!ownerChanged}>
+              Save owner
+            </button>
+          </form>
         </div>
       </div>
 
-      <div className="set-card">
-        <div className="set-row">
-          <div>
-            <div className="set-k">Funding source (Link)</div>
-            <div className="set-v">
-              {link == null ? "—" : link.connected
-                ? <span className="set-ok">{localOnlyFunding ? fundingLabel : `Connected · ${fundingLabel}`}</span>
-                : `Not connected${link?.error ? ` · ${link.error}` : " — a missed pact can't be charged until you connect."}`}
+      <div className="set-grid">
+        <div className="set-card">
+          <div className="set-row">
+            <div>
+              <div className="set-k">Funding source</div>
+              <div className="set-v">
+                {link == null ? "Checking..." : link.connected
+                  ? <span className="set-ok">{localOnlyFunding ? fundingLabel : `Connected · ${fundingLabel}`}</span>
+                  : `Not connected${link?.error ? ` · ${link.error}` : " — a missed pact can't be charged until you connect."}`}
+              </div>
             </div>
+            {!link?.connected && (
+              <button className="ov-btn sm" onClick={connect} disabled={busy === "link"}>
+                {busy === "link" ? "Connecting..." : "Connect Link"}
+              </button>
+            )}
           </div>
-          {!link?.connected && (
-            <button className="ov-btn sm" onClick={connect} disabled={busy === "link"}>
-              {busy === "link" ? "Connecting…" : "Connect Link"}
+          <div className="set-note m">
+            {localOnlyFunding
+              ? "No real card is connected in this packaged build. Link is in local dry-run mode, so no money can move."
+              : "Pact never holds your money. Connecting registers the funding source — no donation moves now."}
+          </div>
+        </div>
+
+        <div className="set-card">
+          <div className="set-row">
+            <div>
+              <div className="set-k">Agent token</div>
+              <div className="set-v">Bring your own agent, install the <span className="m">/pact</span> skill, and paste this token to link it to your account.</div>
+            </div>
+            <button className="ov-btn sm" onClick={mint} disabled={busy === "token"}>
+              {busy === "token" ? "..." : token ? "Regenerate" : "Generate token"}
             </button>
+          </div>
+          {token && (
+            <>
+              <div className="set-token-row">
+                <code className="set-token m">{token}</code>
+                <button className="set-copy" aria-label="Copy agent token" onClick={copyToken}>{copied ? "Copied" : "Copy"}</button>
+              </div>
+              <ol className="set-steps">
+                <li>Bring your agent (Hermes is near-built-in; Claude Code = drop the <span className="m">/pact</span> skill file).</li>
+                <li>Install the <span className="m">/pact</span> skill.</li>
+                <li>Paste this token so it claims your pacts and relays coaching.</li>
+              </ol>
+            </>
           )}
         </div>
-        <div className="set-note m">
-          {localOnlyFunding
-            ? "No real card is connected in this packaged build. Link is in local dry-run mode, so no money can move."
-            : "Pact never holds your money. Connecting registers the funding source — no donation moves now."}
-        </div>
-      </div>
-
-      <div className="set-card">
-        <div className="set-row">
-          <div>
-            <div className="set-k">Your agent</div>
-            <div className="set-v">Bring your own agent, install the <span className="m">/pact</span> skill, and paste this token to link it to your account.</div>
-          </div>
-          <button className="ov-btn sm" onClick={mint} disabled={busy === "token"}>
-            {busy === "token" ? "…" : token ? "Regenerate" : "Generate token"}
-          </button>
-        </div>
-        {token && (
-          <>
-            <div className="set-token-row">
-              <code className="set-token m">{token}</code>
-              <button className="set-copy" aria-label="Copy agent token" onClick={copyToken}>{copied ? "Copied ✓" : "Copy"}</button>
-            </div>
-            <ol className="set-steps">
-              <li>Bring your agent (Hermes is near-built-in; Claude Code = drop the <span className="m">/pact</span> skill file).</li>
-              <li>Install the <span className="m">/pact</span> skill.</li>
-              <li>Paste this token so it claims your pacts and relays coaching.</li>
-            </ol>
-          </>
-        )}
       </div>
 
       <div className="set-card">
@@ -163,17 +197,27 @@ export function Settings() {
             <div className="set-k">Agent connector health</div>
             <div className="set-v">MCP, Claude Code, and Hermes all use the same local Pact engine and owner token.</div>
           </div>
-          <button className="ov-btn sm" onClick={refresh} disabled={busy === "health"}>
-            Refresh
+          <button className="ov-btn sm" onClick={refreshHealth} disabled={busy === "health"}>
+            {busy === "health" ? "Refreshing..." : "Refresh"}
           </button>
         </div>
         <div className="set-health-strip">
           <span className={`set-badge ${statusClass(health?.agent_token.status ?? "missing")}`}>{tokenLabel}</span>
           <span className={`set-badge ${statusClass(health?.worker.status ?? "offline")}`}>{workerLabel}</span>
-          <span className="set-badge muted">MCP server {health?.mcp.server_name ?? "pact"}</span>
+          <span className="set-badge muted">{health?.capabilities.vision ? "Vision ready" : "Text only"}</span>
         </div>
         {health && (
           <>
+            <div className="set-config-grid">
+              <div className="set-config-cell">
+                <span className="m">Local API</span>
+                <code>{localApi}</code>
+              </div>
+              <div className="set-config-cell">
+                <span className="m">MCP server</span>
+                <code>{health.mcp.server_name}</code>
+              </div>
+            </div>
             <div className="set-conn-list">
               {health.connectors.map((connector) => (
                 <ConnectorRow key={connector.key} connector={connector} />
