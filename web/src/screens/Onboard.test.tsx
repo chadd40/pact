@@ -88,6 +88,33 @@ function connectorHealth(): ConnectorHealth {
   };
 }
 
+function connectorHealthNeedsSetup(): ConnectorHealth {
+  const health = connectorHealth();
+  return {
+    ...health,
+    agent_token: {
+      ...health.agent_token,
+      status: "missing",
+      token_prefix: null,
+      scopes: [],
+    },
+    worker: {
+      ...health.worker,
+      status: "offline",
+      last_seen_at: null,
+    },
+    capabilities: {
+      text: false,
+      vision: false,
+    },
+    connectors: health.connectors.map((connector) =>
+      connector.key === "mcp"
+        ? { ...connector, status: "needs_token", installed: false }
+        : connector
+    ),
+  };
+}
+
 function pact(): Pact {
   return {
     id: "pact_1",
@@ -278,6 +305,20 @@ describe("Onboard", () => {
     expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
     expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
     expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("keeps pact navigation locked until the agent and MCP setup are ready", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
+
+    renderOnboard();
+
+    await screen.findByRole("log", { name: /hermes setup chat/i });
+    expect(screen.getByText(/add the local pact mcp server/i)).toBeTruthy();
+    expect(screen.getByText("waiting")).toBeTruthy();
+    expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^view pact$/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("refreshes live Link with preflight before deciding setup is ready", async () => {

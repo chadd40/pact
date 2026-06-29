@@ -227,7 +227,7 @@ export function Onboard() {
           {pactId && (
             <button
               className="onb-view-pact"
-              disabled={!fundingDone}
+              disabled={!canOpenDashboard}
               onClick={() => navigate(`/pact/${pactId}`)}
             >
               View pact
