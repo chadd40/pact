@@ -153,6 +153,25 @@ def test_user_reply_gives_provider_the_user_message_and_pact_context() -> None:
     assert outbound.body == "context-aware reply"
 
 
+def test_user_reply_answers_screenshot_proof_questions_without_generic_fallback() -> None:
+    clock = FixedClock(datetime(2026, 6, 22, 9, 0, 0, tzinfo=timezone.utc))
+    pact = _pact(clock)
+    provider = TestLLMProvider()
+
+    _inbound, outbound = user_reply(
+        pact,
+        "I only have a screenshot from today's workout. Is that enough?",
+        [],
+        provider,
+        clock,
+    )
+
+    assert "screenshot" in outbound.body.lower()
+    assert "proof" in outbound.body.lower()
+    assert "Work out 5x this week" in outbound.body
+    assert "Pick the next visible rep" not in outbound.body
+
+
 class CapturingCoachProvider:
     def __init__(self) -> None:
         self.input: dict = {}

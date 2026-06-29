@@ -243,7 +243,9 @@ class TestLLMProvider:
         )
         if user_message:
             ask = user_message.lower()
-            if "proof" in ask or "photo" in ask or "evidence" in ask:
+            if "screenshot" in ask:
+                next_step = "Upload the screenshot as proof if it clearly shows the rep; send it here and I will check it against the pact."
+            elif "proof" in ask or "photo" in ask or "evidence" in ask:
                 next_step = "Use the clearest proof you already have, then send it here so I can check it against the pact."
             elif "when" in ask or "before" in ask or "tomorrow" in ask or "today" in ask:
                 next_step = "Put the next rep on the calendar now and make the proof easy before the day gets noisy."
