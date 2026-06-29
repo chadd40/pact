@@ -4,6 +4,8 @@
    ════════════════════════════════════════════════════════════════════════════ */
 
 .as-root {
+  --app-page-x: 40px;
+  --app-content-top: 116px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -68,13 +70,13 @@
 
 /* ════════════════════════ HOME ════════════════════════ */
 .home { display: flex; flex-direction: column; min-height: 100%; }
-.home-head { padding: 88px 40px 0; display: flex; align-items: center; justify-content: flex-start; gap: 18px; }
-.home-eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9488; }
-.home-headline { margin-top: 3px; font-size: 25px; line-height: 1.08; font-weight: 600; color: #1b1a17; letter-spacing: -0.025em; max-width: 540px; }
-/* .home-stats removed — moved to StatsFlyout in the shell */
+.home-head { padding: var(--app-content-top) var(--app-page-x) 0; display: flex; align-items: center; justify-content: flex-start; gap: 18px; }
+.home-eyebrow { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9488; }
+.home-headline { margin-top: 1px; font-size: 24px; line-height: 1.04; font-weight: 600; color: #1b1a17; letter-spacing: -0.02em; max-width: 520px; }
+/* Dashboard stats are intentionally omitted from the top chrome. */
 
-.home-shelf { flex: none; height: 348px; position: relative; }
-.home-shelf-label { position: absolute; top: 18px; left: 40px; z-index: 6; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9488; }
+.home-shelf { flex: none; height: 332px; position: relative; }
+.home-shelf-label { position: absolute; top: 10px; left: var(--app-page-x); z-index: 6; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a9488; }
 .home-stage { position: absolute; inset: 0; perspective: 1500px; touch-action: none; cursor: grab; }
 .home-stage:active { cursor: grabbing; }
 .home-tilt { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 0.25s ease; }
@@ -111,7 +113,7 @@
 .home-arrow.left { left: 16px; }
 .home-arrow.right { right: 16px; }
 
-.home-ledger { flex: 1; min-height: 200px; margin: 4px 40px 26px; background: #fff; border: 1px solid var(--pc-hair); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
+.home-ledger { flex: 1; min-height: 200px; margin: 4px var(--app-page-x) 26px; background: #fff; border: 1px solid var(--pc-hair); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
 .home-ledger-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 22px; border-bottom: 1px solid #f0eee7; }
 .home-ledger-title { font-size: 15px; font-weight: 600; color: #1b1a17; }
 .home-ledger-sub { font-size: 11px; color: #9a9488; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -462,7 +464,7 @@
 .dm-actions .ov-btn.ghost { flex: 0 0 auto; padding: 0 20px; }
 
 /* ════════════════════════ GENERIC PAGES ════════════════════════ */
-.pg { padding: 88px 40px 60px; max-width: 900px; }
+.pg { padding: var(--app-content-top) var(--app-page-x) 60px; max-width: 900px; }
 .pg-head { margin-bottom: 24px; }
 .pg-eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #9a9488; }
 .pg-title { margin-top: 4px; font-size: 30px; line-height: 1.08; font-weight: 600; letter-spacing: -0.03em; color: #1b1a17; }
@@ -623,123 +625,6 @@
     opacity: 1;
     transform: none;
   }
-}
-
-/* ════════════════════════ STATS FLYOUT ════════════════════════ */
-/* Container: inline-flex row — panel sits LEFT of the collapsed box */
-.flyout {
-  position: relative;
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0;
-  outline: none;
-  border-radius: 14px;
-}
-.flyout:focus-visible {
-  outline: 2px solid var(--pc-accent);
-  outline-offset: 2px;
-}
-
-/* The collapsible panel (left side, hidden by default) */
-.flyout-panel {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  background: #fff;
-  border: 1px solid var(--pc-hair);
-  border-radius: 14px 0 0 14px;
-  height: 46px;
-  box-sizing: border-box;
-  padding: 0 16px;
-  gap: 0;
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-width 0.28s ease, opacity 0.2s ease;
-  white-space: nowrap;
-}
-
-/* Expand on hover or keyboard focus within flyout */
-.flyout:hover .flyout-panel,
-.flyout:focus-within .flyout-panel {
-  max-width: 560px;
-  opacity: 1;
-}
-
-/* Individual stat cell */
-.flyout-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 12px;
-  position: relative;
-}
-
-/* Vertical divider between stat cells */
-.flyout-div {
-  display: block;
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1px;
-  height: 24px;
-  background: var(--pc-hair);
-}
-
-.flyout-stat-num {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1b1a17;
-}
-
-.flyout-stat-label {
-  margin-top: 2px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #76736a;
-  white-space: nowrap;
-}
-
-/* Always-visible collapsed box (right side) — same rounded styling as the panel */
-.flyout-collapsed {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: #fff;
-  border: 1px solid var(--pc-hair);
-  border-radius: 14px;
-  height: 46px;
-  box-sizing: border-box;
-  padding: 0 16px;
-  min-width: 90px;
-  cursor: default;
-  user-select: none;
-}
-
-.flyout-collapsed-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1b1a17;
-}
-
-.flyout-chevron {
-  color: #76736a;
-  flex: none;
-  transition: transform 0.25s ease;
-}
-
-/* Rotate chevron 180° when expanded */
-.flyout:hover .flyout-chevron,
-.flyout:focus-within .flyout-chevron {
-  transform: rotate(180deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .flyout-panel { transition: none; }
-  .flyout-chevron { transition: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
