@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Outlet, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { useLocalOwner } from "./owner";
+import { isDesktop } from "./lib/platform";
 
 // ── Demo clock + actions context ────────────────────────────────────────────
 // The backend runs on a FixedClock in demo mode. We mirror "now" here so screens
@@ -49,6 +50,9 @@ export function App() {
   // (demo.py builds it with deadline_at=now). created_at is offset days earlier, so
   // it must not be used for "now".
   const refreshNow = useCallback(async () => {
+    // The demo clock only exists in the packaged app (seeded sidecar). The public
+    // web funnel has no backend, so skip the probe entirely — no /api/pacts/pact-win 404.
+    if (!isDesktop()) return;
     try {
       const win = await api.getPact("pact-win");
       setNowIso(win.deadline_at);

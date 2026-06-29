@@ -227,7 +227,7 @@ export function Landing() {
 
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}
       <div className="lp-pin" ref={pinRef}>
-        <div className="lp-sticky" style={{ ["--hero-bg" as any]: `url(${asset("/hero_bg.png")})` }}>
+        <div className="lp-sticky">
           {/* ambient drifting wishes (scale with the window) */}
           <div className="lp-field" aria-hidden="true">
             {DRIFT.map((w, i) => (

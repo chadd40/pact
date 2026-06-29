@@ -45,23 +45,6 @@
   align-items: center;
   padding-top: clamp(92px, 12vh, 132px);
 }
-/* Hero backdrop: the activity collage at 30% opacity (covered so it fills without
-   stretching), letting the warm page tone show through. The phone sits in its
-   clean centre. On its own layer so we can dial the opacity (background-image
-   itself has no opacity property). */
-.lp-sticky::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  /* Image URL is supplied from JS (--hero-bg, set on .lp-sticky) so it resolves
-     against the Vite base path — a root-absolute CSS url() is not rewritten under
-     a subpath like /pact/ on GitHub Pages. */
-  background: var(--hero-bg) center / cover no-repeat;
-  opacity: 0.3;
-  pointer-events: none;
-}
-
 /* The phone scene fills the space under the headline and scales as one unit. */
 .lp-stagewrap {
   flex: 1 1 auto;

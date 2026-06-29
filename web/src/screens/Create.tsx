@@ -9,6 +9,7 @@ import { PasteWebPact } from "../components/PasteWebPact";
 import { ChatShell, type ChatMessage } from "../components/ChatShell";
 import { Tooltip } from "../components/Tooltip";
 import { isDesktop } from "../lib/platform";
+import { CHARITY_CATALOG } from "../lib/charities";
 import { encodeDraft } from "../lib/handoff";
 import type { PactDraft } from "../lib/handoff";
 import { CC_TOP, CC_GLYPH, CC_SUBTITLE, CC_PACT, CC_INDEX, CC_GRAD } from "./customCardFrame";
@@ -182,7 +183,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   // resolve out of the skeleton and the editor rail comes alive.
   const [editorReady, setEditorReady] = useState(false);
 
-  const [charities, setCharities] = useState<Charity[]>([]);
+  const [charities, setCharities] = useState<Charity[]>(isDesktop() ? [] : CHARITY_CATALOG);
   const [created, setCreated] = useState<Pact | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Web-mode handoff: clipboard copy state.
@@ -227,13 +228,15 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     setStage(5);
   };
 
-  // Fetch the real charity catalog once.
+  // Charity catalog. Web funnel uses the bundled list (seeded above, no fetch →
+  // no 404); the desktop app fetches the live catalog, falling back to the bundle.
   useEffect(() => {
+    if (!isDesktop()) return;
     let alive = true;
     api
       .charities()
       .then((cs) => alive && setCharities(cs))
-      .catch(() => {});
+      .catch(() => alive && setCharities(CHARITY_CATALOG));
     return () => {
       alive = false;
     };

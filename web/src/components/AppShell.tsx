@@ -4,6 +4,8 @@ import { api } from "../api";
 import { useDemo } from "../App";
 import { AppDataContext, type AppData } from "../data";
 import { useLocalOwner } from "../owner";
+import { CHARITY_CATALOG } from "../lib/charities";
+import { isDesktop } from "../lib/platform";
 import type { Charity, Pact } from "../types";
 import { LogoMenu } from "./LogoMenu";
 import { PactToast } from "./PactToast";
@@ -14,7 +16,7 @@ export function AppShell() {
   const [owner] = useLocalOwner();
   const [pacts, setPacts] = useState<Pact[]>([]);
   const [pactsLoaded, setPactsLoaded] = useState(false);
-  const [charities, setCharities] = useState<Charity[]>([]);
+  const [charities, setCharities] = useState<Charity[]>(isDesktop() ? [] : CHARITY_CATALOG);
 
   // Pacts refresh on the demo `bump` signal (shared with Home/Coach via context).
   useEffect(() => {
@@ -25,10 +27,15 @@ export function AppShell() {
     return () => { alive = false; };
   }, [bump, owner]);
 
-  // Charities are quasi-static: fetch once, cache for every screen.
+  // Charities are quasi-static. On the public web funnel there's no sidecar, so we
+  // seed straight from the bundled catalog (above) and skip the fetch — no 404. In
+  // the desktop app we fetch the live list, falling back to the bundle on error.
   useEffect(() => {
+    if (!isDesktop()) return;
     let alive = true;
-    api.charities().then((c) => alive && setCharities(c)).catch(() => {});
+    api.charities()
+      .then((c) => alive && setCharities(c))
+      .catch(() => alive && setCharities(CHARITY_CATALOG));
     return () => { alive = false; };
   }, []);
 
