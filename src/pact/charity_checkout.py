@@ -378,6 +378,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--amount-cents", type=int, required=True)
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live_test", "live"])
     parser.add_argument("--confirm", action="store_true", help="actually submit (only honored in --mode live)")
+    parser.add_argument("--donor-first", default="Pact")
+    parser.add_argument("--donor-last", default="Donor")
+    parser.add_argument("--donor-email", default="")
     parser.add_argument("--screenshot")
     parser.add_argument("--no-headless", action="store_true")
     return parser.parse_args(argv)
@@ -391,6 +394,9 @@ def main(argv=None) -> int:
         amount_cents=args.amount_cents,
         mode=args.mode,
         confirm=args.confirm,
+        donor_first=args.donor_first,
+        donor_last=args.donor_last,
+        donor_email=args.donor_email,
         screenshot_path=args.screenshot,
         headless=not args.no_headless,
     )

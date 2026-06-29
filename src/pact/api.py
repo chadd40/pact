@@ -263,8 +263,11 @@ def default_checkout_runner(pact: Pact, settings: Settings, *, confirm: bool) ->
         "--donation-url", url,
         "--amount-cents", str(pact.stake_amount_cents),
         "--mode", settings.link_mode,
+        "--donor-email", pact.owner or "",
         "--screenshot", screenshot,
     ]
+    if pact.signer_name:
+        args += ["--donor-first", pact.signer_name]
     if confirm and settings.link_mode == "live":
         args.append("--confirm")
     try:
