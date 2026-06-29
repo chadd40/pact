@@ -54,6 +54,7 @@ from pact.models import (
 )
 from pact.packet import build_packet
 from pact.payment import (
+    LinkChargeAmbiguous,
     PaymentProvider,
     RecordingPaymentProvider,
     payment_status_is_approved,
@@ -257,7 +258,11 @@ def create_app(
         return build_connector_health(repo, owner, clock, settings)
 
     def _live_money_enabled() -> bool:
-        return settings.payment_mode == "link_cli" and settings.link_mode == "live"
+        # Gates the real link-cli subprocess flow (shell on initiate, human-gated
+        # approval, automated paths park). "live" moves real money; "live_test" runs
+        # the identical flow against Link test credentials (--test) so it can be
+        # exercised end-to-end safely.
+        return settings.payment_mode == "link_cli" and settings.link_mode in ("live", "live_test")
 
     def _link_runner():
         return getattr(raw_payment, "runner", None)
@@ -787,7 +792,7 @@ def create_app(
         _record_terminal(pact)
         return pact
 
-    def _mark_live_failed(pact: Pact, state: str) -> Pact:
+    def _mark_live_failed(pact: Pact) -> Pact:
         pact.stake_state = StakeState.error
         pact = transition(pact, PactStatus.donation_failed)
         pact.verdict_at = clock.now()
@@ -805,7 +810,7 @@ def create_app(
         if payment_status_is_approved(status.status):
             _mark_live_approved(pact)
         elif payment_status_is_denied(status.status) or payment_status_is_expired(status.status):
-            _mark_live_failed(pact, status.status)
+            _mark_live_failed(pact)
         return status
 
     def _donation_state(pact: Pact) -> dict:
@@ -833,6 +838,14 @@ def create_app(
             # did NOT move and the pact is terminal — surfaced so the UI can stop
             # waiting instead of spinning on a charge that will never land.
                 state = "error"
+            elif (
+                pact.status == PactStatus.donation_pending
+                and pact.stake_state == StakeState.error
+                and not pact.spend_request_id
+            ):
+                # Charge outcome unknown (ambiguous create failure): parked for a
+                # human to reconcile; the UI must not auto-retry or claim success.
+                state = "reconcile"
             elif pact.status == PactStatus.donation_pending:
                 state = attempt_state or (
                     "awaiting_approval"
@@ -863,15 +876,36 @@ def create_app(
                 detail=f"donation not pending (status {pact.status.value})",
             )
         _require_live_link_ready(pact.owner)
+        # A pact parked for manual reconciliation (an earlier charge had an unknown
+        # outcome) must never auto-fire again — link-cli has no idempotency key, so a
+        # retry could double-charge. Surface it instead of opening a second request.
+        if (
+            _live_money_enabled()
+            and pact.spend_request_id is None
+            and pact.stake_state == StakeState.error
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="donation parked for manual reconciliation (prior charge outcome unknown)",
+            )
         # Only open the approval if it hasn't already fired/opened.
         if _live_money_enabled() and pact.spend_request_id is None:
             try:
                 result = payment.create_donation(pact, f"{pact.id}:donation")
-            except Exception as exc:
+            except LinkChargeAmbiguous as exc:
+                # The request was sent to link-cli but its outcome is unknown. Do NOT
+                # mark terminal-failed (money may have moved) and do NOT retry — park
+                # for manual reconciliation: stay donation_pending, flag the stake.
                 pact.stake_state = StakeState.error
-                pact = transition(pact, PactStatus.donation_failed)
-                pact.verdict_at = clock.now()
                 repo.update_pact(pact)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Link spend request status unknown; manual reconcile required: {exc}",
+                ) from exc
+            except Exception as exc:
+                # The request never fired (pre-flight/config error) — no money moved,
+                # so leave the pact donation_pending and retryable once the cause is
+                # fixed rather than killing collection with a terminal failure.
                 raise HTTPException(
                     status_code=502,
                     detail=f"could not create Link spend request: {exc}",

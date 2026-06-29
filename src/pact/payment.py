@@ -9,6 +9,18 @@ from pact.charities import get_charity
 from pact.models import Pact, PaymentAttempt
 
 
+class LinkChargeAmbiguous(Exception):
+    """A spend-request subprocess was invoked but its outcome is unknown.
+
+    Raised when ``link-cli`` was actually shelled out to during charge creation but
+    the call failed in a way that does not tell us whether the request was created
+    (timeout, non-zero exit after the request may have fired, unparseable output).
+    The caller must NOT treat this as a clean failure (money may have moved) and
+    must NOT blindly retry (``link-cli`` has no idempotency key, so a retry could
+    double-charge) — it should park the pact for manual reconciliation instead.
+    """
+
+
 @dataclass(frozen=True)
 class PaymentResult:
     provider: str
@@ -89,13 +101,21 @@ class LinkCliRunner(Protocol):
 
 class SubprocessLinkCliRunner:
     def run(self, args: list[str], timeout: int) -> dict:
-        completed = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=timeout,
-        )
+        try:
+            completed = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=timeout,
+            )
+        except subprocess.CalledProcessError as exc:
+            # Surface link-cli's own stderr/stdout so the recorded attempt and the
+            # API error carry the real cause instead of a generic CalledProcessError.
+            detail = (exc.stderr or exc.stdout or "").strip()
+            raise RuntimeError(
+                f"link-cli exited {exc.returncode}: {detail or '(no output)'}"
+            ) from exc
         return json.loads(completed.stdout or "{}")
 
 
@@ -221,13 +241,21 @@ class LinkCliProvider:
     returns a clearly-marked PaymentResult and shells NOTHING — no subprocess,
     no `link-cli`, no real money. This is the only path tests exercise.
 
-    Live mode (``link_mode == "live"``) is documented but intentionally NOT
-    covered by tests and NOT auto-executed. A live run would:
-      1. shell ``link-cli spend-request create`` to open a spend request,
-      2. shell ``link-cli spend-request request-approval`` for the request, and
-      3. require an EXPLICIT HUMAN STEP: the virtual-card -> charity-page browser
-         checkout is performed by a person, never automated here.
-    The ``subprocess`` import exists for that documented live path only.
+    Live mode (``link_mode == "live"``) shells the real ``link-cli``. The flow is
+    deliberately NON-BLOCKING and two-phase so no money moves without an explicit
+    human approval:
+      1. ``link-cli spend-request create --no-request-approval`` opens the request
+         WITHOUT capturing — the default ``--request-approval`` would block and poll
+         until approved/denied, which would move money inside this call.
+      2. ``link-cli spend-request request-approval <id>`` prompts the human in their
+         Link app. This is best-effort: if it fails the request still exists (the id
+         is returned) so the user can be re-prompted rather than double-charged.
+      3. Capture happens later, when ``get_donation_status`` (``retrieve``) reports
+         the human has approved — see the API's ``/donation/approve`` path.
+
+    ``link_mode == "live_test"`` is identical but appends ``--test`` to every call,
+    so the real subprocess path can be exercised against Link test credentials with
+    no real money. It is the only safe way to integration-test the live argv/parsing.
     """
 
     provider = "link_cli"
@@ -260,10 +288,11 @@ class LinkCliProvider:
                     "note": "no real link-cli call",
                 },
             )
-        if self.link_mode != "live":
+        if self.link_mode not in ("live", "live_test"):
             raise RuntimeError(f"unsupported Link mode {self.link_mode!r}")
         if not self.payment_method_id:
             raise RuntimeError("Link live mode requires a payment method id")
+        test_mode = self.link_mode == "live_test"
 
         charity = get_charity(pact.charity_id)
         merchant_name = charity["name"] if charity else pact.charity_id
@@ -287,6 +316,10 @@ class LinkCliProvider:
             "create",
             "--format",
             "json",
+            # Open the request WITHOUT polling/capturing — approval is a separate,
+            # human step (see request-approval below). Otherwise link-cli would block
+            # and move money inside this call.
+            "--no-request-approval",
             "--payment-method-id",
             self.payment_method_id,
             "--credential-type",
@@ -306,41 +339,74 @@ class LinkCliProvider:
             "--total",
             total,
         ]
-        payload = self.runner.run(args, timeout=self.timeout_seconds)
+        if test_mode:
+            args.append("--test")
+        try:
+            payload = self.runner.run(args, timeout=self.timeout_seconds)
+        except Exception as exc:
+            # We shelled out, so the request may have been created — never claim a
+            # clean failure or blindly retry. Let the caller park for reconcile.
+            raise LinkChargeAmbiguous(
+                f"link-cli spend-request create outcome unknown: {exc}"
+            ) from exc
         provider_ref = _extract_provider_ref(payload)
         if not provider_ref:
-            raise RuntimeError("link-cli spend-request response missing id")
+            raise LinkChargeAmbiguous("link-cli spend-request response missing id")
+
+        # Best-effort: ask Link to prompt the human for approval. A failure here does
+        # NOT lose the created request (the ref is returned and persisted), so the
+        # user can be re-prompted rather than charged twice.
+        approval_args = [
+            "link-cli",
+            "spend-request",
+            "request-approval",
+            str(provider_ref),
+            "--format",
+            "json",
+        ]
+        if test_mode:
+            approval_args.append("--test")
+        approval_payload: dict = {}
+        try:
+            approval_payload = self.runner.run(approval_args, timeout=30)
+        except Exception as exc:  # non-fatal — the request still exists
+            approval_payload = {"request_approval_error": str(exc)}
+
+        status = _extract_status(approval_payload)
+        if status == "unknown":
+            status = _extract_status(payload)
         return PaymentResult(
             provider="link_cli",
-            status=_extract_status(payload),
+            status=status,
             provider_ref=str(provider_ref),
             payload={
                 "charity_id": pact.charity_id,
                 "amount_cents": pact.stake_amount_cents,
                 "idempotency_key": idempotency_key,
-                "mode": "live",
+                "mode": self.link_mode,
                 "link_cli": payload,
+                "request_approval": approval_payload,
             },
         )
 
     def get_donation_status(self, provider_ref: str) -> PaymentStatus:
-        payload = self.runner.run(
-            [
-                "link-cli",
-                "spend-request",
-                "retrieve",
-                provider_ref,
-                "--format",
-                "json",
-                "--timeout",
-                "1",
-                "--interval",
-                "0",
-                "--max-attempts",
-                "1",
-            ],
-            timeout=30,
-        )
+        args = [
+            "link-cli",
+            "spend-request",
+            "retrieve",
+            provider_ref,
+            "--format",
+            "json",
+            "--timeout",
+            "1",
+            "--interval",
+            "0",
+            "--max-attempts",
+            "1",
+        ]
+        if self.link_mode == "live_test":
+            args.append("--test")
+        payload = self.runner.run(args, timeout=30)
         ref = _extract_provider_ref(payload) or provider_ref
         return PaymentStatus(
             provider="link_cli",

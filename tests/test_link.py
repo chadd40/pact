@@ -1,3 +1,4 @@
+import subprocess
 from datetime import datetime, timezone
 
 from pact.clock import FixedClock
@@ -421,9 +422,10 @@ async def test_live_donation_creates_request_then_waits_for_approval(tmp_path):
         )
     )
     runner = _FakeRunner([
-        {"id": "sr_live_1", "status": "pending_approval"},
-        {"id": "sr_live_1", "status": "pending_approval"},
-        {"id": "sr_live_1", "status": "approved"},
+        {"id": "sr_live_1", "status": "pending_approval"},  # create (--no-request-approval)
+        {"id": "sr_live_1", "status": "pending_approval"},  # request-approval (prompt human)
+        {"id": "sr_live_1", "status": "pending_approval"},  # approve #1 retrieve -> still waiting
+        {"id": "sr_live_1", "status": "approved"},          # approve #2 retrieve -> approved
     ])
     payment = LinkCliProvider(link_mode="live", runner=runner)
     settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
@@ -455,6 +457,110 @@ async def test_live_donation_creates_request_then_waits_for_approval(tmp_path):
     assert len(attempts) == 1
     assert attempts[0].provider_ref == "sr_live_1"
     assert attempts[0].status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_live_test_mode_routes_through_the_real_subprocess_with_test_flag(tmp_path):
+    # live_test must behave like live at the API level (shell link-cli, human-gated)
+    # but against Link test credentials (--test), so the real path is exercisable
+    # end-to-end with no real money.
+    owner = "a@b.com"
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_pact(
+        _failing_pact(clock, owner).model_copy(
+            update={
+                "status": PactStatus.donation_pending,
+                "stake_state": StakeState.committed,
+            }
+        )
+    )
+    repo.save_link_account(
+        LinkAccount(
+            owner=owner,
+            connected=True,
+            funding_ref="pm_live_123",
+            connected_at=clock.now(),
+            payment_method_id="pm_live_123",
+            auth_status="authenticated",
+            checked_at=clock.now(),
+        )
+    )
+    runner = _FakeRunner([
+        {"id": "sr_t1", "status": "pending_approval"},  # create --test
+        {"id": "sr_t1", "status": "pending_approval"},  # request-approval --test
+    ])
+    payment = LinkCliProvider(link_mode="live_test", runner=runner)
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live_test")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        r = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        assert r.status_code == 200, r.text
+        assert r.json()["state"] == "awaiting_approval"
+
+    assert repo.get_pact("pact_gate1").spend_request_id == "sr_t1"
+    assert "--test" in runner.calls[0][0]  # real subprocess path, test credentials
+
+
+@pytest.mark.asyncio
+async def test_live_donation_initiate_ambiguous_failure_parks_for_reconcile(tmp_path):
+    owner = "a@b.com"
+    clock = _clock()
+    db = str(tmp_path / "p.db")
+    repo = Repository.connect(db)
+    repo.init_schema()
+    repo.save_pact(
+        _failing_pact(clock, owner).model_copy(
+            update={
+                "status": PactStatus.donation_pending,
+                "stake_state": StakeState.committed,
+            }
+        )
+    )
+    repo.save_link_account(
+        LinkAccount(
+            owner=owner,
+            connected=True,
+            funding_ref="pm_live_123",
+            connected_at=clock.now(),
+            payment_method_id="pm_live_123",
+            auth_status="authenticated",
+            checked_at=clock.now(),
+        )
+    )
+
+    class _AmbiguousRunner:
+        # The create subprocess fires but never returns a verdict (timeout): we
+        # cannot know whether Link created/charged the request.
+        def run(self, args, timeout):
+            raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
+
+    payment = LinkCliProvider(link_mode="live", runner=_AmbiguousRunner())
+    settings = Settings(db_path=db, payment_mode="link_cli", link_mode="live")
+    app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
+
+    async with _client(app) as client:
+        r = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        assert r.status_code == 502, r.text
+
+        parked = repo.get_pact("pact_gate1")
+        assert parked is not None
+        # Money may have moved → must NOT be terminal-failed, and the request was
+        # never confirmed → no spend_request_id, stake flagged for reconcile.
+        assert parked.status == PactStatus.donation_pending
+        assert parked.stake_state == StakeState.error
+        assert parked.spend_request_id is None
+
+        # A retry must refuse to re-fire (link-cli has no idempotency key → would
+        # risk a double charge).
+        retry = await client.post("/api/pacts/pact_gate1/donation/initiate")
+        assert retry.status_code == 409, retry.text
+
+        state = await client.get("/api/pacts/pact_gate1/donation/status")
+        assert state.json()["state"] == "reconcile"
 
 
 @pytest.mark.asyncio
