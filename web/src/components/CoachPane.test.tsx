@@ -101,6 +101,22 @@ describe("CoachPane", () => {
     expect(onSend).toHaveBeenCalledWith("please review", [file]);
   });
 
+  it("allows sending an attachment without extra text", async () => {
+    const onSend = vi.fn();
+    render(<CoachPane pact={pact()} messages={[]} onSend={onSend} onClose={() => {}} />);
+
+    const file = new File(["image"], "workout-proof.png", { type: "image/png" });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const send = screen.getByRole("button", { name: /send/i }) as HTMLButtonElement;
+    expect(send.disabled).toBe(false);
+
+    await userEvent.click(send);
+
+    expect(onSend).toHaveBeenCalledWith("", [file]);
+  });
+
   it("lets the user remove an accidental attachment before sending", async () => {
     const onSend = vi.fn();
     render(<CoachPane pact={pact()} messages={[]} onSend={onSend} onClose={() => {}} />);

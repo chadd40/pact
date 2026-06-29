@@ -24,6 +24,7 @@ export function CoachPane({
   const fileRef = useRef<HTMLInputElement>(null);
   const agent = pact.agent ?? "Hermes";
   const agentDef = AGENTS.find((a) => a.key === pact.agent) ?? AGENTS[0];
+  const canSend = draft.trim().length > 0 || attachments.length > 0;
 
   // Trap focus + Escape-to-close + focus-restore, like the other modals (a11y).
   useFocusTrap(paneRef, onClose);
@@ -32,7 +33,7 @@ export function CoachPane({
 
   const send = async () => {
     const t = draft.trim();
-    if (!t || busy) return;
+    if (!canSend || busy) return;
     setBusy(true);
     try { await onSend(t, attachments); setDraft(""); setAttachments([]); } finally { setBusy(false); }
   };
@@ -126,7 +127,7 @@ export function CoachPane({
                   placeholder={`Message ${agent}...`}
                   aria-label={`Message ${agent}`}
                 />
-                <button className="cp-send" onClick={send} disabled={busy || !draft.trim()} aria-label="Send">
+                <button className="cp-send" onClick={send} disabled={busy || !canSend} aria-label="Send">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="17" height="17"><path d="M5 12h13M12 6l6 6-6 6" /></svg>
                 </button>
               </div>
