@@ -1,12 +1,21 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { api } from "../api";
 import { AppShell } from "./AppShell";
 
-afterEach(cleanup);
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api")>();
+  return {
+    ...actual,
+    api: {
+      listPacts: vi.fn(),
+      charities: vi.fn(),
+    },
+  };
+});
 
-// Mock useDemo so AppShell renders without a live DemoContext provider.
 vi.mock("../App", () => ({
   useDemo: () => ({
     bump: 0,
@@ -17,38 +26,49 @@ vi.mock("../App", () => ({
   }),
 }));
 
-// Mock the api module so no real network calls are made.
-vi.mock("../api", () => ({
-  DEMO_OWNER: "test@example.com",
-  api: {
-    listPacts: () => Promise.resolve([]),
-    charities: () => Promise.resolve([]),
-    profile: () => Promise.resolve(null),
-  },
+vi.mock("../owner", () => ({
+  useLocalOwner: () => ["owner@example.com"],
 }));
 
-it("renders the floating logo-menu button and no sidebar", () => {
-  const { container, getByRole } = render(
+function renderShell() {
+  return render(
     <MemoryRouter initialEntries={["/dashboard"]}>
-      <AppShell />
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/dashboard" element={<div>Dashboard content</div>} />
+        </Route>
+      </Routes>
     </MemoryRouter>
   );
-  // Sidebar must be gone — `.as-side` was the real old sidebar class.
-  expect(container.querySelector(".as-side, .as-sidebar")).toBeNull();
-  // LogoMenu button must be present (aria-label="Pact menu" matches /menu/i).
-  expect(getByRole("button", { name: /menu/i })).toBeTruthy();
-});
+}
 
-describe("AppShell shell layout", () => {
-  it("floats the logo (.as-logo) with no top bar and no sidebar", () => {
-    const { container } = render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <AppShell />
-      </MemoryRouter>
-    );
-    expect(container.querySelector(".as-side")).toBeNull();
-    // The full-width top bar is gone; the logo floats instead.
+describe("AppShell", () => {
+  beforeEach(() => {
+    vi.mocked(api.listPacts).mockResolvedValue([]);
+    vi.mocked(api.charities).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders the floating logo-menu button and no old sidebar chrome", async () => {
+    const { container } = renderShell();
+
+    expect(await screen.findByText("Dashboard content")).toBeTruthy();
+    expect(container.querySelector(".as-side, .as-sidebar")).toBeNull();
     expect(container.querySelector(".as-topbar")).toBeNull();
     expect(container.querySelector(".as-logo")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /menu/i })).toBeTruthy();
+  });
+
+  it("does not expose demo state controls in the fresh app shell", async () => {
+    renderShell();
+
+    expect(await screen.findByText("Dashboard content")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /states/i })).toBeNull();
+    expect(screen.queryByText(/seed demo/i)).toBeNull();
+    expect(screen.queryByText(/jump to state/i)).toBeNull();
   });
 });

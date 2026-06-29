@@ -19,6 +19,8 @@ const JUMPS = [
   { label: "Donated", to: "/pact/pact-fail", dot: "#6f6a5e" },
 ];
 
+const showDemoStates = import.meta.env.VITE_SHOW_DEMO_STATES === "1";
+
 export function AppShell() {
   const { bump, busy, doSeed, doAdvance, doReset } = useDemo();
   const navigate = useNavigate();
@@ -77,34 +79,35 @@ export function AppShell() {
           onResolve={(id) => navigate(`/pact/${id}`)}
         />
 
-        {/* ── States / Demo menu (dev affordance — relocated from sidebar) ── */}
-        <div className="as-states">
-          {menuOpen && (
-            <div className="as-states-menu">
-              <div className="as-states-head m">Demo</div>
-              <button className="as-states-act" disabled={!!busy} onClick={doSeed}>
-                {busy === "seed" ? "Seeding…" : "Seed demo"}
-              </button>
-              <button className="as-states-act" disabled={!!busy} onClick={doAdvance}>
-                {busy === "advance" ? "Advancing…" : "Advance day"}
-              </button>
-              <button className="as-states-act" disabled={!!busy} onClick={doReset}>
-                {busy === "reset" ? "Resetting…" : "Reset"}
-              </button>
-              <div className="as-states-head m">Jump to state</div>
-              {JUMPS.map((j) => (
-                <button key={j.label} className="as-states-jump" onClick={() => jump(j.to)}>
-                  <span className="as-states-dot" style={{ background: j.dot }} />
-                  {j.label}
+        {showDemoStates && (
+          <div className="as-states">
+            {menuOpen && (
+              <div className="as-states-menu">
+                <div className="as-states-head m">Demo</div>
+                <button className="as-states-act" disabled={!!busy} onClick={doSeed}>
+                  {busy === "seed" ? "Seeding…" : "Seed demo"}
                 </button>
-              ))}
-            </div>
-          )}
-          <button className="as-states-toggle" onClick={() => setMenuOpen((o) => !o)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><circle cx="12" cy="12" r="3" /><path d="M3 12h3M18 12h3M12 3v3M12 18v3" /></svg>
-            States
-          </button>
-        </div>
+                <button className="as-states-act" disabled={!!busy} onClick={doAdvance}>
+                  {busy === "advance" ? "Advancing…" : "Advance day"}
+                </button>
+                <button className="as-states-act" disabled={!!busy} onClick={doReset}>
+                  {busy === "reset" ? "Resetting…" : "Reset"}
+                </button>
+                <div className="as-states-head m">Jump to state</div>
+                {JUMPS.map((j) => (
+                  <button key={j.label} className="as-states-jump" onClick={() => jump(j.to)}>
+                    <span className="as-states-dot" style={{ background: j.dot }} />
+                    {j.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button className="as-states-toggle" onClick={() => setMenuOpen((o) => !o)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><circle cx="12" cy="12" r="3" /><path d="M3 12h3M18 12h3M12 3v3M12 18v3" /></svg>
+              States
+            </button>
+          </div>
+        )}
       </div>
     </AppDataContext.Provider>
   );
