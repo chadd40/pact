@@ -275,6 +275,12 @@ def spend_freeze(pact: Pact, clock: Clock) -> Pact:
 
 def cancel(pact: Pact, clock: Clock, settings: Settings) -> Pact:
     now = clock.now()
+    # A draft has never started (no started_at) and holds no committed stake, so
+    # there is no cooling-off clock to evaluate — canceling it is a clean release.
+    if pact.started_at is None:
+        pact = transition(pact, PactStatus.canceled_release)
+        pact.stake_state = StakeState.released
+        return pact
     cooling_off_end = pact.started_at + timedelta(minutes=settings.cooling_off_minutes)
     if now <= cooling_off_end:
         pact = transition(pact, PactStatus.canceled_release)

@@ -232,3 +232,26 @@ async def test_renew_finished_pact_yields_new_draft_with_copied_terms(tmp_path):
         r = await client.get(f"/api/pacts/{fresh['id']}")
         assert r.status_code == 200, r.text
         assert r.json()["status"] == "draft"
+
+
+@pytest.mark.asyncio
+async def test_renew_does_not_carry_over_stale_dispute_window(tmp_path):
+    # A failed pact has a dispute_window_closes_at horizon. Renewing must NOT carry
+    # that (now-past) horizon into the fresh draft — otherwise settle() won't refresh
+    # it (it only sets the window when None) and the renewed pact's eventual failure
+    # would fire the donation with zero dispute grace.
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _ = _build(tmp_path, clock)
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
+
+        # Blow past the deadline with no proofs, then settle -> failed with a window.
+        clock.advance(days=14)
+        r = await client.post(f"/api/pacts/{pact_id}/settle")
+        assert r.status_code == 200, r.text
+        orig = (await client.get(f"/api/pacts/{pact_id}")).json()
+        assert orig["dispute_window_closes_at"] is not None  # sanity: window was set
+
+        fresh = (await client.post(f"/api/pacts/{pact_id}/renew")).json()
+        assert fresh["status"] == "draft"
+        assert fresh["dispute_window_closes_at"] is None

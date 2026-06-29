@@ -94,3 +94,26 @@ def test_cancel_after_cooling_off_forfeits_donation_pending():
 
     assert result.status == PactStatus.donation_pending
     assert result.stake_state != StakeState.released
+
+
+def test_cancel_draft_releases_without_crashing():
+    # A draft has never started (started_at is None) and holds no committed stake;
+    # the transition table allows draft -> canceled_release, so canceling one must
+    # be a clean release rather than a crash (None + timedelta).
+    start = datetime(2026, 6, 25, 12, 0, tzinfo=timezone.utc)
+    clock = FixedClock(start)
+    deadline = start + timedelta(days=2)
+    pact = _active_pact(started_at=start, deadline_at=deadline, clock=clock)
+    draft = pact.model_copy(
+        update={
+            "status": PactStatus.draft,
+            "started_at": None,
+            "stake_state": StakeState.none,
+        }
+    )
+    settings = Settings()
+
+    result = cancel(draft, clock, settings)
+
+    assert result.status == PactStatus.canceled_release
+    assert result.stake_state == StakeState.released

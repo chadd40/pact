@@ -1038,6 +1038,10 @@ def create_app(
                 "created_at": clock.now(),
                 "started_at": None,
                 "verdict_at": None,
+                # Drop the finished pact's (now-past) dispute horizon; settle() only
+                # opens a fresh window when this is None, so a carried-over value
+                # would make the renewed pact's failure skip the dispute grace.
+                "dispute_window_closes_at": None,
             }
         )
         repo.save_pact(fresh)
