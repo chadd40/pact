@@ -166,7 +166,7 @@ describe("PactWorld (active, standalone)", () => {
   });
 
   it("asks whether a first proof is happening now before choosing upload or code", () => {
-    renderWorld();
+    const { container } = renderWorld();
 
     fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
 
@@ -174,6 +174,10 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByText(/Is this happening now/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /yes, use a fresh code/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /no, upload evidence/i })).toBeTruthy();
+    expect(container.querySelector(".pd-proof-panel")?.getAttribute("data-proof-flow")).toBe("choice");
+    expect(container.querySelector(".pd-proof-rail")).toBeTruthy();
+    expect(container.querySelectorAll(".pd-proof-step")).toHaveLength(3);
+    expect(container.querySelector(".pd-proof-step.is-active")?.textContent).toContain("Choose mode");
     expect(screen.queryByText(/Prototype/i)).toBeNull();
   });
 

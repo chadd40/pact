@@ -371,6 +371,13 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   // pact's agent has no avatar in the catalog.
   const coachAvatar = cbAgent.avatar ?? HERMES_AVATAR;
   const coachName = pact.agent ?? "Hermes";
+  const proofStepIndex =
+    proofFlow === "choice"
+      ? 0
+      : proofFlow === "fresh" || proofFlow === "choosing"
+      ? 1
+      : 2;
+  const proofSteps = ["Choose mode", "Prepare proof", "Agent verdict"];
 
   // ── The status-keyed right panel ──────────────────────────────────────────
   const panelForStatus = () => {
@@ -415,7 +422,17 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
             {proofButtonLabel()}
           </button>
           {proofFlow !== "idle" && (
-            <div className={`pd-proof-panel proof-${proofFlow}`}>
+            <div className={`pd-proof-panel proof-${proofFlow}`} data-proof-flow={proofFlow}>
+              <div className="pd-proof-rail" aria-hidden="true">
+                {proofSteps.map((step, index) => (
+                  <span
+                    key={step}
+                    className={`pd-proof-step${index === proofStepIndex ? " is-active" : ""}${index < proofStepIndex ? " is-done" : ""}`}
+                  >
+                    {step}
+                  </span>
+                ))}
+              </div>
               {proofErr && <div className="pd-proof-error">{proofErr}</div>}
               {proofFlow === "choice" && (
                 <>
@@ -443,13 +460,44 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
                   </button>
                 </>
               )}
-              {proofFlow === "passed" && <div className="pd-proof-copy">Logged. Your agent accepted this proof.</div>}
-              {proofFlow === "ambiguous" && <div className="pd-proof-copy">This one is close enough for review. Your streak is paused, not broken.</div>}
-              {proofFlow === "failed" && <div className="pd-proof-copy">The proof did not pass. You can try again with clearer evidence.</div>}
+              {proofFlow === "choosing" && (
+                <>
+                  <div className="pd-proof-title">Choose your proof file</div>
+                  <div className="pd-proof-copy">Pick a photo or screenshot. The submit button will keep spinning once analysis starts.</div>
+                </>
+              )}
+              {proofFlow === "analyzing" && (
+                <>
+                  <div className="pd-proof-title">Hermes is checking the proof</div>
+                  <div className="pd-proof-copy">Your agent is verifying the image against the pact. The button will flash with the result.</div>
+                </>
+              )}
+              {proofFlow === "passed" && (
+                <>
+                  <div className="pd-proof-title">Proof verified</div>
+                  <div className="pd-proof-copy">Logged. Your agent accepted this proof.</div>
+                </>
+              )}
+              {proofFlow === "ambiguous" && (
+                <>
+                  <div className="pd-proof-title">Needs review</div>
+                  <div className="pd-proof-copy">This one is close enough for review. Your streak is paused, not broken.</div>
+                </>
+              )}
+              {proofFlow === "failed" && (
+                <>
+                  <div className="pd-proof-title">Proof failed</div>
+                  <div className="pd-proof-copy">The proof did not pass. You can try again with clearer evidence.</div>
+                </>
+              )}
               {proofFlow === "error" && (
-                <button className="pd-proof-upload" type="button" onClick={() => setProofFlow("choice")}>
-                  Choose another proof
-                </button>
+                <>
+                  <div className="pd-proof-title">Couldn't submit that proof</div>
+                  <div className="pd-proof-copy">Try a clearer file or start with a fresh code.</div>
+                  <button className="pd-proof-upload" type="button" onClick={() => setProofFlow("choice")}>
+                    Choose another proof
+                  </button>
+                </>
               )}
             </div>
           )}
