@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useClock, useDemo } from "../App";
 import { useAppData } from "../data";
-import { SubmitSheet } from "./SubmitSheet";
 import { CoachPane } from "./CoachPane";
 import { LinkModal } from "./LinkModal";
 import { DeclineModal } from "./DeclineModal";
@@ -12,7 +11,7 @@ import { GoalGlyph } from "./GoalGlyph";
 import { cardArtFor } from "../lib/cardArt";
 import { asset } from "../lib/asset";
 import { dollars, formatDate, formatDateTime } from "../lib";
-import type { CoachingMessage, Pact, Packet } from "../types";
+import type { CoachingMessage, Pact, Packet, ProofStatus } from "../types";
 // CardBack's editorial `.cb-*` styles live in create.css. It's imported by
 // Create.tsx, but PactWorld can render standalone (e.g. tests, deep links) before
 // Create is in the bundle — import it here so the card always styles correctly.
@@ -37,6 +36,7 @@ export interface PactWorldProps {
 }
 
 interface FlipRect { x: number; y: number; width: number; height: number; }
+type ProofFlow = "idle" | "choice" | "fresh" | "choosing" | "analyzing" | ProofStatus | "error";
 
 export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const { bump, signalChange } = useDemo();
@@ -53,7 +53,14 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const [receiptRef, setReceiptRef] = useState("");
   const [receiptErr, setReceiptErr] = useState<string | null>(null);
 
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [proofFlow, setProofFlow] = useState<ProofFlow>("idle");
+  const [proofToken, setProofToken] = useState<string | null>(null);
+  const [proofErr, setProofErr] = useState<string | null>(null);
+  const [proofCount, setProofCount] = useState(0);
+  const proofCountRef = useRef(0);
+  const proofRecoverRef = useRef<ProofFlow>("choice");
+  const proofPickerFallbackRef = useRef<number | null>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
@@ -175,6 +182,29 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   // supplied (tests), skip the network load entirely.
   useEffect(() => { if (!initialPact) load(); }, [load, bump, initialPact]);
 
+  useEffect(() => {
+    if (!pact?.id) return;
+    let alive = true;
+    api.getProofs(pact.id)
+      .then((proofs) => {
+        if (!alive) return;
+        proofCountRef.current = proofs.length;
+        setProofCount(proofs.length);
+      })
+      .catch(() => {
+        if (!alive) return;
+        proofCountRef.current = 0;
+        setProofCount(0);
+      });
+    return () => { alive = false; };
+  }, [pact?.id, bump]);
+
+  useEffect(() => () => {
+    if (proofPickerFallbackRef.current != null) {
+      window.clearTimeout(proofPickerFallbackRef.current);
+    }
+  }, []);
+
   const sendCoach = async (text: string) => {
     if (!pact) return;
     await api.postCoach(pact.id, text).catch(() => {});
@@ -186,6 +216,85 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     try { await fn(); await load(); signalChange(); }
     catch { setErr("That didn't go through. Try again."); }
     finally { setBusy(null); }
+  };
+
+  const ensureProofToken = async (): Promise<string> => {
+    if (!pact) throw new Error("Missing pact.");
+    if (proofToken) return proofToken;
+    const next = await api.proofToken(pact.id);
+    setProofToken(next.token);
+    return next.token;
+  };
+
+  const openProofChoices = () => {
+    setProofErr(null);
+    if (proofCountRef.current > 0 || proofCount > 0) {
+      pickProofFile("idle");
+      return;
+    }
+    setProofFlow((flow) => (flow === "choice" ? "idle" : "choice"));
+  };
+
+  const chooseFreshProof = async () => {
+    setProofErr(null);
+    setProofFlow("fresh");
+    try {
+      await ensureProofToken();
+    } catch {
+      setProofErr("Couldn't create a fresh proof code. Try again.");
+      setProofFlow("error");
+    }
+  };
+
+  const pickProofFile = (recoverTo: ProofFlow = proofCountRef.current > 0 ? "idle" : "choice") => {
+    setProofErr(null);
+    proofRecoverRef.current = recoverTo;
+    setProofFlow("choosing");
+    proofInputRef.current?.click();
+    if (proofPickerFallbackRef.current != null) {
+      window.clearTimeout(proofPickerFallbackRef.current);
+    }
+    proofPickerFallbackRef.current = window.setTimeout(() => {
+      proofPickerFallbackRef.current = null;
+      setProofFlow((flow) => (flow === "choosing" ? proofRecoverRef.current : flow));
+    }, 1200);
+  };
+
+  const onProofFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (proofPickerFallbackRef.current != null) {
+      window.clearTimeout(proofPickerFallbackRef.current);
+      proofPickerFallbackRef.current = null;
+    }
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !pact) {
+      setProofFlow((flow) => (flow === "choosing" ? proofRecoverRef.current : flow));
+      return;
+    }
+    setProofErr(null);
+    setProofFlow("analyzing");
+    try {
+      const token = await ensureProofToken();
+      const proof = await api.uploadProofImage(pact.id, token, file);
+      setProofFlow(proof.status);
+      proofCountRef.current = Math.max(proofCountRef.current + 1, 1);
+      setProofCount(proofCountRef.current);
+      await load();
+      signalChange();
+    } catch {
+      setProofErr("Couldn't submit that proof. Try another file.");
+      setProofFlow("error");
+    }
+  };
+
+  const proofButtonLabel = () => {
+    if (proofFlow === "choosing") return "Opening file picker...";
+    if (proofFlow === "analyzing") return "Analyzing proof...";
+    if (proofFlow === "passed") return "Proof verified";
+    if (proofFlow === "ambiguous") return "Needs review";
+    if (proofFlow === "failed") return "Proof failed";
+    if (proofFlow === "error") return "Try proof again";
+    return "Submit today's proof";
   };
 
   const submitReceipt = async () => {
@@ -287,25 +396,79 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
               ))}
             </div>
           </div>
-          <button className="pd-submit" onClick={() => setSheetOpen(true)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="19" height="19"><path d="M4 8h3l1.5-2h7L17 8h3v11H4Z" /><circle cx="12" cy="13" r="3.3" /></svg>
-            Submit today's proof
+          <input ref={proofInputRef} type="file" accept="image/*" hidden onChange={onProofFile} />
+          <button
+            className={`pd-submit proof-${proofFlow}${proofFlow === "choosing" || proofFlow === "analyzing" ? " is-busy" : ""}`}
+            onClick={openProofChoices}
+            disabled={proofFlow === "choosing" || proofFlow === "analyzing"}
+          >
+            {proofFlow === "choosing" || proofFlow === "analyzing" ? (
+              <span className="pd-spinner" aria-hidden="true" />
+            ) : proofFlow === "passed" ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="M5 12.5 10 17l9-11" /></svg>
+            ) : proofFlow === "failed" ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="19" height="19"><path d="M4 8h3l1.5-2h7L17 8h3v11H4Z" /><circle cx="12" cy="13" r="3.3" /></svg>
+            )}
+            {proofButtonLabel()}
           </button>
-          <button className="pd-cancel" disabled={busy === "cancel"} onClick={() => act("cancel", () => api.cancel(pact.id))}>
-            {busy === "cancel" ? "…" : "Cancel pact"}
-          </button>
-          <button className="pd-coach-strip" onClick={() => setChatOpen(true)}>
-            <div className="pd-coach-av">
-              <img src={coachAvatar} alt="" />
+          {proofFlow !== "idle" && (
+            <div className={`pd-proof-panel proof-${proofFlow}`}>
+              {proofErr && <div className="pd-proof-error">{proofErr}</div>}
+              {proofFlow === "choice" && (
+                <>
+                  <div className="pd-proof-title">How do you want to prove this one?</div>
+                  <div className="pd-proof-copy">Use a fresh code when the proof is happening now, or upload existing evidence without writing anything into the photo.</div>
+                  <div className="pd-proof-actions">
+                    <button type="button" onClick={chooseFreshProof}>
+                      <span>Fresh proof code</span>
+                      <small>Best for live check-ins</small>
+                    </button>
+                    <button type="button" onClick={() => pickProofFile("choice")}>
+                      <span>Upload existing proof</span>
+                      <small>No code written on the image</small>
+                    </button>
+                  </div>
+                </>
+              )}
+              {proofFlow === "fresh" && (
+                <>
+                  <div className="pd-proof-title">Fresh proof code</div>
+                  <div className="pd-proof-copy">Put this code somewhere visible in the photo, then upload it here.</div>
+                  <code className="pd-proof-code m">{proofToken?.toUpperCase() ?? "PACT-..."}</code>
+                  <button className="pd-proof-upload" type="button" onClick={() => pickProofFile("fresh")}>
+                    Upload coded photo
+                  </button>
+                </>
+              )}
+              {proofFlow === "passed" && <div className="pd-proof-copy">Logged. Your agent accepted this proof.</div>}
+              {proofFlow === "ambiguous" && <div className="pd-proof-copy">This one is close enough for review. Your streak is paused, not broken.</div>}
+              {proofFlow === "failed" && <div className="pd-proof-copy">The proof did not pass. You can try again with clearer evidence.</div>}
+              {proofFlow === "error" && (
+                <button className="pd-proof-upload" type="button" onClick={() => setProofFlow("choice")}>
+                  Choose another proof
+                </button>
+              )}
             </div>
-            <div className="pd-coach-body">
-              <span className="pd-coach-name m"><em>{coachName}</em></span>
-              <div className="pd-coach-last">{coach.length ? coach[coach.length - 1].body : "Your coach is watching this pact. Open the chat anytime."}</div>
-            </div>
-            <span className="pd-coach-open">Open chat
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M9 6l6 6-6 6" /></svg>
-            </span>
-          </button>
+          )}
+          <div className="pd-bottom-stack">
+            <button className="pd-coach-strip" onClick={() => setChatOpen(true)}>
+              <div className="pd-coach-av">
+                <img src={coachAvatar} alt="" />
+              </div>
+              <div className="pd-coach-body">
+                <span className="pd-coach-name m"><em>{coachName}</em></span>
+                <div className="pd-coach-last">{coach.length ? coach[coach.length - 1].body : "Your coach is watching this pact. Open the chat anytime."}</div>
+              </div>
+              <span className="pd-coach-open">Open chat
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M9 6l6 6-6 6" /></svg>
+              </span>
+            </button>
+            <button className="pd-cancel" disabled={busy === "cancel"} onClick={() => act("cancel", () => api.cancel(pact.id))}>
+              {busy === "cancel" ? "…" : "Cancel pact"}
+            </button>
+          </div>
         </div>
       );
     }
@@ -593,13 +756,6 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       </div>
 
       {/* ── Overlays / modals ── */}
-      {sheetOpen && (
-        <SubmitSheet
-          pact={pact}
-          onClose={() => setSheetOpen(false)}
-          onResolved={async () => { await load(); signalChange(); }}
-        />
-      )}
       {chatOpen && (
         <CoachPane pact={pact} messages={coach} onSend={sendCoach} onClose={() => setChatOpen(false)} />
       )}

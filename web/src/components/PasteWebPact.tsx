@@ -11,7 +11,11 @@ export function PasteWebPact({ onImport }: { onImport: (draft: PactDraft) => voi
   if (!open) {
     return (
       <button type="button" className="pwp-chip" onClick={() => setOpen(true)}>
-        paste web pact here
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M8 7h8M8 11h8M8 15h5" />
+          <rect x="5" y="3" width="14" height="18" rx="2" />
+        </svg>
+        Paste web pact
       </button>
     );
   }

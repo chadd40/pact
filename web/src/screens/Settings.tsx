@@ -1,19 +1,51 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { fundingDisplay } from "../lib/funding";
 import { useLocalOwner } from "../owner";
-import type { LinkStatus } from "../types";
+import type { ConnectorEntry, ConnectorHealth, LinkStatus } from "../types";
+
+function statusLabel(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+function statusClass(status: string): string {
+  if (["ready", "online", "installed"].includes(status)) return "ok";
+  if (["missing", "needs_token", "needs_install", "offline"].includes(status)) return "warn";
+  return "muted";
+}
+
+function ConnectorRow({ connector }: { connector: ConnectorEntry }) {
+  return (
+    <div className="set-conn-row">
+      <div>
+        <div className="set-conn-name">{connector.name}</div>
+        <div className="set-conn-detail">{connector.detail}</div>
+      </div>
+      <span className={`set-badge ${statusClass(connector.status)}`}>
+        {statusLabel(connector.status)}
+      </span>
+    </div>
+  );
+}
 
 // Account / funding / agent settings (local-first, single owner).
 export function Settings() {
   const [owner, setOwner] = useLocalOwner();
   const [ownerDraft, setOwnerDraft] = useState(owner);
   const [link, setLink] = useState<LinkStatus | null>(null);
+  const [health, setHealth] = useState<ConnectorHealth | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedMcp, setCopiedMcp] = useState(false);
 
   const refresh = useCallback(async () => {
-    setLink(await api.linkStatus(owner).catch(() => null));
+    const [nextLink, nextHealth] = await Promise.all([
+      api.linkStatus(owner).catch(() => null),
+      api.connectorHealth(owner).catch(() => null),
+    ]);
+    setLink(nextLink);
+    setHealth(nextHealth);
   }, [owner]);
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { setOwnerDraft(owner); }, [owner]);
@@ -24,7 +56,12 @@ export function Settings() {
   };
   const mint = async () => {
     setBusy("token");
-    try { const r = await api.mintAgentToken(owner); setToken(r.token); setCopied(false); } finally { setBusy(null); }
+    try {
+      const r = await api.mintAgentToken(owner);
+      setToken(r.token);
+      setCopied(false);
+      setHealth(await api.connectorHealth(owner).catch(() => null));
+    } finally { setBusy(null); }
   };
   const saveOwner = () => {
     setOwner(ownerDraft);
@@ -34,9 +71,15 @@ export function Settings() {
     if (!token) return;
     try { await navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
   };
-  const fundingLabel = link?.payment_method_last4
-    ? `${link.payment_method_label ?? "Card"} •••• ${link.payment_method_last4}`
-    : link?.funding_ref;
+  const copyMcp = async () => {
+    if (!health?.mcp.command) return;
+    try { await navigator.clipboard.writeText(health.mcp.command); setCopiedMcp(true); setTimeout(() => setCopiedMcp(false), 1800); } catch { /* clipboard blocked */ }
+  };
+  const fundingLabel = fundingDisplay(link);
+  const workerLabel = health ? `Worker ${health.worker.status}` : "Worker unknown";
+  const tokenLabel = health?.agent_token.status === "ready"
+    ? `Token ${health.agent_token.token_prefix}`
+    : "No agent token";
 
   return (
     <div className="pg">
@@ -94,7 +137,7 @@ export function Settings() {
           <>
             <div className="set-token-row">
               <code className="set-token m">{token}</code>
-              <button className="set-copy" onClick={copyToken}>{copied ? "Copied ✓" : "Copy"}</button>
+              <button className="set-copy" aria-label="Copy agent token" onClick={copyToken}>{copied ? "Copied ✓" : "Copy"}</button>
             </div>
             <ol className="set-steps">
               <li>Bring your agent (Hermes is near-built-in; Claude Code = drop the <span className="m">/pact</span> skill file).</li>
@@ -105,9 +148,35 @@ export function Settings() {
         )}
       </div>
 
-      <div className="set-card muted-card">
-        <div className="set-k">Demo</div>
-        <div className="set-note m">This build runs on a demo clock with seeded pacts. Use the “States” menu (bottom-left) to seed, advance the clock, and jump to any pact state.</div>
+      <div className="set-card">
+        <div className="set-row">
+          <div>
+            <div className="set-k">Agent connector health</div>
+            <div className="set-v">MCP, Claude Code, and Hermes all use the same local Pact engine and owner token.</div>
+          </div>
+          <button className="ov-btn sm" onClick={refresh} disabled={busy === "health"}>
+            Refresh
+          </button>
+        </div>
+        <div className="set-health-strip">
+          <span className={`set-badge ${statusClass(health?.agent_token.status ?? "missing")}`}>{tokenLabel}</span>
+          <span className={`set-badge ${statusClass(health?.worker.status ?? "offline")}`}>{workerLabel}</span>
+          <span className="set-badge muted">MCP server {health?.mcp.server_name ?? "pact"}</span>
+        </div>
+        {health && (
+          <>
+            <div className="set-conn-list">
+              {health.connectors.map((connector) => (
+                <ConnectorRow key={connector.key} connector={connector} />
+              ))}
+            </div>
+            <div className="set-command-head">
+              <div className="set-note m">MCP command</div>
+              <button className="set-copy" aria-label="Copy MCP command" onClick={copyMcp}>{copiedMcp ? "Copied ✓" : "Copy command"}</button>
+            </div>
+            <code className="set-command m">{health.mcp.command}</code>
+          </>
+        )}
       </div>
     </div>
   );

@@ -962,11 +962,11 @@
 /* ── Sealing (stage 5) ───────────────────────────────────────────────────────── */
 .pc-sending {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 96px;
+  left: 594px;
+  right: auto;
+  bottom: 146px;
   z-index: 53;
-  text-align: center;
+  text-align: left;
   transition: opacity 0.4s ease;
   pointer-events: none;
 }
@@ -1010,6 +1010,11 @@
   padding: 40px;
   transition: opacity 0.6s ease;
 }
+.pc-msg.pc-msg-setup {
+  align-items: center;
+  justify-content: flex-end;
+  padding: 42px 38px 42px 584px;
+}
 .pc-msg .card {
   width: 480px;
   max-width: 100%;
@@ -1018,6 +1023,21 @@
   box-shadow: 0 40px 90px rgba(22, 21, 15, 0.3);
   overflow: hidden;
   transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.pc-msg-setup .card {
+  width: 452px;
+  background: transparent;
+  border-radius: 18px;
+  box-shadow: none;
+}
+.pc-msg-setup .chat-shell {
+  min-height: 462px;
+}
+.pc-msg-setup .chat-actions .open {
+  flex: none;
+  width: 100%;
+  height: 44px;
+  border-radius: 11px;
 }
 .pc-msg .head {
   background: var(--pc-card);
@@ -1262,12 +1282,6 @@
     max-width: 320px;
     padding: 28px;
     text-align: center;
-  }
-  .pc-mobile-note .mn-mark {
-    font-family: var(--pc-script);
-    font-size: 40px;
-    line-height: 1;
-    color: var(--pc-ink);
   }
   .pc-mobile-note h2 {
     font-family: var(--pc-sans);

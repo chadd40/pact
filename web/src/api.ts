@@ -11,6 +11,7 @@ import type {
   Profile,
   Proof,
   RuntimeInfo,
+  ConnectorHealth,
   TickResult,
   Verdict,
 } from "./types";
@@ -229,11 +230,14 @@ export const api = {
     request<LinkStatus>("/api/link/connect", { json: { owner } }),
 
   // Connect-your-agent seam: mint the token the user pastes into their agent so
-  // it claims this account's pacts. (Stub — deterministic per owner.)
+  // it claims this account's pacts. The raw token is returned once.
   mintAgentToken: (owner: string) =>
     request<{ owner: string; token: string }>("/api/account/agent-token", {
       json: { owner },
     }),
+
+  connectorHealth: (owner: string) =>
+    request<ConnectorHealth>(`/api/connectors/health?owner=${encodeURIComponent(owner)}`),
 
   // ── Demo control ───────────────────────────────────────────────────────────
   demoSeed: () => request<DemoSeedResult>("/demo/seed", { method: "POST" }),

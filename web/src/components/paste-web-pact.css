@@ -1,12 +1,15 @@
 /* web/src/components/paste-web-pact.css */
 .pwp-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 12px;
-  border: 1px solid var(--hair, rgba(0,0,0,.12));
-  background: var(--card, #fff); color: var(--ink, #1a1a1a);
-  font: inherit; font-size: 13px; cursor: pointer; opacity: .85;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 38px; padding: 0 13px; border-radius: 11px;
+  border: 1px solid rgba(22, 21, 15, 0.12);
+  background: rgba(255,255,255,0.72); color: var(--pc-ink, #1a1a1a);
+  font: 650 12.5px/1 var(--pc-sans, system-ui); cursor: pointer; opacity: .92;
+  box-shadow: 0 10px 24px -18px rgba(22, 21, 15, 0.45);
+  backdrop-filter: blur(10px);
+  transition: opacity .16s ease, transform .16s ease, background .16s ease;
 }
-.pwp-chip:hover { opacity: 1; }
+.pwp-chip:hover { opacity: 1; transform: translateY(-1px); background: #fff; }
 .pwp-panel { position: relative; display: flex; align-items: flex-start; gap: 8px; max-width: 420px; }
 .pwp-input {
   flex: 1; min-height: 64px; resize: vertical;

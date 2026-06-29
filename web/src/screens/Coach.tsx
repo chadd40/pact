@@ -5,8 +5,10 @@ import { useDemo } from "../App";
 import { useAppData } from "../data";
 import { useLocalOwner } from "../owner";
 import { GoalGlyph } from "../components/GoalGlyph";
+import { StatusPill } from "../components/ChatShell";
 import { formatDateTime } from "../lib";
-import type { CoachingMessage } from "../types";
+import { AGENTS } from "./Create";
+import type { CoachingMessage, ConnectorHealth } from "../types";
 
 // Global coach view: your agent + the recent nudges across all your pacts.
 export function Coach() {
@@ -15,6 +17,7 @@ export function Coach() {
   const [owner] = useLocalOwner();
   const navigate = useNavigate();
   const [feed, setFeed] = useState<CoachingMessage[]>([]);
+  const [health, setHealth] = useState<ConnectorHealth | null>(null);
 
   // Pacts come from shared AppData; only the outbox feed is Coach-specific.
   useEffect(() => {
@@ -22,11 +25,18 @@ export function Coach() {
     api.outbox(owner)
       .then((out) => alive && setFeed(out.slice().reverse()))
       .catch(() => {});
+    api.connectorHealth(owner)
+      .then((next) => alive && setHealth(next))
+      .catch(() => {});
     return () => { alive = false; };
   }, [bump, owner]);
 
   const byId = Object.fromEntries(pacts.map((p) => [p.id, p]));
   const coached = pacts.filter((p) => p.status === "active" || p.status === "evaluating" || p.status === "needs_review");
+  const hermes = AGENTS[0];
+  const workerOnline = health?.worker.status === "online";
+  const tokenReady = health?.agent_token.status === "ready";
+  const mcpReady = health?.connectors.some((c) => c.key === "mcp" && c.status === "ready") ?? false;
 
   return (
     <div className="pg">
@@ -37,12 +47,28 @@ export function Coach() {
       </div>
 
       <div className="coach-hero">
-        <div className="coach-hero-av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="26" height="26"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" /></svg></div>
+        <div className="coach-hero-av">{hermes.avatar ? <img src={hermes.avatar} alt="" /> : null}</div>
         <div className="coach-hero-body">
           <div className="coach-hero-name">Hermes</div>
-          <div className="coach-hero-sub"><span className="dot" />Connected · coaching {coached.length} pact{coached.length === 1 ? "" : "s"}</div>
+          <div className="coach-hero-sub"><span className="dot" />{workerOnline ? "Live worker online" : "Worker waiting"} · coaching {coached.length} pact{coached.length === 1 ? "" : "s"}</div>
         </div>
       </div>
+
+      <div className="coach-status-grid">
+        <div className="coach-status-card">
+          <div className="coach-status-k m">Agent token</div>
+          <StatusPill tone={tokenReady ? "ok" : "warn"}>{tokenReady ? health?.agent_token.token_prefix ?? "ready" : "missing"}</StatusPill>
+        </div>
+        <div className="coach-status-card">
+          <div className="coach-status-k m">MCP</div>
+          <StatusPill tone={mcpReady ? "ok" : "warn"}>{mcpReady ? "ready" : "needs setup"}</StatusPill>
+        </div>
+        <div className="coach-status-card">
+          <div className="coach-status-k m">Capabilities</div>
+          <StatusPill tone={health?.capabilities.vision ? "ok" : "warn"}>{health?.capabilities.vision ? "text + vision" : "waiting"}</StatusPill>
+        </div>
+      </div>
+      {health?.mcp.command && <code className="coach-command m">{health.mcp.command}</code>}
 
       <div className="pg-section-label m">Recent from your coach</div>
       {feed.length === 0 ? (

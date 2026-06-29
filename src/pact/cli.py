@@ -8,6 +8,7 @@ Subcommands drive a LIVE Pact server over HTTP:
                    (/pact skill) and posts results, so it does not run this.
     pact tick    — POST /api/tick once (one scheduler sweep).
     pact outbox  — relay the owner's queued coaching nudges (relay_outbox).
+    pact mcp     — run Pact's stdio MCP server for any MCP-compatible agent.
 
 Tests use ``main_async(argv, http=..., on_result=...)`` with an injected async
 ``httpx.AsyncClient`` bound to the ASGI app (no real network). The sync
@@ -54,6 +55,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_outbox.add_argument("--owner", required=True)
     p_outbox.add_argument("--agent-token", default=None)
 
+    p_mcp = sub.add_parser("mcp", help="run the Pact MCP server over stdio")
+    p_mcp.add_argument("--base-url", default="http://127.0.0.1:8000")
+    p_mcp.add_argument("--agent-token", default=None)
+
     return parser
 
 
@@ -71,9 +76,24 @@ async def main_async(argv=None, *, http=None, on_result=None) -> int:
     # Unknown command (argparse falls through when dest="command" is set to a
     # parsed subcommand name that isn't in our handled set below — shouldn't
     # happen, but guard for forward-compat).
-    if args.command not in ("serve", "tick", "preflight", "outbox"):
+    if args.command not in ("serve", "tick", "preflight", "outbox", "mcp"):
         parser.print_help()
         return 2
+
+    if args.command == "mcp":
+        from .mcp import main as mcp_main
+
+        return mcp_main(
+            [
+                "--base-url",
+                args.base_url,
+                *(
+                    ["--agent-token", args.agent_token]
+                    if args.agent_token
+                    else []
+                ),
+            ]
+        )
 
     own_client = http is None
     client: httpx.AsyncClient
@@ -205,8 +225,23 @@ def main(argv=None) -> int:
         parser.print_help()
         return 2
 
-    if args.command not in ("serve", "tick", "preflight", "outbox"):
+    if args.command not in ("serve", "tick", "preflight", "outbox", "mcp"):
         parser.print_help()
         return 2
+
+    if args.command == "mcp":
+        from .mcp import main as mcp_main
+
+        return mcp_main(
+            [
+                "--base-url",
+                args.base_url,
+                *(
+                    ["--agent-token", args.agent_token]
+                    if args.agent_token
+                    else []
+                ),
+            ]
+        )
 
     return asyncio.run(main_async(argv))

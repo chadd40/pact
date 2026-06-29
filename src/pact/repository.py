@@ -52,6 +52,11 @@ class Repository:
             return False
         return (now - last).total_seconds() <= seconds
 
+    def worker_last_seen(self) -> datetime | None:
+        """Return the latest reasoning-worker heartbeat timestamp, if any."""
+        with self._write_lock:
+            return self._worker_last_seen
+
     def _one(self, sql: str, params: tuple = ()):
         with self._write_lock:
             return self.conn.execute(sql, params).fetchone()

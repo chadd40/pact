@@ -136,6 +136,51 @@ export interface RuntimeInfo {
   live_money_enabled: boolean;
 }
 
+export interface ConnectorEntry {
+  key: string;
+  name: string;
+  kind: string;
+  status: string;
+  installed: boolean;
+  capabilities: string[];
+  detail: string;
+  action: string;
+  command?: string;
+  config?: Record<string, unknown>;
+  install_path?: string;
+}
+
+export interface ConnectorHealth {
+  owner: string;
+  runtime: {
+    reasoning_mode: string;
+    auth_mode: string;
+    base_url: string;
+  };
+  agent_token: {
+    status: "ready" | "missing" | string;
+    token_prefix: string | null;
+    expires_at: string | null;
+    last_used_at: string | null;
+    scopes: string[];
+  };
+  worker: {
+    status: "online" | "offline" | string;
+    last_seen_at: string | null;
+    presence_window_seconds: number;
+  };
+  capabilities: {
+    text: boolean;
+    vision: boolean;
+  };
+  connectors: ConnectorEntry[];
+  mcp: {
+    server_name: string;
+    command: string;
+    config: Record<string, unknown>;
+  };
+}
+
 export interface Proof {
   id: string;
   pact_id: string;

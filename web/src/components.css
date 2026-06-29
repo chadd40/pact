@@ -1,5 +1,198 @@
 /* Component-level styles, imported once from App via main. Screens + chrome. */
 
+/* ── Shared tooltip / chat primitives ─────────────────────────────────────── */
+.pc-tooltip {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.pc-tooltip-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  z-index: 180;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  border-radius: 8px;
+  background: #11100c;
+  color: #fbf7ee;
+  padding: 7px 9px;
+  font-family: var(--pc-sans);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 12px 28px -16px rgba(17, 16, 12, 0.7);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.pc-tooltip-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 8px;
+  height: 8px;
+  background: #11100c;
+  transform: translate(-50%, -4px) rotate(45deg);
+}
+.pc-tooltip:hover .pc-tooltip-bubble,
+.pc-tooltip:focus-within .pc-tooltip-bubble {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.chat-shell {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--pc-hair);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 26px 60px -42px rgba(22, 21, 15, 0.45);
+}
+.chat-shell-head {
+  flex: none;
+  min-height: 62px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid var(--pc-hair-2);
+}
+.chat-shell-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: #1b1a17;
+}
+.chat-avatar {
+  flex: none;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #16150f;
+  color: #fbf7ee;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.chat-avatar.sm { width: 28px; height: 28px; border-radius: 9px; }
+.chat-avatar.md { width: 38px; height: 38px; }
+.chat-avatar.lg { width: 48px; height: 48px; border-radius: 14px; }
+.chat-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 5px;
+  box-sizing: border-box;
+  background: #efebe1;
+}
+.chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background:
+    linear-gradient(180deg, rgba(246, 245, 242, 0.66), rgba(255, 255, 255, 0) 120px),
+    #fff;
+}
+.chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+}
+.chat-row.user {
+  justify-content: flex-end;
+}
+.chat-row.system {
+  justify-content: center;
+}
+.chat-bubble-wrap {
+  max-width: min(84%, 420px);
+  min-width: 0;
+}
+.chat-row.system .chat-bubble-wrap {
+  max-width: 100%;
+}
+.chat-meta {
+  margin: 0 0 5px 2px;
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #9a9488;
+}
+.chat-bubble {
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #27261f;
+  background: #f4f2ec;
+}
+.chat-row.agent .chat-bubble {
+  border-bottom-left-radius: 5px;
+}
+.chat-row.user .chat-bubble {
+  background: #16150f;
+  color: #efebe1;
+  border-bottom-right-radius: 5px;
+}
+.chat-row.system .chat-bubble {
+  border: 1px solid var(--pc-hair);
+  background: var(--pc-ivory);
+  color: #56524a;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.chat-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid #e6e4de;
+  background: #fff;
+  padding: 0 10px;
+  color: #6c6452;
+  font-size: 12px;
+  font-weight: 650;
+}
+.status-pill.ok {
+  color: #316f48;
+  border-color: rgba(49, 111, 72, 0.24);
+  background: rgba(49, 111, 72, 0.08);
+}
+.status-pill.warn {
+  color: #9a6a32;
+  border-color: rgba(154, 106, 50, 0.25);
+  background: rgba(154, 106, 50, 0.08);
+}
+.status-pill.busy {
+  color: #56524a;
+  background: #f4f2ec;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9a9488;
+}
+.status-dot.ok { background: var(--pc-kept); }
+.status-dot.warn { background: var(--pc-amber); }
+.status-dot.busy {
+  background: var(--pc-amber);
+  animation: ss-dots 1.2s infinite;
+}
+
 /* Page-level fade on route change. */
 .page-fade {
   animation: page-fade 0.25s ease both;

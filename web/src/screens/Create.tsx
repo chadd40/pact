@@ -6,6 +6,8 @@ import { useLocalOwner } from "../owner";
 import type { Charity, Pact } from "../types";
 import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { PasteWebPact } from "../components/PasteWebPact";
+import { ChatShell, type ChatMessage } from "../components/ChatShell";
+import { Tooltip } from "../components/Tooltip";
 import { isDesktop } from "../lib/platform";
 import { encodeDraft } from "../lib/handoff";
 import type { PactDraft } from "../lib/handoff";
@@ -94,11 +96,6 @@ const Arrow = ({ size = 16 }: { size?: number }) => (
 const Chevron = ({ dir, size = 20 }: { dir: "l" | "r"; size?: number }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
     {dir === "l" ? <path d="M15 6l-6 6 6 6" /> : <path d="M9 6l6 6-6 6" />}
-  </svg>
-);
-const Spark = ({ size = 24 }: { size?: number }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
-    <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" />
   </svg>
 );
 const PictureIcon = ({ size = 19 }: { size?: number }) => (
@@ -484,7 +481,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       const exiting = stage >= 6;
       return {
         transform: slotTransform(-258, exiting ? 44 : 0, 60, 0, exiting ? 0.86 : 1),
-        opacity: stage === 7 ? 0 : 1,
+        opacity: 1,
         zIndex: 200,
         transition: "transform .72s cubic-bezier(.34,.72,.26,1), opacity .55s ease",
       };
@@ -496,16 +493,17 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     return {
       transform: slotTransform(dir * (700 + a * 46), 0, -300, dir * -50, 0.64),
       opacity: 0,
+      filter: "blur(10px)",
       zIndex: 20,
       pointerEvents: "none",
-      transition: "transform .62s cubic-bezier(.4,.5,.3,1), opacity .55s ease",
+      transition: "transform .62s cubic-bezier(.4,.5,.3,1), opacity .55s ease, filter .55s ease",
     };
   };
 
   const flipStyle = (i: number): React.CSSProperties => {
     // The chosen card shows its editorial back while editing — except during a
     // peek, when it flips back to the front for a beat.
-    const flipped = stage >= 1 && i === goalIndex && !peeking;
+    const flipped = stage >= 1 && stage <= 5 && i === goalIndex && !peeking;
     return {
       transform: `rotateY(${flipped ? 180 : 0}deg)`,
       transition: "transform .85s cubic-bezier(.2,.72,.26,1) .1s",
@@ -546,6 +544,23 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       : stage === 4
       ? !!agentKey
       : true;
+  const setupMessages: ChatMessage[] = [
+    {
+      id: "sealed",
+      role: "agent",
+      body: `Signed. ${goalName} is now a real pact with $${stake} on the line.`,
+    },
+    {
+      id: "setup",
+      role: "agent",
+      body: "Next I'll check Link funding, your agent token, and the local MCP server before opening the dashboard.",
+      actions: (
+        <button className="open" ref={openBtnRef} onClick={openPact}>
+          Set up agent and Link <Arrow />
+        </button>
+      ),
+    },
+  ];
 
   return (
     <div className={embedded ? "pc-root pc-embedded" : "pc-root"} ref={rootRef}>
@@ -854,16 +869,17 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                   {charities.map((c) => {
                     const sel = charityId === c.id;
                     return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className={`pc-chip-stamp${sel ? " sel" : ""}`}
-                        title={c.name}
-                        onClick={() => setCharityId(c.id)}
-                        aria-pressed={sel}
-                      >
-                        <img src={c.stamp} alt={c.name} loading="lazy" />
-                      </button>
+                      <Tooltip key={c.id} label={c.name}>
+                        <button
+                          type="button"
+                          className={`pc-chip-stamp${sel ? " sel" : ""}`}
+                          onClick={() => setCharityId(c.id)}
+                          aria-pressed={sel}
+                          aria-label={c.name}
+                        >
+                          <img src={c.stamp} alt="" loading="lazy" />
+                        </button>
+                      </Tooltip>
                     );
                   })}
                 </div>
@@ -960,35 +976,17 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
         {/* Final screen (stage 7) */}
         <div
-          className="pc-msg"
+          className={`pc-msg ${isDesktop() && created ? "pc-msg-setup" : ""}`}
           style={{ opacity: stage === 7 ? 1 : 0, pointerEvents: stage === 7 ? "auto" : "none" }}
         >
           <div className="card" style={{ transform: stage === 7 ? "translateY(0)" : "translateY(14px)" }}>
             {isDesktop() && created ? (
-              <>
-                <div className="head">
-                  <div className="ic">
-                    {agentDef?.avatar ? <img src={agentDef.avatar} alt="" /> : <Spark size={22} />}
-                  </div>
-                  <div>
-                    <div className="nm">{agentDef?.name || "Hermes Agent"}</div>
-                    <div className="status"><span className="dot" />Now coaching your pact</div>
-                  </div>
-                </div>
-                <div className="body">
-                  <div className="bubble">
-                    Let's go, we've got a pact. <b>${stake}</b> is on the line behind{" "}
-                    <b>{goalName.toLowerCase()}</b>, {days} days/week for {weeks} {weeksWord}. I'll get you
-                    started: your <b>first check-in is tomorrow</b>. Miss it and{" "}
-                    {charity?.name || "your charity"} gets paid, so let's not.
-                  </div>
-                  <div className="actions">
-                    <button className="open" ref={openBtnRef} onClick={openPact}>
-                      Open my pact <Arrow />
-                    </button>
-                  </div>
-                </div>
-              </>
+              <ChatShell
+                label={`${agentDef?.name || "Hermes Agent"} setup chat`}
+                agentName={agentDef?.name || "Hermes Agent"}
+                agentAvatar={agentDef?.avatar}
+                messages={setupMessages}
+              />
             ) : (
               /* Web: the pact is signed but lives in the copy-paste blob. Send the
                  user to the app — download it, then paste the pact in. */
@@ -1043,7 +1041,6 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
       {/* Small-screen fallback — sibling of the stage so it survives the stage being hidden */}
       <div className="pc-mobile-note">
-        <div className="mn-mark">pact</div>
         <h2>Make your pact on a bigger screen</h2>
         <p>The card deck is designed for desktop. Open Pact on a laptop to choose a card and seal your commitment.</p>
       </div>

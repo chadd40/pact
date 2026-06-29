@@ -11,6 +11,7 @@ from pact.charities import CHARITIES, get_charity, is_allowed_url
 from pact.clock import Clock, FixedClock
 from pact.coaching import generate_coach_message, user_reply
 from pact.config import Settings
+from pact.connectors import build_connector_health
 from pact.demo import advance_day as demo_advance_day
 from pact.demo import reset as demo_reset
 from pact.demo import seed as demo_seed
@@ -192,6 +193,10 @@ def create_app(
                 settings.payment_mode == "link_cli" and settings.link_mode == "live"
             ),
         }
+
+    @app.get("/api/connectors/health")
+    def connectors_health(owner: str):
+        return build_connector_health(repo, owner, clock, settings)
 
     def _live_money_enabled() -> bool:
         return settings.payment_mode == "link_cli" and settings.link_mode == "live"

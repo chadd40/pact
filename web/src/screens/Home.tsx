@@ -9,7 +9,6 @@ import { cardArtFor } from "../lib/cardArt";
 import { statusDot } from "../lib/pactStatus";
 import { pickStatement } from "../lib/motivation";
 import { GoalGlyph } from "../components/GoalGlyph";
-import { StatsFlyout } from "../components/StatsFlyout";
 import { CustomCardFront } from "./Create";
 import type { Charity, Pact, Profile } from "../types";
 
@@ -148,7 +147,6 @@ export function Home() {
           <div className="home-eyebrow m">{greeting(nowIso ? new Date(nowIso).getTime() : Date.now())}</div>
           <div className="home-headline">{statement}</div>
         </div>
-        <StatsFlyout profile={profile} pacts={allPacts} />
       </div>
 
       {/* ── Carousel shelf ── */}

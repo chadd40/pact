@@ -21,7 +21,7 @@ import { PactWorld } from "./PactWorld";
 import { AppDataContext, type AppData } from "../data";
 import { DemoContext } from "../App";
 import { api } from "../api";
-import type { DonationReceipt, Pact, Packet } from "../types";
+import type { DonationReceipt, Pact, Packet, Proof } from "../types";
 
 // Stub demo context — PactWorld only reads bump/signalChange, and with
 // `initialPact` supplied it never invokes the demo actions.
@@ -156,6 +156,30 @@ describe("PactWorld (active, standalone)", () => {
   it("renders the submit affordance", () => {
     renderWorld();
     expect(screen.getByText(/submit/i)).toBeTruthy();
+  });
+
+  it("opens first proof choices inline from the submit button", () => {
+    renderWorld();
+
+    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
+
+    expect(screen.queryByRole("dialog", { name: /submit evidence/i })).toBeNull();
+    expect(screen.getByText(/Fresh proof code/i)).toBeTruthy();
+    expect(screen.getByText(/Upload existing proof/i)).toBeTruthy();
+    expect(screen.queryByText(/Prototype/i)).toBeNull();
+  });
+
+  it("opens the native picker directly after the first proof has already been submitted", async () => {
+    const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(api, "getProofs").mockResolvedValue([proof()]);
+
+    renderWorld();
+
+    await waitFor(() => expect(api.getProofs).toHaveBeenCalledWith("p1"));
+    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
+
+    expect(clickInput).toHaveBeenCalled();
+    expect(screen.queryByText(/Fresh proof code/i)).toBeNull();
   });
 
   it("does NOT render the old At stake / Goes to chips", () => {
@@ -310,6 +334,24 @@ function receiptFor(pact: Pact, overrides: Partial<DonationReceipt> = {}): Donat
     confirmed_at: "2026-06-24T12:00:00Z",
     confirmation_notes: "Entered by the owner in Pact.",
     ...overrides,
+  };
+}
+
+function proof(): Proof {
+  return {
+    id: "proof_1",
+    pact_id: "p1",
+    modality: "photo",
+    received_at: "2026-06-28T12:00:00Z",
+    day_bucket: "2026-06-28",
+    token_issued: "PACT-123",
+    token_ok: true,
+    phash: "abc",
+    dup_of: null,
+    artifact_path: "/tmp/proof.png",
+    status: "passed",
+    judge_reason: "ok",
+    judge_checklist: {},
   };
 }
 
