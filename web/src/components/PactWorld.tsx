@@ -418,15 +418,15 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
               {proofErr && <div className="pd-proof-error">{proofErr}</div>}
               {proofFlow === "choice" && (
                 <>
-                  <div className="pd-proof-title">How do you want to prove this one?</div>
-                  <div className="pd-proof-copy">Use a fresh code when the proof is happening now, or upload existing evidence without writing anything into the photo.</div>
+                  <div className="pd-proof-title">Is this happening now?</div>
+                  <div className="pd-proof-copy">Use a fresh code for live check-ins, or upload existing evidence without writing anything into the photo.</div>
                   <div className="pd-proof-actions">
-                    <button type="button" onClick={chooseFreshProof}>
-                      <span>Fresh proof code</span>
+                    <button type="button" aria-label="Yes, use a fresh code" onClick={chooseFreshProof}>
+                      <span>Yes, use a fresh code</span>
                       <small>Best for live check-ins</small>
                     </button>
-                    <button type="button" onClick={() => pickProofFile("choice")}>
-                      <span>Upload existing proof</span>
+                    <button type="button" aria-label="No, upload evidence" onClick={() => pickProofFile("choice")}>
+                      <span>No, upload evidence</span>
                       <small>No code written on the image</small>
                     </button>
                   </div>

@@ -158,15 +158,44 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByText(/submit/i)).toBeTruthy();
   });
 
-  it("opens first proof choices inline from the submit button", () => {
+  it("asks whether a first proof is happening now before choosing upload or code", () => {
     renderWorld();
 
     fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
 
     expect(screen.queryByRole("dialog", { name: /submit evidence/i })).toBeNull();
-    expect(screen.getByText(/Fresh proof code/i)).toBeTruthy();
-    expect(screen.getByText(/Upload existing proof/i)).toBeTruthy();
+    expect(screen.getByText(/Is this happening now/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /yes, use a fresh code/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /no, upload evidence/i })).toBeTruthy();
     expect(screen.queryByText(/Prototype/i)).toBeNull();
+  });
+
+  it("uploads an existing first proof directly from the inline prompt", async () => {
+    const pact = activePact();
+    const file = new File(["proof"], "proof.png", { type: "image/png" });
+    let resolveUpload!: (proof: Proof) => void;
+    const uploadPromise = new Promise<Proof>((resolve) => { resolveUpload = resolve; });
+    const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(api, "proofToken").mockResolvedValue({ token: "PACT-YES" });
+    vi.spyOn(api, "uploadProofImage").mockReturnValue(uploadPromise);
+    vi.spyOn(api, "getPact").mockResolvedValue(pact);
+    vi.spyOn(api, "getCoach").mockResolvedValue([]);
+
+    const { container } = renderWorld(undefined, pact);
+
+    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
+    fireEvent.click(screen.getByRole("button", { name: /no, upload evidence/i }));
+
+    expect(clickInput).toHaveBeenCalled();
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByRole("button", { name: /analyzing proof/i })).toBeTruthy();
+    await waitFor(() => expect(api.uploadProofImage).toHaveBeenCalledWith("p1", "PACT-YES", file));
+    resolveUpload(proof());
+    await waitFor(() => expect(screen.getByRole("button", { name: /proof verified/i })).toBeTruthy());
+    expect(screen.queryByText(/Capture your proof/i)).toBeNull();
   });
 
   it("opens the native picker directly after the first proof has already been submitted", async () => {
