@@ -11,6 +11,8 @@ import "./onboard.css";
 
 // Result of the native skill installer (web/src-tauri/src/lib.rs::install_pact_skill).
 type InstallResult = { status: "installed" | "builtin" | "manual"; path: string | null; message: string };
+const AGENT_BASE_URL_KEY = "pact.agentBaseUrl";
+const DEFAULT_AGENT_BASE_URL = "http://127.0.0.1:8000";
 
 // Call a Tauri command via the global bridge (withGlobalTauri). Desktop-only.
 async function installSkill(agentKey: string): Promise<InstallResult | null> {
@@ -30,6 +32,9 @@ export function Onboard() {
   const [agentKey, setAgentKey] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallResult | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [agentBaseUrl, setAgentBaseUrl] = useState(() =>
+    window.localStorage.getItem(AGENT_BASE_URL_KEY) ?? ""
+  );
 
   useEffect(() => {
     api.linkStatus(owner).then(setLink).catch(() => setLink(null));
@@ -42,6 +47,16 @@ export function Onboard() {
     if (!pactId) return;
     api.getPact(pactId).then((p) => setAgentKey(p.agent ?? null)).catch(() => setAgentKey(null));
   }, [pactId]);
+  useEffect(() => {
+    if (!agentBaseUrl && health?.runtime.base_url) {
+      setAgentBaseUrl(health.runtime.base_url);
+    }
+  }, [agentBaseUrl, health?.runtime.base_url]);
+  useEffect(() => {
+    if (agentBaseUrl.trim()) {
+      window.localStorage.setItem(AGENT_BASE_URL_KEY, agentBaseUrl.trim());
+    }
+  }, [agentBaseUrl]);
 
   const connect = async () => {
     setBusy("link");
@@ -70,6 +85,8 @@ export function Onboard() {
   const agentName = agentKey ?? "Hermes";
   const agentDef = AGENTS.find((a) => a.key === agentName) ?? AGENTS[0];
   const canOpenDashboard = fundingDone && agentDone && !!mcpReady;
+  const mcpBaseUrl = (agentBaseUrl || health?.runtime.base_url || DEFAULT_AGENT_BASE_URL).trim();
+  const mcpCommand = `pact mcp --base-url ${mcpBaseUrl} --agent-token <agent-token>`;
   const messages: ChatMessage[] = [
     {
       id: "sealed",
@@ -131,7 +148,15 @@ export function Onboard() {
             <span>{mcpReady ? "MCP server ready" : "Add the local Pact MCP server to your agent."}</span>
             <StatusPill tone={mcpReady ? "ok" : "warn"}>{mcpReady ? "ready" : "waiting"}</StatusPill>
           </div>
-          {health && <code className="onb-command">{health.mcp.command}</code>}
+          <label className="onb-url-field">
+            <span className="m">Local Pact API URL</span>
+            <input
+              value={mcpBaseUrl}
+              onChange={(e) => setAgentBaseUrl(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <code className="onb-command">{mcpCommand}</code>
         </div>
       ),
     },

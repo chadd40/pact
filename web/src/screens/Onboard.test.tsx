@@ -182,6 +182,23 @@ describe("Onboard", () => {
     expect(screen.getByRole("button", { name: /dashboard/i })).toBeTruthy();
   });
 
+  it("lets the user confirm the local Pact API URL used by the MCP command", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    const url = await screen.findByLabelText(/local pact api url/i) as HTMLInputElement;
+    expect(url.value).toBe("http://127.0.0.1:8000");
+    expect(screen.getByText(/pact mcp --base-url http:\/\/127\.0\.0\.1:8000/i)).toBeTruthy();
+
+    fireEvent.change(url, { target: { value: "http://localhost:9000" } });
+
+    expect(screen.getByText(/pact mcp --base-url http:\/\/localhost:9000/i)).toBeTruthy();
+    expect(window.localStorage.getItem("pact.agentBaseUrl")).toBe("http://localhost:9000");
+  });
+
   it("labels dry-run funding as local-only in the setup chat", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue({
       ...linkStatus(),
