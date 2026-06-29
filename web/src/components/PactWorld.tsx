@@ -298,9 +298,18 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     }
   };
 
+  const onProofPrimary = () => {
+    if (proofFlow === "fresh") {
+      pickProofFile("fresh");
+      return;
+    }
+    openProofChoices();
+  };
+
   const proofButtonLabel = () => {
     if (proofFlow === "choosing") return "Opening file picker...";
     if (proofFlow === "analyzing") return "Analyzing proof...";
+    if (proofFlow === "fresh") return "Upload coded photo";
     if (proofFlow === "passed") return "Proof verified";
     if (proofFlow === "ambiguous") return "Needs review";
     if (proofFlow === "failed") return "Proof failed";
@@ -418,7 +427,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
           <input ref={proofInputRef} type="file" accept="image/*" hidden onChange={onProofFile} />
           <button
             className={`pd-submit proof-${proofFlow}${proofFlow === "choosing" || proofFlow === "analyzing" ? " is-busy" : ""}`}
-            onClick={openProofChoices}
+            onClick={onProofPrimary}
             disabled={proofFlow === "choosing" || proofFlow === "analyzing"}
           >
             {proofFlow === "choosing" || proofFlow === "analyzing" ? (
@@ -464,7 +473,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
               {proofFlow === "fresh" && (
                 <>
                   <div className="pd-proof-title">Fresh proof code</div>
-                  <div className="pd-proof-copy">Put this code somewhere visible in the photo, then upload it here.</div>
+                  <div className="pd-proof-copy">Put this code somewhere visible in the photo before uploading.</div>
                   <div className="pd-proof-code-wrap">
                     <code className="pd-proof-code m">{proofToken?.toUpperCase() ?? "PACT-..."}</code>
                     {proofCountdown && (
@@ -473,9 +482,6 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
                       </div>
                     )}
                   </div>
-                  <button className="pd-proof-upload" type="button" onClick={() => pickProofFile("fresh")}>
-                    Upload coded photo
-                  </button>
                 </>
               )}
               {proofFlow === "choosing" && (

@@ -228,6 +228,29 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByText(/expires in (10:00|9:59)/i)).toBeTruthy();
   });
 
+  it("turns the primary proof button into the coded-photo upload action", async () => {
+    const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    vi.spyOn(api, "getProofs").mockResolvedValue([]);
+    vi.spyOn(api, "proofToken").mockResolvedValue({
+      token: "PACT-NOW",
+      expires_at: null,
+    } as Awaited<ReturnType<typeof api.proofToken>>);
+
+    const { container } = renderWorld(undefined, activePact());
+
+    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, use a fresh code/i }));
+
+    expect(await screen.findByText("PACT-NOW")).toBeTruthy();
+    const primary = container.querySelector(".pd-submit") as HTMLButtonElement;
+    expect(primary.textContent).toMatch(/upload coded photo/i);
+
+    fireEvent.click(primary);
+
+    expect(clickInput).toHaveBeenCalled();
+    expect(container.querySelector(".pd-proof-panel")?.getAttribute("data-proof-flow")).toBe("choosing");
+  });
+
   it("opens the native picker directly after the first proof has already been submitted", async () => {
     const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
     vi.spyOn(api, "getProofs").mockResolvedValue([proof()]);
