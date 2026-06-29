@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:sidecar": "cd .. && bash packaging/build-sidecar.sh",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "npm run build:sidecar && tauri",
     "test": "vitest run"
   },
   "dependencies": {
