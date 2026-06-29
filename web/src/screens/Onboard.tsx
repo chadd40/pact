@@ -186,7 +186,7 @@ export function Onboard() {
             disabled={!canOpenDashboard}
             onClick={() => navigate("/dashboard")}
           >
-            {canOpenDashboard ? "Open dashboard" : "Finish setup to open dashboard"}
+            {canOpenDashboard ? "Dashboard" : "Finish setup to open dashboard"}
           </button>
           {pactId && (
             <button

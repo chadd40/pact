@@ -133,6 +133,7 @@ function renderOnboard() {
     <MemoryRouter initialEntries={[{ pathname: "/onboard", state: { pactId: "pact_1" } }]}>
       <Routes>
         <Route path="/onboard" element={<Onboard />} />
+        <Route path="/dashboard" element={<div>Dashboard route reached</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -180,6 +181,19 @@ describe("Onboard", () => {
     expect(screen.getByText(/Link funding check/i)).toBeTruthy();
     expect(screen.getByText(/MCP server ready/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /dashboard/i })).toBeTruthy();
+  });
+
+  it("offers a one-word Dashboard handoff inside the ready setup chat", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    const dashboard = await screen.findByRole("button", { name: /^dashboard$/i });
+    fireEvent.click(dashboard);
+
+    expect(await screen.findByText("Dashboard route reached")).toBeTruthy();
   });
 
   it("lets the user confirm the local Pact API URL used by the MCP command", async () => {

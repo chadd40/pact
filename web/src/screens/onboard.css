@@ -107,6 +107,17 @@
   color: #fff;
 }
 
+.onb-dashboard:not(:disabled) {
+  min-width: 118px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+  box-shadow: 0 14px 28px -22px rgba(22, 21, 15, 0.7);
+}
+
+.onb-dashboard:not(:disabled):active {
+  transform: translateY(1px);
+}
+
 .onb-view-pact {
   background: #fff;
   color: #1b1a17;
