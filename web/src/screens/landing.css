@@ -82,9 +82,13 @@
   letter-spacing: -0.01em;
   color: rgba(21, 20, 15, 0.23);
   white-space: nowrap;
+  /* Invisible at rest. Every wish is only ever shown BY its animation — there is
+     no static, visible base state to flash on first paint and then reset. The
+     keyframes drive opacity (0 → 0.5 → 0) during the active phase; `backwards`
+     holds the invisible 0% state through each wish's start delay. Together: each
+     wish simply floats up and fades from the beginning, never popping off/on. */
+  opacity: 0;
   animation: pactFloat 13s linear infinite;
-  /* Hold the 0% (invisible) state during each element's animation-delay so the
-     text doesn't sit on screen at load and then pop away when its cycle starts. */
   animation-fill-mode: backwards;
 }
 .lp-sparkle {
