@@ -1272,6 +1272,11 @@
   display: none;
 }
 @media (max-width: 720px) {
+  .pc-brand,
+  .pc-paste-slot,
+  .pc-root .lp-nav {
+    display: none;
+  }
   .pc-stage {
     display: none;
   }

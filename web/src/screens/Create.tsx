@@ -490,11 +490,18 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     const off = i - (goalIndex ?? 0);
     const dir = off >= 0 ? 1 : -1;
     const a = Math.abs(off);
+    const isLeftTrail = off < 0;
     return {
-      transform: slotTransform(dir * (700 + a * 46), 0, -300, dir * -50, 0.64),
-      opacity: 0,
-      filter: "blur(10px)",
-      zIndex: 20,
+      transform: slotTransform(
+        isLeftTrail ? -560 - a * 34 : 700 + a * 46,
+        isLeftTrail ? 16 : 0,
+        -300,
+        dir * -50,
+        0.64,
+      ),
+      opacity: isLeftTrail ? 0.16 : 0,
+      filter: "blur(16px) saturate(0.55)",
+      zIndex: isLeftTrail ? 12 : 20,
       pointerEvents: "none",
       transition: "transform .62s cubic-bezier(.4,.5,.3,1), opacity .55s ease, filter .55s ease",
     };
