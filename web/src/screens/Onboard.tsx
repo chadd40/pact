@@ -5,7 +5,7 @@ import { ChatShell, StatusPill, type ChatMessage } from "../components/ChatShell
 import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
 import { isDesktop } from "../lib/platform";
 import { useLocalOwner } from "../owner";
-import type { ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
+import type { ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
 import { AGENTS } from "./Create";
 import "./onboard.css";
 
@@ -28,6 +28,8 @@ export function Onboard() {
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
+  const [policy, setPolicy] = useState<SpendPolicy | null>(null);
+  const [limitDraft, setLimitDraft] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [agentKey, setAgentKey] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallResult | null>(null);
@@ -40,13 +42,20 @@ export function Onboard() {
   useEffect(() => {
     let cancelled = false;
     async function loadSetup() {
-      const [nextRuntime, nextHealth] = await Promise.all([
+      const [nextRuntime, nextHealth, nextPolicy] = await Promise.all([
         api.runtime().catch(() => null),
         api.connectorHealth(owner).catch(() => null),
+        api.getPolicy(owner).catch(() => null),
       ]);
       if (cancelled) return;
       setRuntime(nextRuntime);
       setHealth(nextHealth);
+      setPolicy(nextPolicy);
+      setLimitDraft(
+        nextPolicy?.spend_limit_cents != null
+          ? (nextPolicy.spend_limit_cents / 100).toString()
+          : ""
+      );
       const live = nextRuntime?.live_money_enabled ?? true;
       const nextLink = await (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null);
       if (!cancelled) setLink(nextLink);
@@ -85,6 +94,19 @@ export function Onboard() {
         try { setInstall(await installSkill(agentKey ?? "your agent")); } catch { /* non-fatal: token still works */ }
       }
       setHealth(await api.connectorHealth(owner).catch(() => null));
+    } finally { setBusy(null); }
+  };
+  const saveLimit = async () => {
+    const trimmed = limitDraft.trim();
+    const cents = trimmed === "" ? null : Math.round(parseFloat(trimmed) * 100);
+    if (cents !== null && (Number.isNaN(cents) || cents < 0)) return;
+    setBusy("limit");
+    try {
+      const next = await api.setPolicy(owner, cents);
+      setPolicy(next);
+      setLimitDraft(
+        next.spend_limit_cents != null ? (next.spend_limit_cents / 100).toString() : ""
+      );
     } finally { setBusy(null); }
   };
 
@@ -144,6 +166,48 @@ export function Onboard() {
         <button className="onb-action" onClick={connect} disabled={busy === "link"}>
           {busy === "link" ? "Connecting..." : "Connect Link"}
         </button>
+      ),
+    },
+    {
+      id: "policy",
+      role: "system",
+      meta: "Agent spend limit",
+      body: (
+        <div className="onb-check-block">
+          <div className="onb-check-row">
+            <span>
+              {policy == null
+                ? "Checking the agent spend limit."
+                : policy.spend_limit_cents == null
+                  ? "No extra agent spend limit set."
+                  : `Agent may spend up to ${formatPolicyLimit(policy.spend_limit_cents)} per missed pact.`}
+            </span>
+            <StatusPill tone={policy == null || busy === "limit" ? "busy" : "ok"}>
+              {policy == null || busy === "limit" ? "checking" : policy.rail === "nemoguard" ? "NemoGuard" : "policy"}
+            </StatusPill>
+          </div>
+          <div className="onb-check-note">NemoGuard checks every missed-pact donation.</div>
+          <form
+            className="onb-limit-form"
+            onSubmit={(event) => { event.preventDefault(); saveLimit(); }}
+          >
+            <label className="onb-url-field">
+              <span className="m">Limit per miss</span>
+              <input
+                aria-label="Agent spend limit"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="No limit"
+                value={limitDraft}
+                onChange={(e) => setLimitDraft(e.target.value)}
+              />
+            </label>
+            <button className="onb-action" type="submit" disabled={busy === "limit"}>
+              {busy === "limit" ? "Saving..." : "Save spend limit"}
+            </button>
+          </form>
+        </div>
       ),
     },
     {
@@ -267,4 +331,8 @@ function createdSetupCopy(agentName: string, pactId?: string): string {
     return `Your pact is sealed. I'm going to check Link and the ${agentName} connector before I send you to the dashboard.`;
   }
   return `Let's check Link and the ${agentName} connector before you start another pact.`;
+}
+
+function formatPolicyLimit(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
 }

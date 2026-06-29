@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Onboard } from "./Onboard";
 import { api, DEMO_OWNER } from "../api";
-import type { ConnectorHealth, LinkStatus, Pact } from "../types";
+import type { ConnectorHealth, LinkStatus, Pact, SpendPolicy } from "../types";
 import type { RuntimeInfo } from "../types";
 
 vi.mock("../api", async (importOriginal) => {
@@ -19,6 +19,8 @@ vi.mock("../api", async (importOriginal) => {
       connectorHealth: vi.fn(),
       getPact: vi.fn(),
       runtime: vi.fn(),
+      getPolicy: vi.fn(),
+      setPolicy: vi.fn(),
     },
   };
 });
@@ -39,6 +41,15 @@ function linkStatus(): LinkStatus {
     connected: true,
     funding_ref: "link_pm_test",
     error: null,
+  };
+}
+
+function spendPolicy(limit: number | null = null): SpendPolicy {
+  return {
+    owner: DEMO_OWNER,
+    spend_limit_cents: limit,
+    charity_allowlist: ["against_malaria_foundation"],
+    rail: "nemoguard",
   };
 }
 
@@ -177,6 +188,8 @@ describe("Onboard", () => {
   beforeEach(() => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(false));
     vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPolicy).mockResolvedValue(spendPolicy());
+    vi.mocked(api.setPolicy).mockImplementation(async (_owner, limit) => spendPolicy(limit));
   });
 
   it("refreshes connector health after minting an agent token", async () => {
@@ -280,6 +293,22 @@ describe("Onboard", () => {
     expect(screen.getByText(/Local-only Link ready/i)).toBeTruthy();
     expect(screen.getByText(/No real card is connected/i)).toBeTruthy();
     expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
+  });
+
+  it("lets new users set the agent spend limit before the dashboard handoff", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    const limitInput = await screen.findByRole("spinbutton", { name: /agent spend limit/i });
+    fireEvent.change(limitInput, { target: { value: "15" } });
+    fireEvent.click(screen.getByRole("button", { name: /save spend limit/i }));
+
+    await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(DEMO_OWNER, 1500));
+    expect(screen.getByText(/agent may spend up to \$15\.00/i)).toBeTruthy();
+    expect(screen.getByText(/NemoGuard checks every missed-pact donation/i)).toBeTruthy();
   });
 
   it("does not unlock setup when live Link is connected but missing a ready payment method", async () => {

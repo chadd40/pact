@@ -95,6 +95,13 @@
   gap: 8px;
 }
 
+.onb-limit-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
 .onb-copy {
   min-height: 100%;
   border: 1px solid #d9d4ca;
@@ -195,6 +202,10 @@
 
 @media (max-width: 540px) {
   .onb-command-row {
+    grid-template-columns: 1fr;
+  }
+
+  .onb-limit-form {
     grid-template-columns: 1fr;
   }
 
