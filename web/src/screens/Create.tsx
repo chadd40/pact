@@ -31,9 +31,9 @@ interface GoalCard {
 // resolve it against the Vite base here. `template` and `card_art` stay raw.
 const GOALS: GoalCard[] = [
   { title: "Work out", desc: "Move your body", template: "workout", art: asset("/cards/workout.svg") },
+  { title: "Meditate", desc: "Find some quiet", template: "meditate", art: asset("/cards/meditate.svg") },
   { title: "Read", desc: "Feed your mind", template: "read", art: asset("/cards/read.svg") },
   { title: "Ship something", desc: "Build in public", template: "ship_daily", art: asset("/cards/ship.svg") },
-  { title: "Meditate", desc: "Find some quiet", template: "meditate", art: asset("/cards/meditate.svg") },
   { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", art: asset("/cards/nophone.svg") },
   { title: "Custom goal", desc: "Make your own", template: null, art: null },
 ];
