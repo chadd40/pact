@@ -24,6 +24,7 @@ const DECLINED = new Set(["donation_declined", "canceled_forfeit"]);
 
 // Default coach avatar when the pact's agent has none (or no agent set).
 const HERMES_AVATAR = asset("/agents/Hermes.svg");
+const PAPER_TURN = "transform .74s cubic-bezier(.18,.78,.22,1)";
 
 export interface PactWorldProps {
   pactId: string;
@@ -148,9 +149,9 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     // inverted frame is committed before the transition starts.
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
-        wrap.style.transition = "transform .62s cubic-bezier(.2,.72,.26,1)";
+        wrap.style.transition = PAPER_TURN;
         wrap.style.transform = "none";
-        flip.style.transition = "transform .62s cubic-bezier(.2,.72,.26,1)";
+        flip.style.transition = PAPER_TURN;
         flip.style.transform = "rotateY(180deg)";
         wrap.addEventListener("transitionend", onEnd);
       });

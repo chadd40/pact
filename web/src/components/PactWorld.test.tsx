@@ -16,12 +16,19 @@
 
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { MemoryRouter } from "react-router-dom";
 import { PactWorld } from "./PactWorld";
 import { AppDataContext, type AppData } from "../data";
 import { DemoContext } from "../App";
 import { api } from "../api";
 import type { DonationReceipt, Pact, Packet, Proof } from "../types";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const appCss = readFileSync(resolve(here, "../screens/app.css"), "utf8");
+const PAPER_TURN = "transform .74s cubic-bezier(.18,.78,.22,1)";
 
 // Stub demo context — PactWorld only reads bump/signalChange, and with
 // `initialPact` supplied it never invokes the demo actions.
@@ -257,6 +264,40 @@ describe("PactWorld (active, standalone)", () => {
     // it starts at 0° (front) and animates to the back.
     const flip = container.querySelector(".world-flip");
     expect(flip?.classList.contains("world-flip--rest")).toBe(false);
+  });
+
+  it("opens with one paper-card turn from the clicked card to the editorial back", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const el = this as HTMLElement;
+      const rect = el.classList.contains("world-card")
+        ? { x: 260, y: 88, width: 416, height: 582 }
+        : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        ...rect,
+        top: rect.y,
+        left: rect.x,
+        right: rect.x + rect.width,
+        bottom: rect.y + rect.height,
+        toJSON: () => rect,
+      } as DOMRect;
+    });
+
+    const { container } = renderWorld({ x: 44, y: 172, width: 210, height: 300 });
+    const wrap = container.querySelector(".world-card") as HTMLElement;
+    const flip = container.querySelector(".world-flip") as HTMLElement;
+
+    await waitFor(() => expect(flip.style.transform).toBe("rotateY(180deg)"));
+
+    expect(wrap.style.transition).toBe(PAPER_TURN);
+    expect(flip.style.transition).toBe(PAPER_TURN);
+    expect(flip.style.transform).not.toMatch(/rotateY\((?:[2-9]\d{2,}|[1-9]\d{3,})deg\)/);
+  });
+
+  it("gives the opening card paper depth instead of a flat backing", () => {
+    expect(appCss).toMatch(/\.world-card\s*\{[\s\S]*transform-style:\s*preserve-3d;/);
+    expect(appCss).toContain(".world-flip::before");
+    expect(appCss).toMatch(/\.world-flip::before[\s\S]*translateZ\(-2px\)/);
+    expect(appCss).toMatch(/\.world-flip::after[\s\S]*inset 0 1px 0 rgba\(255, 248, 232/);
   });
 
   it("does NOT run the entry treatment with no flipFrom (direct visit)", () => {

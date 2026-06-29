@@ -747,6 +747,7 @@
 .world-card {
   flex: none; width: 416px; height: 582px;
   position: relative;
+  transform-style: preserve-3d;
   /* --card-radius (28px) is scoped to create.css's .pc-root, which isn't an
      ancestor here — so fall back to 28px to match the create card exactly. */
   border-radius: var(--card-radius, 28px);
@@ -756,6 +757,27 @@
 .world-flip {
   position: absolute; inset: 0;
   transform-style: preserve-3d;
+}
+.world-flip::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: -8px;
+  bottom: 10px;
+  width: 14px;
+  border-radius: 0 20px 20px 0;
+  background: linear-gradient(90deg, rgba(255, 248, 232, 0.72), rgba(145, 121, 78, 0.2));
+  transform: translateZ(-2px);
+  pointer-events: none;
+}
+.world-flip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--card-radius, 28px);
+  box-shadow: inset 0 1px 0 rgba(255, 248, 232, 0.24), inset 0 -18px 28px -26px rgba(20, 18, 12, 0.55);
+  transform: translateZ(1px);
+  pointer-events: none;
 }
 /* Rest state (settled / direct link / reduced-motion): show the editorial back.
    Applied via class — NOT inline — so it persists after the entry cleanup clears
