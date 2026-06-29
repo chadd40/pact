@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
 import { useLocalOwner } from "../owner";
-import type { ConnectorEntry, ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
+import type { ConnectorEntry, ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
 
 function statusLabel(status: string): string {
   return status.replace(/_/g, " ");
@@ -35,21 +35,30 @@ export function Settings() {
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
+  const [policy, setPolicy] = useState<SpendPolicy | null>(null);
+  const [limitDraft, setLimitDraft] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedMcp, setCopiedMcp] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextRuntime, nextHealth] = await Promise.all([
+    const [nextRuntime, nextHealth, nextPolicy] = await Promise.all([
       api.runtime().catch(() => null),
       api.connectorHealth(owner).catch(() => null),
+      api.getPolicy(owner).catch(() => null),
     ]);
     const live = nextRuntime?.live_money_enabled ?? true;
     const nextLink = await (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null);
     setLink(nextLink);
     setHealth(nextHealth);
     setRuntime(nextRuntime);
+    setPolicy(nextPolicy);
+    setLimitDraft(
+      nextPolicy?.spend_limit_cents != null
+        ? (nextPolicy.spend_limit_cents / 100).toString()
+        : ""
+    );
   }, [owner]);
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { setOwnerDraft(owner); }, [owner]);
@@ -70,6 +79,19 @@ export function Settings() {
   const saveOwner = () => {
     setOwner(ownerDraft);
     setToken(null);
+  };
+  const saveLimit = async () => {
+    const trimmed = limitDraft.trim();
+    const cents = trimmed === "" ? null : Math.round(parseFloat(trimmed) * 100);
+    if (cents !== null && (Number.isNaN(cents) || cents < 0)) return;
+    setBusy("limit");
+    try {
+      const next = await api.setPolicy(owner, cents);
+      setPolicy(next);
+      setLimitDraft(
+        next.spend_limit_cents != null ? (next.spend_limit_cents / 100).toString() : ""
+      );
+    } finally { setBusy(null); }
   };
   const submitOwner = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -192,6 +214,45 @@ export function Settings() {
               </ol>
             </>
           )}
+        </div>
+      </div>
+
+      <div className="set-card">
+        <div className="set-row">
+          <div className="set-row-main">
+            <div className="set-k">Agent spend limit</div>
+            <div className="set-v">
+              The most your agent may donate per missed pact.{" "}
+              {policy?.rail === "nemoguard"
+                ? "Enforced by NVIDIA NeMo Guardrails before any money moves."
+                : "Enforced by the spend policy before any money moves."}
+            </div>
+          </div>
+          <form
+            className="set-owner-form"
+            onSubmit={(e) => { e.preventDefault(); saveLimit(); }}
+          >
+            <input
+              aria-label="Agent spend limit in dollars"
+              className="set-input"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="No limit"
+              value={limitDraft}
+              onChange={(e) => setLimitDraft(e.target.value)}
+            />
+            <button className="set-copy primary" type="submit" disabled={busy === "limit"}>
+              {busy === "limit" ? "Saving..." : "Save limit"}
+            </button>
+          </form>
+        </div>
+        <div className="set-note m">
+          {policy == null
+            ? "Checking..."
+            : policy.spend_limit_cents == null
+              ? "No limit set — your agent can donate up to the per-pact stake cap."
+              : `Your agent may spend up to $${(policy.spend_limit_cents / 100).toFixed(2)} per missed pact. ${policy.rail === "nemoguard" ? "NemoGuard" : "The spend policy"} enforces this on every spend.`}
         </div>
       </div>
 

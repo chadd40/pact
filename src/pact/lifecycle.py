@@ -85,6 +85,7 @@ from pact.models import (
 from pact.anticheat import TokenStore, day_bucket, find_duplicate, phash_hex
 from pact.charities import get_charity, is_allowed_url
 from pact.reasoning import ReasoningProvider, make_reasoning_task
+from pact.spend_policy import SpendGate, SpendRequest
 
 
 def _clamp(value: int, low: int, high: int) -> int:
@@ -324,6 +325,7 @@ def _build_verdict(
     verdict_status: PactStatus,
     payment_action: PaymentAction,
     payment_ref: str | None,
+    note: str | None = None,
 ) -> Verdict:
     if verdict_status == PactStatus.succeeded:
         summary = (
@@ -333,6 +335,10 @@ def _build_verdict(
         summary = (
             f"{valid} of {pact.target_count} valid proofs by deadline. Pact failed."
         )
+    # An optional note (e.g. a NemoGuard spend-block reason) is folded into the
+    # summary so the UI and the evidence packet surface why money did not move.
+    if note:
+        summary = f"{summary} {note}"
     return Verdict(
         pact_id=pact.id,
         status=verdict_status,
@@ -477,6 +483,7 @@ def close_dispute_window(
     payment: PaymentProvider,
     settings: Settings,
     link_connected: bool = True,
+    spend_gate: SpendGate | None = None,
 ) -> tuple[Pact, Verdict]:
     """Execute the deferred donation once the dispute window has closed.
 
@@ -517,6 +524,30 @@ def close_dispute_window(
             return pact, _build_verdict(
                 pact, proofs, valid, PactStatus.failed, PaymentAction.none, None
             )
+        # NemoGuard spend gate: the agent's proposed donation must clear the
+        # owner's policy (amount ceiling + approved charities + verified miss)
+        # before any money can move. A denial is a clean terminal outcome —
+        # donation_declined, stake declined, no charge — with the guardrail's
+        # reason surfaced in the verdict. This is the agent-initiated spend path;
+        # a human forfeit (execute_forfeit_donation) is authorised directly by the
+        # owner's cancel action and is intentionally not gated here.
+        if spend_gate is not None:
+            decision = spend_gate.check(
+                SpendRequest(
+                    owner=pact.owner,
+                    amount_cents=pact.stake_amount_cents,
+                    charity_id=pact.charity_id,
+                    verified_failure=valid < pact.target_count,
+                )
+            )
+            if not decision.allowed:
+                pact.status = PactStatus.donation_declined
+                pact.stake_state = StakeState.declined
+                pact.verdict_at = now
+                return pact, _build_verdict(
+                    pact, proofs, valid, PactStatus.failed,
+                    PaymentAction.donation_declined, None, note=decision.reason,
+                )
         pact.status = PactStatus.donation_pending
         try:
             result = payment.create_donation(pact, f"{pact.id}:donation")

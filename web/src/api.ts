@@ -12,6 +12,7 @@ import type {
   Proof,
   RuntimeInfo,
   ConnectorHealth,
+  SpendPolicy,
   TickResult,
   Verdict,
 } from "./types";
@@ -224,6 +225,15 @@ export const api = {
   // ── Profile & catalog ────────────────────────────────────────────────────
   profile: (owner: string) =>
     request<Profile>(`/api/profile?owner=${encodeURIComponent(owner)}`),
+
+  // ── Agent spend policy (NemoGuard) ─────────────────────────────────────────
+  // The owner authorises how much their agent may spend per donation. Enforced
+  // by the NeMo Guardrails spend gate before any money moves.
+  getPolicy: (owner: string) =>
+    request<SpendPolicy>(`/api/policy?owner=${encodeURIComponent(owner)}`),
+
+  setPolicy: (owner: string, spend_limit_cents: number | null) =>
+    request<SpendPolicy>("/api/policy", { json: { owner, spend_limit_cents } }),
 
   charities: () => request<Charity[]>("/api/charities"),
 

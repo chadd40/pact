@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Settings } from "./Settings";
 import { api, DEMO_OWNER } from "../api";
-import type { ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
+import type { ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -16,6 +16,8 @@ vi.mock("../api", async (importOriginal) => {
       mintAgentToken: vi.fn(),
       connectorHealth: vi.fn(),
       runtime: vi.fn(),
+      getPolicy: vi.fn(),
+      setPolicy: vi.fn(),
     },
   };
 });
@@ -98,6 +100,15 @@ function connectorHealth(status: "missing" | "ready" = "ready"): ConnectorHealth
   };
 }
 
+function spendPolicy(limit: number | null = null): SpendPolicy {
+  return {
+    owner: DEMO_OWNER,
+    spend_limit_cents: limit,
+    charity_allowlist: ["against_malaria_foundation"],
+    rail: "nemoguard",
+  };
+}
+
 describe("Settings", () => {
   afterEach(() => {
     cleanup();
@@ -108,6 +119,8 @@ describe("Settings", () => {
   beforeEach(() => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(false));
     vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus(true));
+    vi.mocked(api.getPolicy).mockResolvedValue(spendPolicy());
+    vi.mocked(api.setPolicy).mockImplementation(async (_owner, limit) => spendPolicy(limit));
   });
 
   it("shows live-safe funding copy and connected Link details", async () => {
@@ -220,6 +233,21 @@ describe("Settings", () => {
     expect(screen.getByText(/worker online/i)).toBeTruthy();
     expect(screen.getByText(/pat_abcdef12/i)).toBeTruthy();
     expect(screen.getByText(/pact mcp --base-url/i)).toBeTruthy();
+  });
+
+  it("saves the agent spend limit in cents and updates the Settings copy", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(true));
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    render(<Settings />);
+
+    const limitInput = await screen.findByRole("spinbutton", { name: /agent spend limit/i });
+    fireEvent.change(limitInput, { target: { value: "12.50" } });
+    fireEvent.click(screen.getByRole("button", { name: /save limit/i }));
+
+    await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(DEMO_OWNER, 1250));
+    expect(screen.getByText(/spend up to \$12\.50/i)).toBeTruthy();
+    expect(screen.getByText(/NemoGuard enforces this on every spend/i)).toBeTruthy();
   });
 
   it("surfaces setup endpoints and saves the owner from an explicit action", async () => {

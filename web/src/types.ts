@@ -230,6 +230,17 @@ export interface Profile {
   kept: number;
   failed: number;
   history: Array<Record<string, unknown>>;
+  spend_limit_cents?: number | null;
+}
+
+// The agent spend authorisation + the active enforcement rail. `rail` is
+// "nemoguard" when the NeMo Guardrails runtime is enforcing the policy, or
+// "spend_policy" if it fell back to the deterministic check.
+export interface SpendPolicy {
+  owner: string;
+  spend_limit_cents: number | null;
+  charity_allowlist: string[];
+  rail: string;
 }
 
 export interface CoachingMessage {

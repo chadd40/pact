@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from pact import broker
 from pact.accounts import hash_token, link_for
 from pact.anticheat import TokenStore
-from pact.charities import CHARITIES, get_charity, is_allowed_url
+from pact.charities import CHARITIES, all_charity_ids, get_charity, is_allowed_url
 from pact.clock import Clock, FixedClock
 from pact.coaching import generate_coach_message, user_reply
 from pact.config import Settings
@@ -38,6 +38,8 @@ from pact.lifecycle import (
     terminal_verdict,
     transition,
 )
+from pact.guardrails import build_spend_guard
+from pact.spend_policy import SpendRequest
 from pact.images import save_proof_image, strip_exif
 from pact.link import connect_account, is_owner_connected, new_account, refresh_live_account
 from pact.models import (
@@ -213,6 +215,12 @@ class LinkConnectIn(BaseModel):
 
 class AccountTokenIn(BaseModel):
     owner: str
+
+
+class SpendPolicyIn(BaseModel):
+    owner: str
+    # Agent spend ceiling per donation, in cents. None clears the limit.
+    spend_limit_cents: int | None = Field(default=None, ge=0)
 
 
 class DonationReceiptIn(BaseModel):
@@ -418,6 +426,12 @@ def create_app(
         if pact is None:
             raise HTTPException(status_code=404, detail="pact not found")
         return pact
+
+    def _spend_gate_for(owner: str):
+        """The NemoGuard spend gate for an owner, built from their stored policy
+        (agent spend limit + approved charities). Every agent-initiated donation
+        passes through this before money can move."""
+        return build_spend_guard(repo.get_profile(owner))
 
     def _require_agent_session(
         authorization: str | None,
@@ -734,6 +748,7 @@ def create_app(
                 link_connected=(
                     False if _live_money_enabled() else is_owner_connected(repo, pact.owner)
                 ),
+                spend_gate=_spend_gate_for(pact.owner),
             )
         else:
             pact, verdict = settle(pact, proofs_list, clock, payment, settings)
@@ -890,6 +905,25 @@ def create_app(
             )
         # Only open the approval if it hasn't already fired/opened.
         if _live_money_enabled() and pact.spend_request_id is None:
+            # NemoGuard spend gate: clear the owner's policy before opening any
+            # live Link spend request. A denial is a clean terminal decline (no
+            # charge) surfaced to the UI with the guardrail's reason.
+            gate_decision = _spend_gate_for(pact.owner).check(
+                SpendRequest(
+                    owner=pact.owner,
+                    amount_cents=pact.stake_amount_cents,
+                    charity_id=pact.charity_id,
+                    verified_failure=True,
+                )
+            )
+            if not gate_decision.allowed:
+                pact = decline_donation(pact, clock)
+                repo.update_pact(pact)
+                _record_terminal(pact)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Spend blocked by NemoGuard: {gate_decision.reason}",
+                )
             try:
                 result = payment.create_donation(pact, f"{pact.id}:donation")
             except LinkChargeAmbiguous as exc:
@@ -1095,6 +1129,30 @@ def create_app(
             prof = Profile(owner=owner)
             repo.save_profile(prof)
         return prof.model_dump(mode="json")
+
+    @app.get("/api/policy")
+    def get_spend_policy(owner: str):
+        """The owner's agent spend authorisation + the active enforcement rail."""
+        prof = repo.get_profile(owner) or Profile(owner=owner)
+        return {
+            "owner": owner,
+            "spend_limit_cents": prof.spend_limit_cents,
+            "charity_allowlist": all_charity_ids(),
+            "rail": build_spend_guard(prof).active_rail,
+        }
+
+    @app.post("/api/policy")
+    def set_spend_policy(body: SpendPolicyIn):
+        """Set the agent's per-donation spend ceiling ('agent may spend up to $X')."""
+        prof = repo.get_profile(body.owner) or Profile(owner=body.owner)
+        prof.spend_limit_cents = body.spend_limit_cents
+        repo.save_profile(prof)
+        return {
+            "owner": body.owner,
+            "spend_limit_cents": prof.spend_limit_cents,
+            "charity_allowlist": all_charity_ids(),
+            "rail": build_spend_guard(prof).active_rail,
+        }
 
     @app.get("/api/link/status")
     def link_status(owner: str):

@@ -188,6 +188,17 @@ def get_charity(charity_id: str) -> dict | None:
     return None
 
 
+def all_charity_ids() -> list[str]:
+    """Every known charity id — the default allowlist for the agent spend gate."""
+    return [charity["id"] for charity in CHARITIES]
+
+
+def stripe_checkout_charity_ids() -> list[str]:
+    """Charities whose donation flow is Stripe Checkout (uniform hosted form).
+    These are the targets the agent can reliably complete a card donation at."""
+    return [c["id"] for c in CHARITIES if c.get("checkout_kind") == "stripe"]
+
+
 def is_allowed_url(charity_id: str, url: str) -> bool:
     charity = get_charity(charity_id)
     if charity is None:

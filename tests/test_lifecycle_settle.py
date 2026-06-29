@@ -188,3 +188,84 @@ def test_dispute_overturns_within_window_then_final():
     # Second dispute is rejected: the window is single-use, result already final.
     with pytest.raises(Exception):
         submit_dispute(dp1, disputed, clock, payment)
+
+
+# ── NemoGuard spend gate ────────────────────────────────────────────────────
+# The spend gate runs before any money moves in close_dispute_window. A denial
+# parks the pact at donation_declined (a clean terminal, no money) and records
+# the guardrail's reason; an approval lets the existing donation path run.
+
+from pact.spend_policy import GateDecision, SpendRequest  # noqa: E402
+
+
+class FakeGate:
+    """A SpendGate stub: records the request it saw and returns a fixed verdict."""
+
+    def __init__(self, allowed: bool, reason: str = "test reason"):
+        self._decision = GateDecision(allowed=allowed, reason=reason, rail="test")
+        self.seen: SpendRequest | None = None
+
+    def check(self, request: SpendRequest) -> GateDecision:
+        self.seen = request
+        return self._decision
+
+
+def _failed_past_window(clock: FixedClock, settings):
+    pact = _pact(clock, target=3)
+    proofs = _passing_proofs(2, datetime(2026, 6, 20, 12, 0, tzinfo=timezone.utc))
+    payment = SpyPaymentProvider()
+    failed, _ = settle(pact, proofs, clock, payment, settings)
+    clock.advance(hours=settings.dispute_grace_hours + 1)
+    return failed, proofs, payment
+
+
+def test_spend_gate_denial_blocks_donation_no_money_moves():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
+    failed, proofs, payment = _failed_past_window(clock, settings)
+    gate = FakeGate(allowed=False, reason="Spend blocked: exceeds the agent's $1.00 spend limit.")
+
+    blocked, verdict = close_dispute_window(
+        failed, proofs, clock, payment, settings, spend_gate=gate
+    )
+
+    assert payment.calls == 0  # provably no link-cli call
+    assert blocked.status == PactStatus.donation_declined
+    assert blocked.stake_state == StakeState.declined
+    assert blocked.spend_request_id is None
+    assert verdict.payment_action == PaymentAction.donation_declined
+    # the guardrail saw the real proposed spend
+    assert gate.seen is not None
+    assert gate.seen.amount_cents == failed.stake_amount_cents
+    assert gate.seen.charity_id == failed.charity_id
+    assert gate.seen.verified_failure is True
+    # the block reason is surfaced in the verdict for the UI + packet
+    assert "spend blocked" in verdict.summary.lower()
+
+
+def test_spend_gate_approval_lets_donation_fire():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
+    failed, proofs, payment = _failed_past_window(clock, settings)
+    gate = FakeGate(allowed=True)
+
+    donated, verdict = close_dispute_window(
+        failed, proofs, clock, payment, settings, spend_gate=gate
+    )
+
+    assert payment.calls == 1
+    assert donated.status == PactStatus.donated
+    assert donated.spend_request_id is not None
+    assert verdict.payment_action == PaymentAction.donation_executed
+
+
+def test_no_gate_preserves_existing_donation_behavior():
+    clock = FixedClock(datetime(2026, 6, 28, 23, 59, tzinfo=timezone.utc))
+    settings = load_settings({})
+    failed, proofs, payment = _failed_past_window(clock, settings)
+
+    donated, verdict = close_dispute_window(failed, proofs, clock, payment, settings)
+
+    assert payment.calls == 1
+    assert donated.status == PactStatus.donated
+    assert verdict.payment_action == PaymentAction.donation_executed

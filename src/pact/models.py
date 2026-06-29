@@ -173,6 +173,10 @@ class Profile(BaseModel):
     kept: int = 0
     failed: int = 0
     history: list[dict] = []
+    # Agent spend authorisation: the most the owner's agent may spend per
+    # donation. None = no extra ceiling beyond Pact's per-stake cap. Enforced by
+    # the NemoGuard spend gate (see pact.guardrails / pact.spend_policy).
+    spend_limit_cents: int | None = None
 
 
 class LinkAccount(BaseModel):
