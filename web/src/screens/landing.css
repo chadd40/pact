@@ -83,6 +83,9 @@
   color: rgba(21, 20, 15, 0.23);
   white-space: nowrap;
   animation: pactFloat 13s linear infinite;
+  /* Hold the 0% (invisible) state during each element's animation-delay so the
+     text doesn't sit on screen at load and then pop away when its cycle starts. */
+  animation-fill-mode: backwards;
 }
 .lp-sparkle {
   color: rgba(176, 67, 42, 0.2);
@@ -996,10 +999,12 @@
 }
 .ba-thread {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 7px;
-  justify-content: center;
+  justify-content: flex-end;
+  overflow: hidden;
 }
 .ba-bubble {
   align-self: flex-start;
@@ -1014,25 +1019,22 @@
   line-height: 1.46;
   letter-spacing: -0.005em;
   box-shadow: 0 2px 6px rgba(21, 20, 15, 0.06);
-  opacity: 0;
-  transform: translateY(8px) scale(0.96);
 }
-.bento-agent.is-in .ba-bubble {
-  animation: lpPop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.bento-agent.is-in .ba-bubble.b1 { animation-delay: 0.25s; }
-.bento-agent.is-in .ba-bubble.b2 { animation-delay: 0.95s; }
-.bento-agent.is-in .ba-bubble.b3 { animation-delay: 2.65s; }
+/* Typing indicator: hidden (and taking no space) at rest — it only surfaces on
+   hover, so the resting chat reads as a clean, finished thread with no gap. */
 .ba-typing {
   align-self: flex-start;
-  display: flex;
+  display: none;
   gap: 4px;
   background: var(--l-bg);
   border: 1px solid var(--l-line);
-  border-radius: 13px;
-  padding: 10px 12px;
+  border-radius: 13px 13px 13px 6px;
+  padding: 11px 13px;
   box-shadow: 0 2px 6px rgba(21, 20, 15, 0.06);
-  opacity: 0;
+}
+.bento-agent:hover .ba-typing {
+  display: flex;
+  animation: baTypeIn 0.24s ease both;
 }
 .ba-typing span {
   width: 6px;
@@ -1043,14 +1045,49 @@
 }
 .ba-typing span:nth-child(2) { animation-delay: 0.18s; }
 .ba-typing span:nth-child(3) { animation-delay: 0.36s; }
-.bento-agent.is-in .ba-typing {
-  animation: baType 1.2s ease 1.55s forwards;
+@keyframes baTypeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
-@keyframes baType {
-  0% { opacity: 0; transform: translateY(6px); }
-  16% { opacity: 1; transform: none; }
-  82% { opacity: 1; }
-  100% { opacity: 0; }
+/* Composer — an iMessage-style input bar so the panel reads as a real chat. */
+.ba-composer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 11px;
+  padding-top: 12px;
+  border-top: 1px solid var(--l-line);
+}
+.ba-field {
+  flex: 1;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 17px;
+  border: 1px solid var(--l-line);
+  background: var(--l-bg);
+  font-size: 13px;
+  color: var(--l-muted-2);
+}
+.ba-send {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #cdc6b6;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  transition: background 0.28s ease, transform 0.28s ease;
+}
+.bento-agent:hover .ba-send {
+  background: var(--l-accent);
+  transform: translateY(-1px) scale(1.06);
 }
 .bento-agent .bento-foot {
   padding: 0;
@@ -1134,7 +1171,7 @@
   font-size: 18px;
   font-weight: 700;
 }
-.bento-stake.is-in .bs-card {
+.bento-stake:hover .bs-card {
   animation: bsSwipe 3.4s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
 @keyframes bsSwipe {
@@ -1144,7 +1181,7 @@
   82% { opacity: 1; }
   100% { transform: translateX(215px) rotate(7deg); opacity: 0; }
 }
-.bento-stake.is-in .bs-ok {
+.bento-stake:hover .bs-ok {
   animation: bsOk 3.4s ease infinite;
 }
 @keyframes bsOk {
@@ -1187,8 +1224,6 @@
   border-radius: 12px;
   padding: 7px 13px 7px 7px;
   box-shadow: 0 12px 24px -14px rgba(21, 20, 15, 0.5);
-  opacity: 0;
-  transform: translateY(-92px) rotate(-4deg);
 }
 .bp-thumb {
   width: 44px;
@@ -1201,7 +1236,7 @@
   font-weight: 600;
   color: var(--l-ink);
 }
-.bento-prove.is-in .bp-file {
+.bento-prove:hover .bp-file {
   animation: bpDropLoop 4.6s cubic-bezier(0.3, 0.9, 0.3, 1) infinite;
 }
 @keyframes bpDropLoop {
@@ -1236,7 +1271,7 @@
   border-top-color: var(--l-accent);
   animation: bpSpin 0.8s linear infinite;
 }
-.bento-prove.is-in .bp-check {
+.bento-prove:hover .bp-check {
   animation: bpCheckLoop 4.6s ease infinite;
 }
 .bp-stamp {
@@ -1249,10 +1284,9 @@
   border: 1.5px solid #2f7a55;
   border-radius: 8px;
   padding: 4px 11px;
-  opacity: 0;
-  transform: scale(0.6) rotate(-8deg);
+  transform: rotate(-4deg);
 }
-.bento-prove.is-in .bp-stamp {
+.bento-prove:hover .bp-stamp {
   animation: bpStampLoop 4.6s cubic-bezier(0.2, 1.4, 0.5, 1) infinite;
 }
 @keyframes bpSpin { to { transform: rotate(360deg); } }

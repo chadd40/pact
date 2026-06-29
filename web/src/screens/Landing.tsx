@@ -392,10 +392,14 @@ export function Landing() {
                 <div className="ba-thread">
                   <div className="ba-bubble b1">12 hours left to log today's workout ⏳</div>
                   <div className="ba-bubble b2">You're 4 for 5 this week, way ahead of last week.</div>
+                  <div className="ba-bubble b3">One session and the week is clean. Don't hand $200 to charity tonight 💪</div>
                   <div className="ba-typing" aria-hidden="true">
                     <span /> <span /> <span />
                   </div>
-                  <div className="ba-bubble b3">One session and the week is clean. Don't hand $200 to charity tonight 💪</div>
+                </div>
+                <div className="ba-composer" aria-hidden="true">
+                  <span className="ba-field">Message Hermes…</span>
+                  <span className="ba-send">↑</span>
                 </div>
               </div>
               <div className="bento-foot">
