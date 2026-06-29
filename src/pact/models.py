@@ -110,6 +110,10 @@ class Pact(BaseModel):
     status: PactStatus = PactStatus.draft
     stake_state: StakeState = StakeState.none
     spend_request_id: str | None = None
+    # Provisioned virtual card (Tier 1): non-secret last4 + the server-side path
+    # to the card file the Stripe-Checkout helper uses. The PAN never lives here.
+    card_last4: str | None = None
+    card_artifact_path: str | None = None
     created_at: datetime
     started_at: datetime | None = None
     verdict_at: datetime | None = None

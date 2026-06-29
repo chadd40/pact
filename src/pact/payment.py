@@ -37,6 +37,79 @@ class PaymentStatus:
     payload: dict
 
 
+@dataclass(frozen=True)
+class CardCredential:
+    """A handle to a provisioned virtual card.
+
+    The card PAN/CVC live ONLY in ``card_file`` on disk (written 0600). This
+    handle deliberately carries only non-secret metadata (last4, brand, expiry)
+    plus the file path, so it can be returned, logged, and stored without ever
+    exposing the card number to the agent's context.
+    """
+
+    provider: str
+    spend_request_id: str
+    card_file: str
+    last4: str | None
+    brand: str | None
+    exp_month: int | None
+    exp_year: int | None
+    mode: str
+
+
+# Stripe's universal test card. Written by the test/dry-run providers so the
+# downstream Stripe-Checkout helper can be exercised end-to-end with no real
+# money and no link-cli call.
+_STRIPE_TEST_CARD = {
+    "card": {
+        "number": "4242424242424242",
+        "exp_month": 12,
+        "exp_year": 2030,
+        "cvc": "123",
+        "last4": "4242",
+        "brand": "visa",
+    },
+    "mode": "test",
+    "note": "Stripe universal test card — no real money.",
+}
+
+
+def _write_card_file(path: str, data: dict) -> None:
+    """Write a card credential to disk with owner-only (0600) permissions."""
+    import os
+
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, json.dumps(data).encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _extract_card_meta(payload: dict) -> dict:
+    """Pull NON-secret card metadata (last4/brand/expiry) from a link-cli
+    response. Never extracts the PAN — that stays in the --output-file."""
+    card = payload.get("card") or payload.get("credential") or payload
+    if not isinstance(card, dict):
+        card = {}
+
+    def pick(*keys):
+        for key in keys:
+            value = card.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    exp_month = pick("exp_month", "expMonth", "expiry_month")
+    exp_year = pick("exp_year", "expYear", "expiry_year")
+    return {
+        "last4": pick("last4", "last_four", "lastFour"),
+        "brand": pick("brand", "network", "scheme"),
+        "exp_month": int(exp_month) if exp_month is not None else None,
+        "exp_year": int(exp_year) if exp_year is not None else None,
+    }
+
+
 _APPROVED_STATUSES = {
     "approved",
     "credential_issued",
@@ -122,6 +195,8 @@ class SubprocessLinkCliRunner:
 class TestLinkProvider:
     """Deterministic, recording-safe payment provider. No network calls."""
 
+    provider = "test_link"
+
     def create_donation(self, pact: Pact, idempotency_key: str) -> PaymentResult:
         return PaymentResult(
             provider="test_link",
@@ -133,6 +208,23 @@ class TestLinkProvider:
                 "idempotency_key": idempotency_key,
                 "mode": "test",
             },
+        )
+
+    def retrieve_card(self, provider_ref: str, *, output_dir: str) -> CardCredential:
+        """Provision a (fake) Stripe test card to disk — no network, no real money."""
+        import os
+
+        card_file = os.path.join(output_dir, f"card_{provider_ref}.json")
+        _write_card_file(card_file, _STRIPE_TEST_CARD)
+        return CardCredential(
+            provider="test_link",
+            spend_request_id=provider_ref,
+            card_file=card_file,
+            last4="4242",
+            brand="visa",
+            exp_month=12,
+            exp_year=2030,
+            mode="test",
         )
 
 
@@ -195,6 +287,14 @@ class RecordingPaymentProvider:
         )
         self.repo.save_payment_attempt(saved)
         return result
+
+    def retrieve_card(self, provider_ref: str, *, output_dir: str) -> CardCredential:
+        """Delegate card provisioning to the inner provider. The non-secret card
+        metadata (last4) is persisted on the pact by the API layer."""
+        inner = getattr(self.inner, "retrieve_card", None)
+        if inner is None:
+            raise RuntimeError("payment provider does not support card provisioning")
+        return inner(provider_ref, output_dir=output_dir)
 
     def get_donation_status(self, pact: Pact) -> PaymentStatus:
         provider_ref = pact.spend_request_id
@@ -413,6 +513,58 @@ class LinkCliProvider:
             status=_extract_status(payload),
             provider_ref=str(ref),
             payload={"mode": self.link_mode, "link_cli": payload},
+        )
+
+    def retrieve_card(self, provider_ref: str, *, output_dir: str) -> CardCredential:
+        """Retrieve the approved virtual card to a file so it can be used at the
+        charity's Stripe Checkout. The card PAN is written by link-cli to
+        ``--output-file`` and never returned here — only non-secret metadata is
+        parsed from stdout. Requires the spend request to be approved already."""
+        import os
+
+        card_file = os.path.join(output_dir, f"card_{provider_ref}.json")
+        if self.link_mode == "dry_run":
+            # Self-contained: write Stripe's test card, no subprocess, no money.
+            _write_card_file(card_file, _STRIPE_TEST_CARD)
+            return CardCredential(
+                provider="link_cli",
+                spend_request_id=provider_ref,
+                card_file=card_file,
+                last4="4242",
+                brand="visa",
+                exp_month=12,
+                exp_year=2030,
+                mode="dry_run",
+            )
+        if self.link_mode not in ("live", "live_test"):
+            raise RuntimeError(f"unsupported Link mode {self.link_mode!r}")
+        os.makedirs(output_dir, exist_ok=True)
+        args = [
+            "link-cli",
+            "spend-request",
+            "retrieve",
+            provider_ref,
+            "--include",
+            "card",
+            "--format",
+            "json",
+            "--output-file",
+            card_file,
+        ]
+        if self.link_mode == "live_test":
+            args.append("--test")
+        payload = self.runner.run(args, timeout=self.timeout_seconds)
+        # link-cli wrote the secret card to card_file; lock it down and parse only
+        # the non-secret metadata it echoed to stdout.
+        if os.path.exists(card_file):
+            os.chmod(card_file, 0o600)
+        meta = _extract_card_meta(payload)
+        return CardCredential(
+            provider="link_cli",
+            spend_request_id=provider_ref,
+            card_file=card_file,
+            mode=self.link_mode,
+            **meta,
         )
 
 

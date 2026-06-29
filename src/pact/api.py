@@ -997,6 +997,48 @@ def create_app(
         _poll_live_donation(pact)
         return _donation_state(_require(pact_id))
 
+    @app.post("/api/pacts/{pact_id}/donation/card")
+    def donation_card(pact_id: str):
+        """Provision the approved virtual card to a server-side file so the agent
+        can complete the charity's Stripe Checkout (Tier 2). Returns only
+        non-secret card metadata — the PAN stays in the file on disk, never in
+        the response or the agent's context."""
+        import os
+
+        pact = _require(pact_id)
+        if not pact.spend_request_id:
+            raise HTTPException(
+                status_code=409, detail="no spend request to provision a card for"
+            )
+        if pact.status not in (PactStatus.donation_pending, PactStatus.donated):
+            raise HTTPException(
+                status_code=409,
+                detail=f"card requires an approved donation (status {pact.status.value})",
+            )
+        provisioner = getattr(payment, "retrieve_card", None)
+        if provisioner is None:
+            raise HTTPException(
+                status_code=501, detail="card provisioning not supported by this provider"
+            )
+        output_dir = os.path.join(settings.artifacts_dir, "cards")
+        try:
+            cred = provisioner(pact.spend_request_id, output_dir=output_dir)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail=f"could not provision card: {exc}"
+            ) from exc
+        pact.card_last4 = cred.last4
+        pact.card_artifact_path = cred.card_file
+        repo.update_pact(pact)
+        return {
+            "provisioned": True,
+            "last4": cred.last4,
+            "brand": cred.brand,
+            "exp_month": cred.exp_month,
+            "exp_year": cred.exp_year,
+            "mode": cred.mode,
+        }
+
     @app.post("/api/pacts/{pact_id}/donation/receipt")
     def donation_receipt(pact_id: str, body: DonationReceiptIn):
         pact = _require(pact_id)
