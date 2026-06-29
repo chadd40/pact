@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 export interface ChatMessage {
   id: string;
@@ -30,7 +30,7 @@ export function AgentAvatar({
   );
 }
 
-export function StatusDot({ tone }: { tone: "ok" | "warn" | "muted" | "busy" }) {
+function StatusDot({ tone }: { tone: "ok" | "warn" | "muted" | "busy" }) {
   return <span className={`status-dot ${tone}`} aria-hidden="true" />;
 }
 
@@ -64,6 +64,12 @@ export function ChatShell({
   composer?: ReactNode;
   showHeader?: boolean;
 }) {
+  const logRef = useRef<HTMLDivElement>(null);
+  // Keep the latest message in view as the thread grows (both coach pane + console).
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
   return (
     <div className="chat-shell">
       {showHeader && (
@@ -72,7 +78,7 @@ export function ChatShell({
           <div className="chat-shell-title">{agentName}</div>
         </div>
       )}
-      <div className="chat-log" role="log" aria-label={label}>
+      <div className="chat-log" role="log" aria-label={label} ref={logRef}>
         {messages.map((message) => (
           <div key={message.id} className={`chat-row ${message.role}`}>
             {message.role === "agent" && <AgentAvatar src={agentAvatar} name={agentName} size="sm" />}

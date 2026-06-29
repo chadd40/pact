@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AgentAvatar, ChatShell, type ChatMessage } from "./ChatShell";
+import { useFocusTrap } from "./useFocusTrap";
 import { AGENTS } from "../screens/Create";
 import type { CoachingMessage, Pact } from "../types";
 
@@ -18,11 +19,15 @@ export function CoachPane({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const paneRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const agent = pact.agent ?? "Hermes";
   const agentDef = AGENTS.find((a) => a.key === pact.agent) ?? AGENTS[0];
 
+  // Trap focus + Escape-to-close + focus-restore, like the other modals (a11y).
+  useFocusTrap(paneRef, onClose);
+  // Prefer the composer over the trap's default first-focusable (the close button).
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const send = async () => {
@@ -68,7 +73,7 @@ export function CoachPane({
   return (
     <div className="ov" role="dialog" aria-modal="true" aria-label={`Chat with ${agent}`}>
       <div className="ov-backdrop" onClick={onClose} />
-      <div className="ov-pane ov-pane-chat" tabIndex={-1}>
+      <div className="ov-pane ov-pane-chat" tabIndex={-1} ref={paneRef}>
         <div className="cp-head">
           <div className="cp-head-left">
             <AgentAvatar src={agentDef.avatar} name={agent} />

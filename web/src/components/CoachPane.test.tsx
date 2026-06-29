@@ -64,6 +64,15 @@ describe("CoachPane", () => {
     expect(screen.getByRole("button", { name: /send/i })).toBeTruthy();
   });
 
+  it("closes on Escape so keyboard users can dismiss the dialog", async () => {
+    const onClose = vi.fn();
+    render(<CoachPane pact={pact()} messages={[]} onSend={vi.fn()} onClose={onClose} />);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("opens a native attachment picker and shows selected files", async () => {
     const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
     render(<CoachPane pact={pact()} messages={[]} onSend={vi.fn()} onClose={() => {}} />);
