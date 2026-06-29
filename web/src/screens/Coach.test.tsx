@@ -149,7 +149,7 @@ describe("Coach", () => {
 
   it("renders an agent console with the same chat surface used by pact chat", async () => {
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Coach />
       </MemoryRouter>
     );
@@ -164,7 +164,7 @@ describe("Coach", () => {
 
   it("shows copyable MCP configuration with the local API endpoint", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Coach />
       </MemoryRouter>
     );

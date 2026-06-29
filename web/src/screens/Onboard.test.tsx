@@ -169,7 +169,10 @@ function pact(): Pact {
 
 function renderOnboard() {
   return render(
-    <MemoryRouter initialEntries={[{ pathname: "/onboard", state: { pactId: "pact_1" } }]}>
+    <MemoryRouter
+      initialEntries={[{ pathname: "/onboard", state: { pactId: "pact_1" } }]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/onboard" element={<Onboard />} />
         <Route path="/dashboard" element={<div>Dashboard route reached</div>} />

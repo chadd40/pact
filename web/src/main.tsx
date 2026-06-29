@@ -1,13 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createHashRouter, RouterProvider, Navigate } from "react-router-dom";
+import { createHashRouter, RouterProvider } from "react-router-dom";
 import "./styles.css";
 import "./components.css";
 import "./redesign.css";
 import "./screens/app.css";
 import { App } from "./App";
 import { AppShell } from "./components/AppShell";
-import { Landing } from "./screens/Landing";
+import { RootEntry } from "./RootEntry";
 import { Create } from "./screens/Create";
 import { Onboard } from "./screens/Onboard";
 import { Home } from "./screens/Home";
@@ -15,23 +15,6 @@ import { PactDetail } from "./screens/PactDetail";
 import { Coach } from "./screens/Coach";
 import { Charities } from "./screens/Charities";
 import { Settings } from "./screens/Settings";
-import { isDesktop } from "./lib/platform";
-import { api } from "./api";
-import { getLocalOwner } from "./owner";
-
-function RootEntry() {
-  const [dest, setDest] = React.useState<string | null>(null);
-  React.useEffect(() => {
-    if (!isDesktop()) { setDest("__web__"); return; }
-    // Desktop: first-run owners start in Create; returning owners go to the dashboard.
-    api.listPacts(getLocalOwner())
-      .then((pacts) => setDest(pacts.length > 0 ? "/dashboard" : "/create"))
-      .catch(() => setDest("/create"));
-  }, []);
-  if (dest === null) return null;            // brief: waiting on listPacts
-  if (dest === "__web__") return <Landing />;
-  return <Navigate to={dest} replace />;
-}
 
 const router = createHashRouter([
   {

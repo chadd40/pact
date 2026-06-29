@@ -144,7 +144,10 @@ function renderWorld(
     ? { pathname: "/pact/p1", state: { flipFrom } }
     : { pathname: "/pact/p1" };
   return render(
-    <MemoryRouter initialEntries={[entry]}>
+    <MemoryRouter
+      initialEntries={[entry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <DemoContext.Provider value={DEMO}>
         <AppDataContext.Provider value={APP_DATA}>
           <PactWorld pactId="p1" initialPact={pact} />

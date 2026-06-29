@@ -6,7 +6,11 @@ import { MemoryRouter } from "react-router-dom";
 import { LogoMenu } from "./LogoMenu";
 
 afterEach(cleanup);
-const setup = () => render(<MemoryRouter><LogoMenu /></MemoryRouter>);
+const setup = () => render(
+  <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <LogoMenu />
+  </MemoryRouter>
+);
 
 describe("LogoMenu", () => {
   it("uses the compact logo without a caret", () => {

@@ -1,6 +1,65 @@
 /* Component-level styles, imported once from App via main. Screens + chrome. */
 
 /* ── Shared tooltip / chat primitives ─────────────────────────────────────── */
+.root-launch {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  background:
+    radial-gradient(58% 42% at 50% 40%, rgba(214, 178, 120, 0.16), transparent 64%),
+    var(--pc-ivory);
+  color: #1b1a17;
+  font-family: var(--pc-sans);
+  text-align: center;
+}
+.root-launch-logo {
+  width: 96px;
+  height: auto;
+  display: block;
+}
+.root-launch-card {
+  width: 70px;
+  height: 100px;
+  border-radius: 13px;
+  background: #16150f;
+  box-shadow: 0 24px 46px -25px rgba(22, 21, 15, 0.62);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  transform: rotateY(-10deg) rotateZ(-2deg);
+  transform-style: preserve-3d;
+}
+.root-launch-card span {
+  width: 34px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(239, 235, 225, 0.54);
+  animation: rootLaunchPulse 1.15s ease-in-out infinite;
+}
+.root-launch-card span:nth-child(2) { width: 42px; animation-delay: 0.12s; }
+.root-launch-card span:nth-child(3) { width: 24px; animation-delay: 0.24s; }
+.root-launch-copy {
+  display: grid;
+  gap: 4px;
+}
+.root-launch-kicker {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a8678;
+}
+.root-launch-title {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+@keyframes rootLaunchPulse {
+  0%, 100% { opacity: 0.34; transform: scaleX(0.84); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
 .pc-tooltip {
   position: relative;
   display: inline-grid;

@@ -32,7 +32,10 @@ vi.mock("../owner", () => ({
 
 function renderShell() {
   return render(
-    <MemoryRouter initialEntries={["/dashboard"]}>
+    <MemoryRouter
+      initialEntries={["/dashboard"]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<div>Dashboard content</div>} />
