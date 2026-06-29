@@ -3,6 +3,7 @@ import type {
   CoachingMessage,
   DemoAdvanceResult,
   DemoSeedResult,
+  DonationCard,
   DonationReceipt,
   DonationState,
   LinkStatus,
@@ -169,6 +170,9 @@ export const api = {
 
   donationStatus: (pactId: string) =>
     request<DonationState>(`/api/pacts/${pactId}/donation/status`),
+
+  provisionDonationCard: (pactId: string) =>
+    request<DonationCard>(`/api/pacts/${pactId}/donation/card`, { method: "POST" }),
 
   recordDonationReceipt: (
     pactId: string,

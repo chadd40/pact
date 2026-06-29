@@ -17,6 +17,13 @@ dependencies = [
     "nemoguardrails>=0.22",
 ]
 
+[project.optional-dependencies]
+# Tier 2 charity checkout drives the charity's real donate page with Playwright.
+# Optional + lazy-imported (see pact.charity_checkout) so the core app and the
+# packaged build stay lean; install with `uv pip install -e '.[checkout]'` and
+# `playwright install chromium` to run real donations.
+checkout = ["playwright>=1.40"]
+
 [project.scripts]
 pact = "pact.cli:main"
 pact-sidecar = "pact.sidecar:main"

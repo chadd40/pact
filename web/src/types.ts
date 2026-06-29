@@ -79,6 +79,15 @@ export interface DonationState {
   payment_status?: string | null;
 }
 
+export interface DonationCard {
+  provisioned: boolean;
+  last4: string | null;
+  brand: string | null;
+  exp_month: number | null;
+  exp_year: number | null;
+  mode: string;
+}
+
 export interface Pact {
   id: string;
   owner: string;
@@ -107,6 +116,8 @@ export interface Pact {
   status: PactStatus;
   stake_state: StakeState;
   spend_request_id: string | null;
+  card_last4?: string | null;
+  card_artifact_path?: string | null;
   created_at: string;
   started_at: string | null;
   verdict_at: string | null;

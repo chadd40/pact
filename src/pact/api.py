@@ -232,6 +232,54 @@ class DonationReceiptIn(BaseModel):
     confirmation_notes: str | None = None
 
 
+class DonationCheckoutIn(BaseModel):
+    # Drive the charity's real donate page with the provisioned card. `confirm`
+    # only moves real money when the server is in live Link mode (the helper
+    # gates the irreversible submit to mode==live AND confirm).
+    confirm: bool = False
+
+
+def default_checkout_runner(pact: Pact, settings: Settings, *, confirm: bool) -> dict:
+    """Run the charity-checkout helper as a separate process so the card PAN never
+    enters this process. Returns the helper's PAN-free JSON result."""
+    import json as _json
+    import os
+    import subprocess
+    import sys
+
+    def checkout_helper_command() -> list[str]:
+        if getattr(sys, "frozen", False):
+            return [sys.executable, "--pact-charity-checkout"]
+        return [sys.executable, "-m", "pact.charity_checkout"]
+
+    charity = get_charity(pact.charity_id)
+    url = charity["donation_url"] if charity else pact.charity_url
+    shot_dir = os.path.join(settings.artifacts_dir, "checkout")
+    os.makedirs(shot_dir, exist_ok=True)
+    screenshot = os.path.join(shot_dir, f"checkout_{pact.id}.png")
+    args = [
+        *checkout_helper_command(),
+        "--card-file", pact.card_artifact_path or "",
+        "--donation-url", url,
+        "--amount-cents", str(pact.stake_amount_cents),
+        "--mode", settings.link_mode,
+        "--screenshot", screenshot,
+    ]
+    if confirm and settings.link_mode == "live":
+        args.append("--confirm")
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=180)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "submitted": False, "error": str(exc)}
+    out = (proc.stdout or "").strip()
+    if not out:
+        return {"status": "error", "submitted": False, "error": (proc.stderr or "no output")[-500:]}
+    try:
+        return _json.loads(out.splitlines()[-1])
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "submitted": False, "error": f"unparseable checkout result: {exc}"}
+
+
 def create_app(
     repo: Repository,
     provider: ReasoningProvider,
@@ -239,7 +287,11 @@ def create_app(
     tokens: TokenStore,
     clock: Clock,
     settings: Settings,
+    checkout_runner=None,
 ) -> FastAPI:
+    # Injectable so tests can drive the donation-checkout endpoint without a real
+    # browser; production uses the subprocess-isolated Playwright helper.
+    checkout_runner = checkout_runner or default_checkout_runner
     app = FastAPI()
     app.state.repo = repo
     raw_payment = payment
@@ -1038,6 +1090,36 @@ def create_app(
             "exp_year": cred.exp_year,
             "mode": cred.mode,
         }
+
+    @app.post("/api/pacts/{pact_id}/donation/checkout")
+    def donation_checkout(pact_id: str, body: DonationCheckoutIn | None = None):
+        """Complete the donation by driving the charity's real donate page with the
+        provisioned card (Tier 2). The card must be provisioned first. The helper
+        runs in a separate process; the irreversible submit only fires in live Link
+        mode with confirm=true. On a real submit, a donation receipt is recorded."""
+        pact = _require(pact_id)
+        if not pact.card_artifact_path:
+            raise HTTPException(
+                status_code=409,
+                detail="no provisioned card — call POST /donation/card first",
+            )
+        confirm = bool(body.confirm) if body else False
+        result = checkout_runner(pact, settings, confirm=confirm)
+        if result.get("submitted"):
+            repo.save_donation_receipt(
+                DonationReceipt(
+                    pact_id=pact_id,
+                    receipt_status=(
+                        "provider_confirmed" if result.get("reference") else "manual_receipt"
+                    ),
+                    receipt_source="charity_checkout",
+                    receipt_ref=result.get("reference"),
+                    receipt_artifact_path=result.get("screenshot"),
+                    confirmed_at=clock.now(),
+                    confirmation_notes=result.get("note"),
+                )
+            )
+        return result
 
     @app.post("/api/pacts/{pact_id}/donation/receipt")
     def donation_receipt(pact_id: str, body: DonationReceiptIn):

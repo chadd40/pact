@@ -414,6 +414,12 @@
 .pd-receipt-row .muted { color: #9a9488; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
 .pd-receipt-row .ok { color: #316f48; font-weight: 600; }
 .pd-receipt-row .pending { color: #9a6a32; font-weight: 600; }
+.pd-card-row { gap: 16px; align-items: center; }
+.pd-card-ready { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; color: #1b1a17; font-size: 13px; font-weight: 650; }
+.pd-card-ready .m { color: #6c6452; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.pd-card-provision { min-height: 32px; border: 1px solid #16150f; border-radius: 999px; background: #16150f; color: #fff; padding: 0 12px; font-family: var(--pc-sans); font-size: 12px; font-weight: 700; cursor: pointer; }
+.pd-card-provision:disabled { opacity: 0.55; cursor: default; }
+.pd-card-error { display: block; color: var(--pc-accent); font-size: 12px; font-weight: 650; }
 .pd-receipt-form { margin: 14px auto 0; max-width: 420px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; text-align: left; }
 .pd-receipt-input { min-width: 0; height: 36px; border-radius: 10px; border: 1px solid #e1ddd3; background: #fff; padding: 0 12px; font: 13px/1 var(--pc-sans); color: #1b1a17; }
 .pd-receipt-input:focus { outline: 2px solid rgba(176, 67, 42, 0.22); border-color: rgba(176, 67, 42, 0.45); }

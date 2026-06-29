@@ -366,6 +366,27 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByRole("button", { name: /record receipt/i })).toBeTruthy();
   });
 
+  it("provisions the approved checkout card without exposing the PAN", async () => {
+    const donated = pactWithStatus("donated", "executed");
+    vi.spyOn(api, "provisionDonationCard").mockResolvedValue({
+      provisioned: true,
+      last4: "4242",
+      brand: "visa",
+      exp_month: 12,
+      exp_year: 2030,
+      mode: "test",
+    });
+
+    renderWorld(undefined, donated);
+    fireEvent.click(screen.getByRole("button", { name: /provision checkout card/i }));
+
+    await waitFor(() => expect(api.provisionDonationCard).toHaveBeenCalledWith("p1"));
+    expect(screen.getByText(/Checkout card ready/i)).toBeTruthy();
+    expect(screen.getByText(/visa/i)).toBeTruthy();
+    expect(screen.getByText(/•••• 4242/i)).toBeTruthy();
+    expect(document.body.textContent).not.toContain("4242424242424242");
+  });
+
   it("renders donation_failed as not completed, not as a receipt", () => {
     renderWorld(undefined, pactWithStatus("donation_failed", "error"));
     expect(screen.getByText("Donation not completed")).toBeTruthy();

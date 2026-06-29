@@ -11,7 +11,7 @@ import { GoalGlyph } from "./GoalGlyph";
 import { cardArtFor } from "../lib/cardArt";
 import { asset } from "../lib/asset";
 import { dollars, formatDate, formatDateTime } from "../lib";
-import type { CoachingMessage, Pact, Packet, ProofStatus } from "../types";
+import type { CoachingMessage, DonationCard, Pact, Packet, ProofStatus } from "../types";
 // CardBack's editorial `.cb-*` styles live in create.css. It's imported by
 // Create.tsx, but PactWorld can render standalone (e.g. tests, deep links) before
 // Create is in the bundle — import it here so the card always styles correctly.
@@ -51,6 +51,8 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const [packet, setPacket] = useState<Packet | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [checkoutCard, setCheckoutCard] = useState<DonationCard | null>(null);
+  const [cardErr, setCardErr] = useState<string | null>(null);
   const [receiptRef, setReceiptRef] = useState("");
   const [receiptErr, setReceiptErr] = useState<string | null>(null);
 
@@ -336,6 +338,22 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       signalChange();
     } catch {
       setReceiptErr("Couldn't save that receipt. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const provisionCheckoutCard = async () => {
+    if (!pact) return;
+    setBusy("card");
+    setCardErr(null);
+    try {
+      const next = await api.provisionDonationCard(pact.id);
+      setCheckoutCard(next);
+      setPact((current) => current ? { ...current, card_last4: next.last4 } : current);
+      signalChange();
+    } catch {
+      setCardErr("Couldn't provision the checkout card. Try again.");
     } finally {
       setBusy(null);
     }
@@ -692,6 +710,8 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
         packet?.verdict.receipt_url ||
         packet?.verdict.receipt_artifact_path ||
         null;
+      const checkoutLast4 = checkoutCard?.last4 ?? pact.card_last4 ?? null;
+      const checkoutBrand = checkoutCard?.brand ?? null;
       return (
         <div className="pd-terminal">
           <div className="pd-terminal-icon donated">
@@ -713,6 +733,25 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
           <div className="pd-receipt">
             <div className="pd-receipt-row top"><span className="b">{charity?.name ?? "charity"}</span><span className="m risk">{dollars(pact.stake_amount_cents)}</span></div>
             <div className="pd-receipt-row"><span className="m muted">Link approval</span><span className="m">{(pact.spend_request_id ?? "PCT").slice(-8).toUpperCase()}</span></div>
+            <div className="pd-receipt-row pd-card-row">
+              <span className="m muted">Checkout card</span>
+              {checkoutLast4 ? (
+                <span className="pd-card-ready">
+                  <span>Checkout card ready</span>
+                  <span className="m">{checkoutBrand ? `${checkoutBrand} ` : ""}•••• {checkoutLast4}</span>
+                </span>
+              ) : (
+                <button
+                  className="pd-card-provision"
+                  type="button"
+                  disabled={busy === "card"}
+                  onClick={() => void provisionCheckoutCard()}
+                >
+                  {busy === "card" ? "Provisioning..." : "Provision checkout card"}
+                </button>
+              )}
+            </div>
+            {cardErr && <div className="pd-receipt-row pd-card-error">{cardErr}</div>}
             <div className="pd-receipt-row"><span className="m muted">Receipt</span><span className={`m ${receiptConfirmed ? "ok" : "pending"}`}>{receiptEvidence ?? receiptLabel}</span></div>
             {packet?.verdict.confirmed_at && (
               <div className="pd-receipt-row"><span className="m muted">Confirmed</span><span className="m">{formatDateTime(packet.verdict.confirmed_at)}</span></div>
