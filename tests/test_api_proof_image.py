@@ -91,6 +91,21 @@ async def _post_image(client, pact_id, token, data, content_ok=True):
 
 
 @pytest.mark.asyncio
+async def test_proof_token_returns_expiry_for_live_countdown(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _, _ = _build(tmp_path, clock)
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "run with a visible code")
+
+        r = await client.post(f"/api/pacts/{pact_id}/proof-token")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["token"].startswith("PACT-")
+    assert body["expires_at"] == "2026-06-24T12:10:00+00:00"
+
+
+@pytest.mark.asyncio
 async def test_image_proof_valid_token_passes_and_persists(tmp_path):
     clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
     app, repo, settings = _build(tmp_path, clock)

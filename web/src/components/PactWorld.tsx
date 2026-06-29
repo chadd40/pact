@@ -56,6 +56,8 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
 
   const [proofFlow, setProofFlow] = useState<ProofFlow>("idle");
   const [proofToken, setProofToken] = useState<string | null>(null);
+  const [proofTokenExpiresAt, setProofTokenExpiresAt] = useState<string | null>(null);
+  const [proofTimerNow, setProofTimerNow] = useState(() => Date.now());
   const [proofErr, setProofErr] = useState<string | null>(null);
   const [proofCount, setProofCount] = useState(0);
   const proofCountRef = useRef(0);
@@ -206,6 +208,13 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     }
   }, []);
 
+  useEffect(() => {
+    if (proofFlow !== "fresh" || !proofTokenExpiresAt) return;
+    setProofTimerNow(Date.now());
+    const timer = window.setInterval(() => setProofTimerNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [proofFlow, proofTokenExpiresAt]);
+
   const sendCoach = async (text: string, attachments: File[] = []) => {
     if (!pact) return;
     await api.postCoach(pact.id, text, attachments).catch(() => {});
@@ -224,6 +233,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     if (proofToken) return proofToken;
     const next = await api.proofToken(pact.id);
     setProofToken(next.token);
+    setProofTokenExpiresAt(next.expires_at);
     return next.token;
   };
 
@@ -297,6 +307,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     if (proofFlow === "error") return "Try proof again";
     return "Submit today's proof";
   };
+  const proofCountdown = formatProofCountdown(proofTokenExpiresAt, proofTimerNow);
 
   const submitReceipt = async () => {
     if (!pact) return;
@@ -454,7 +465,14 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
                 <>
                   <div className="pd-proof-title">Fresh proof code</div>
                   <div className="pd-proof-copy">Put this code somewhere visible in the photo, then upload it here.</div>
-                  <code className="pd-proof-code m">{proofToken?.toUpperCase() ?? "PACT-..."}</code>
+                  <div className="pd-proof-code-wrap">
+                    <code className="pd-proof-code m">{proofToken?.toUpperCase() ?? "PACT-..."}</code>
+                    {proofCountdown && (
+                      <div className="pd-proof-timer m" aria-live="polite">
+                        Expires in {proofCountdown}
+                      </div>
+                    )}
+                  </div>
                   <button className="pd-proof-upload" type="button" onClick={() => pickProofFile("fresh")}>
                     Upload coded photo
                   </button>
@@ -824,4 +842,14 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       )}
     </div>
   );
+}
+
+function formatProofCountdown(expiresAt: string | null, nowMs: number): string | null {
+  if (!expiresAt) return null;
+  const expiresMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresMs)) return null;
+  const secondsLeft = Math.max(0, Math.ceil((expiresMs - nowMs) / 1000));
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = secondsLeft % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }

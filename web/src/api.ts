@@ -109,7 +109,7 @@ export const api = {
     request<Pact[]>(`/api/pacts${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`),
 
   proofToken: (pactId: string) =>
-    request<{ token: string }>(`/api/pacts/${pactId}/proof-token`, { method: "POST" }),
+    request<{ token: string; expires_at: string | null }>(`/api/pacts/${pactId}/proof-token`, { method: "POST" }),
 
   submitProof: (
     pactId: string,

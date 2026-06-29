@@ -37,6 +37,10 @@ class TokenStore:
         self._tokens[token] = _TokenEntry(pact_id=pact_id, expires_at=expires_at)
         return token
 
+    def expires_at(self, token: str) -> datetime | None:
+        entry = self._tokens.get(token)
+        return entry.expires_at if entry else None
+
     def verify(self, pact_id: str, token: str, clock: Clock) -> bool:
         entry = self._tokens.get(token)
         if entry is None:

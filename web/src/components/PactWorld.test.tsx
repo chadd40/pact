@@ -158,6 +158,7 @@ describe("PactWorld (active, standalone)", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("renders the submit affordance", () => {
@@ -187,7 +188,7 @@ describe("PactWorld (active, standalone)", () => {
     let resolveUpload!: (proof: Proof) => void;
     const uploadPromise = new Promise<Proof>((resolve) => { resolveUpload = resolve; });
     const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
-    vi.spyOn(api, "proofToken").mockResolvedValue({ token: "PACT-YES" });
+    vi.spyOn(api, "proofToken").mockResolvedValue({ token: "PACT-YES", expires_at: null });
     vi.spyOn(api, "uploadProofImage").mockReturnValue(uploadPromise);
     vi.spyOn(api, "getPact").mockResolvedValue(pact);
     vi.spyOn(api, "getCoach").mockResolvedValue([]);
@@ -207,6 +208,24 @@ describe("PactWorld (active, standalone)", () => {
     resolveUpload(proof());
     await waitFor(() => expect(screen.getByRole("button", { name: /proof verified/i })).toBeTruthy());
     expect(screen.queryByText(/Capture your proof/i)).toBeNull();
+  });
+
+  it("shows a live countdown beside a fresh proof code", async () => {
+    const expiresAt = new Date(Date.now() + 600_000).toISOString();
+    vi.spyOn(api, "getProofs").mockResolvedValue([]);
+    vi.spyOn(api, "proofToken").mockResolvedValue({
+      token: "PACT-NOW",
+      expires_at: expiresAt,
+    } as Awaited<ReturnType<typeof api.proofToken>>);
+
+    renderWorld(undefined, activePact());
+
+    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, use a fresh code/i }));
+
+    expect(await screen.findByText(/fresh proof code/i)).toBeTruthy();
+    expect(screen.getByText("PACT-NOW")).toBeTruthy();
+    expect(screen.getByText(/expires in (10:00|9:59)/i)).toBeTruthy();
   });
 
   it("opens the native picker directly after the first proof has already been submitted", async () => {

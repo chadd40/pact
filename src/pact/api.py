@@ -594,7 +594,11 @@ def create_app(
     def proof_token(pact_id: str):
         _require(pact_id)
         token = tokens.issue(pact_id, clock)
-        return {"token": token}
+        expires_at = tokens.expires_at(token)
+        return {
+            "token": token,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+        }
 
     @app.post("/api/pacts/{pact_id}/proofs")
     def proofs(pact_id: str, body: ProofIn):
