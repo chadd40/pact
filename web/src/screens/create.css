@@ -959,31 +959,92 @@
   transform: translateX(-50%) translateY(-2px);
 }
 
-/* ── Sealing (stage 5) ───────────────────────────────────────────────────────── */
+/* ── Sealing (stage 6) ───────────────────────────────────────────────────────── */
 .pc-sending {
   position: absolute;
   left: 594px;
   right: auto;
-  bottom: 146px;
+  bottom: 128px;
+  width: 452px;
   z-index: 53;
   text-align: left;
   transition: opacity 0.4s ease;
   pointer-events: none;
 }
-.pc-sending .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(22, 21, 15, 0.08);
-  border-radius: 999px;
-  padding: 11px 20px;
-  backdrop-filter: blur(8px);
+.pc-sealing-card {
+  min-height: 188px;
+  border-radius: 18px;
+  border: 1px solid rgba(22, 21, 15, 0.1);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 26px 60px -42px rgba(22, 21, 15, 0.54);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
 }
-.pc-sending .txt {
-  font-size: 13px;
-  font-weight: 500;
+.pc-sealing-head {
+  min-height: 62px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid var(--pc-hair-2);
+}
+.pc-sealing-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #16150f;
+  color: #fbf7ee;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+.pc-sealing-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 5px;
+  box-sizing: border-box;
+  background: #efebe1;
+}
+.pc-sealing-kicker {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a9488;
+}
+.pc-sealing-title {
+  margin-top: 3px;
+  font-size: 15px;
+  font-weight: 650;
   color: var(--pc-ink);
+}
+.pc-sealing-rows {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pc-sealing-row {
+  min-height: 36px;
+  border-radius: 11px;
+  background: var(--pc-ivory);
+  border: 1px solid var(--pc-hair);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  color: #6c6452;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.pc-sealing-row.active {
+  background: #16150f;
+  border-color: #16150f;
+  color: #fbf7ee;
 }
 .pc-dots {
   display: inline-flex;
@@ -993,7 +1054,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--pc-ink);
+  background: currentColor;
   animation: pc-dots 1.2s infinite;
 }
 .pc-dots span:nth-child(2) { animation-delay: 0.2s; }

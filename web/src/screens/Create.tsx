@@ -974,10 +974,27 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
 
         {/* Sealing (stage 6) */}
-        <div className="pc-sending" style={{ opacity: stage === 6 ? 1 : 0 }}>
-          <div className="pill">
-            <span className="txt m">Signing your pact with {agentDef?.name || "your agent"}</span>
-            <span className="pc-dots"><span /><span /><span /></span>
+        <div className="pc-sending" aria-live="polite" style={{ opacity: stage === 6 ? 1 : 0 }}>
+          <div className="pc-sealing-card">
+            <div className="pc-sealing-head">
+              <span className="pc-sealing-avatar" aria-hidden="true">
+                {agentDef?.avatar ? <img src={agentDef.avatar} alt="" /> : <span>{(agentDef?.name || "Agent").slice(0, 1)}</span>}
+              </span>
+              <div>
+                <div className="pc-sealing-kicker m">Creating your pact</div>
+                <div className="pc-sealing-title">Signing with {agentDef?.name || "your agent"}</div>
+              </div>
+            </div>
+            <div className="pc-sealing-rows" aria-hidden="true">
+              <div className="pc-sealing-row active">
+                <span>Sealing card</span>
+                <span className="pc-dots"><span /><span /><span /></span>
+              </div>
+              <div className="pc-sealing-row">
+                <span>Preparing setup chat</span>
+                <span>Link · Agent · MCP</span>
+              </div>
+            </div>
           </div>
         </div>
 

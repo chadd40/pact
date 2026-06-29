@@ -15,6 +15,18 @@ function mediaBlock(query: string): string {
   return createCss.slice(start, next === -1 ? undefined : next);
 }
 
+function ruleFor(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = createCss.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "m"));
+  return match?.[1] ?? "";
+}
+
+function decl(rule: string, name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = rule.match(new RegExp(`${escaped}\\s*:\\s*([^;]+);`));
+  return match?.[1].trim() ?? "";
+}
+
 describe("create flow chrome", () => {
   it("recedes unchosen cards after a card is selected", () => {
     expect(createSource).toContain("const isLeftTrail = off < 0;");
@@ -37,5 +49,21 @@ describe("create flow chrome", () => {
     expect(smallScreenCss).toContain(".pc-paste-slot");
     expect(smallScreenCss).toContain(".pc-root .lp-nav");
     expect(smallScreenCss).toMatch(/display:\s*none;/);
+  });
+
+  it("keeps the signing state in the same right-side lane as the setup chat", () => {
+    expect(createSource).toContain('className="pc-sealing-card"');
+    expect(createSource).toContain("Creating your pact");
+    expect(createSource).toContain("Preparing setup chat");
+
+    const sending = ruleFor(".pc-sending");
+    const sealingCard = ruleFor(".pc-sealing-card");
+    const setupCard = ruleFor(".pc-msg-setup .card");
+
+    expect(decl(sending, "width")).toBe("452px");
+    expect(decl(sending, "left")).toBe("594px");
+    expect(decl(sealingCard, "border-radius")).toBe("18px");
+    expect(decl(sealingCard, "box-shadow")).toContain("0 26px 60px");
+    expect(decl(setupCard, "width")).toBe("452px");
   });
 });
