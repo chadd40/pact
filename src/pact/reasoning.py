@@ -228,12 +228,26 @@ class TestLLMProvider:
         target = int(input.get("target", 0))
         days_left = int(input.get("days_left", 0))
         charity = str(input.get("charity", "your chosen charity"))
+        title = str(input.get("title") or input.get("goal") or "this pact")
+        user_message = str(input.get("user_message") or "").strip()
         remaining = max(target - valid, 0)
-        message = (
-            f"{valid} of {target} done, {days_left} days left "
-            f"— you need {remaining} more to keep your stake out of "
-            f"{charity}."
+        pace_line = (
+            f"{valid} of {target} done, {days_left} days left — "
+            f"you need {remaining} more to keep your stake out of {charity}."
         )
+        if user_message:
+            ask = user_message.lower()
+            if "proof" in ask or "photo" in ask or "evidence" in ask:
+                next_step = "Use the clearest proof you already have, then send it here so I can check it against the pact."
+            elif "when" in ask or "before" in ask or "tomorrow" in ask or "today" in ask:
+                next_step = "Put the next rep on the calendar now and make the proof easy before the day gets noisy."
+            elif "track" in ask or "behind" in ask or "doing" in ask:
+                next_step = "You are safe if the remaining reps fit inside the days left; otherwise we tighten the plan today."
+            else:
+                next_step = "Pick the next visible rep and remove one bit of friction before you leave this chat."
+            message = f"For {title}: {pace_line} {next_step}"
+        else:
+            message = pace_line
         return {"message": message}
 
     def _verdict(self, input: dict) -> dict:

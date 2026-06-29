@@ -131,3 +131,35 @@ def test_user_reply_returns_inbound_then_outbound() -> None:
     assert outbound.sent_at == clock.now()
 
     assert inbound.id != outbound.id
+
+
+def test_user_reply_gives_provider_the_user_message_and_pact_context() -> None:
+    clock = FixedClock(datetime(2026, 6, 22, 9, 0, 0, tzinfo=timezone.utc))
+    pact = _pact(clock)
+    provider = CapturingCoachProvider()
+
+    _inbound, outbound = user_reply(
+        pact,
+        "Should I do the next workout before breakfast?",
+        [],
+        provider,
+        clock,
+    )
+
+    assert provider.input["user_message"] == "Should I do the next workout before breakfast?"
+    assert provider.input["title"] == "Work out 5x this week"
+    assert provider.input["goal"] == "Complete 5 workout sessions on 5 distinct days this week."
+    assert provider.input["stake_cents"] == 2000
+    assert outbound.body == "context-aware reply"
+
+
+class CapturingCoachProvider:
+    def __init__(self) -> None:
+        self.input: dict = {}
+
+    def capabilities(self) -> set[str]:
+        return {"text"}
+
+    def resolve(self, task) -> dict:
+        self.input = dict(task.input)
+        return {"message": "context-aware reply"}
