@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -12,6 +12,12 @@ export function useFocusTrap(
   opts: { closeOnEsc?: boolean } = {}
 ) {
   const closeOnEsc = opts.closeOnEsc ?? true;
+  const stateRef = useRef({ onClose, closeOnEsc });
+
+  useEffect(() => {
+    stateRef.current = { onClose, closeOnEsc };
+  }, [onClose, closeOnEsc]);
+
   useEffect(() => {
     const root = ref.current;
     const trigger = document.activeElement as HTMLElement | null;
@@ -26,7 +32,7 @@ export function useFocusTrap(
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (closeOnEsc) onClose();
+        if (stateRef.current.closeOnEsc) stateRef.current.onClose();
         return;
       }
       if (e.key !== "Tab") return;
@@ -56,5 +62,5 @@ export function useFocusTrap(
       // Restore focus to the trigger if it's still in the document.
       if (trigger && document.contains(trigger)) trigger.focus?.();
     };
-  }, [ref, onClose, closeOnEsc]);
+  }, [ref]);
 }

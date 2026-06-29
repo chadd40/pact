@@ -49,7 +49,10 @@ function pact(): Pact {
 }
 
 describe("CoachPane", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("uses the agent chat composer shape without the old status label", async () => {
     const onSend = vi.fn();
@@ -64,6 +67,23 @@ describe("CoachPane", () => {
     expect(screen.getByRole("button", { name: /send/i })).toBeTruthy();
   });
 
+  it("keeps composer focus when parent rerenders replace the close callback", async () => {
+    vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute("hidden") ? null : document.body;
+    });
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <CoachPane pact={pact()} messages={[]} onSend={onSend} onClose={() => {}} />
+    );
+
+    const input = screen.getByRole("textbox", { name: /message hermes/i });
+    await userEvent.type(input, "stay here");
+
+    rerender(<CoachPane pact={pact()} messages={[]} onSend={onSend} onClose={() => {}} />);
+
+    expect(document.activeElement).toBe(input);
+  });
+
   it("closes on Escape so keyboard users can dismiss the dialog", async () => {
     const onClose = vi.fn();
     render(<CoachPane pact={pact()} messages={[]} onSend={vi.fn()} onClose={onClose} />);
@@ -71,6 +91,20 @@ describe("CoachPane", () => {
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("uses the latest close callback after a parent rerender", async () => {
+    const firstClose = vi.fn();
+    const nextClose = vi.fn();
+    const { rerender } = render(
+      <CoachPane pact={pact()} messages={[]} onSend={vi.fn()} onClose={firstClose} />
+    );
+
+    rerender(<CoachPane pact={pact()} messages={[]} onSend={vi.fn()} onClose={nextClose} />);
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(firstClose).not.toHaveBeenCalled();
+    expect(nextClose).toHaveBeenCalled();
   });
 
   it("opens a native attachment picker and shows selected files", async () => {
