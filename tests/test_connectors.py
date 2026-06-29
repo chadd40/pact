@@ -59,6 +59,21 @@ async def test_connector_health_reports_missing_token_and_mcp_command(tmp_path):
 
 
 @pytest.mark.anyio
+async def test_connector_health_reports_configured_sidecar_base_url(tmp_path, monkeypatch):
+    monkeypatch.setenv("PACT_HOST", "127.0.0.1")
+    monkeypatch.setenv("PACT_PORT", "8042")
+    app, _repo, _clock = _build_app(tmp_path)
+
+    async with _client(app) as client:
+        response = await client.get("/api/connectors/health", params={"owner": OWNER})
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["runtime"]["base_url"] == "http://127.0.0.1:8042"
+    assert "http://127.0.0.1:8042" in data["mcp"]["command"]
+
+
+@pytest.mark.anyio
 async def test_connector_health_uses_token_prefix_and_worker_heartbeat_without_leaking_token(tmp_path):
     app, repo, clock = _build_app(tmp_path)
 

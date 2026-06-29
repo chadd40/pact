@@ -12,6 +12,16 @@ from pact.repository import Repository
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 
 
+def runtime_base_url(env: dict[str, str] | None = None) -> str:
+    env = env if env is not None else os.environ
+    explicit = env.get("PACT_BASE_URL")
+    if explicit:
+        return explicit.rstrip("/")
+    host = env.get("PACT_HOST", "127.0.0.1")
+    port = env.get("PACT_PORT", "8000")
+    return f"http://{host}:{port}"
+
+
 def _active_session(session: AgentSession | None, clock: Clock) -> bool:
     return bool(
         session
@@ -37,7 +47,7 @@ def build_connector_health(
     clock: Clock,
     settings: Settings,
     *,
-    base_url: str = DEFAULT_BASE_URL,
+    base_url: str | None = None,
 ) -> dict:
     """Return the setup/health read-model shown by Settings and Onboarding.
 
@@ -45,6 +55,7 @@ def build_connector_health(
     placeholder so users know where the once-shown token belongs without leaking
     it from later health checks.
     """
+    base_url = base_url or runtime_base_url()
     session = repo.get_agent_session(owner)
     token_ready = _active_session(session, clock)
     worker_online = repo.worker_seen_within(
