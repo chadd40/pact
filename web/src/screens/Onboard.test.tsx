@@ -213,6 +213,26 @@ describe("Onboard", () => {
     expect(window.localStorage.getItem("pact.agentBaseUrl")).toBe("http://localhost:9000");
   });
 
+  it("copies the customized MCP command from the setup chat", async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    const url = await screen.findByLabelText(/local pact api url/i) as HTMLInputElement;
+    fireEvent.change(url, { target: { value: "http://localhost:9000" } });
+    fireEvent.click(screen.getByRole("button", { name: /copy mcp command/i }));
+
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "pact mcp --base-url http://localhost:9000 --agent-token <agent-token>",
+    ));
+    expect(screen.getByRole("button", { name: /copied/i })).toBeTruthy();
+  });
+
   it("labels dry-run funding as local-only in the setup chat", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue({
       ...linkStatus(),

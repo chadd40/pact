@@ -32,6 +32,7 @@ export function Onboard() {
   const [agentKey, setAgentKey] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallResult | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [copiedMcp, setCopiedMcp] = useState(false);
   const [agentBaseUrl, setAgentBaseUrl] = useState(() =>
     window.localStorage.getItem(AGENT_BASE_URL_KEY) ?? ""
   );
@@ -87,6 +88,18 @@ export function Onboard() {
   const canOpenDashboard = fundingDone && agentDone && !!mcpReady;
   const mcpBaseUrl = (agentBaseUrl || health?.runtime.base_url || DEFAULT_AGENT_BASE_URL).trim();
   const mcpCommand = `pact mcp --base-url ${mcpBaseUrl} --agent-token <agent-token>`;
+  useEffect(() => {
+    setCopiedMcp(false);
+  }, [mcpCommand]);
+  const copyMcpCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(mcpCommand);
+      setCopiedMcp(true);
+      window.setTimeout(() => setCopiedMcp(false), 1800);
+    } catch {
+      setCopiedMcp(false);
+    }
+  };
   const messages: ChatMessage[] = [
     {
       id: "sealed",
@@ -156,7 +169,17 @@ export function Onboard() {
               spellCheck={false}
             />
           </label>
-          <code className="onb-command">{mcpCommand}</code>
+          <div className="onb-command-row">
+            <code className="onb-command">{mcpCommand}</code>
+            <button
+              type="button"
+              className="onb-copy"
+              aria-label={copiedMcp ? "MCP command copied" : "Copy MCP command"}
+              onClick={copyMcpCommand}
+            >
+              {copiedMcp ? "Copied" : "Copy command"}
+            </button>
+          </div>
         </div>
       ),
     },
