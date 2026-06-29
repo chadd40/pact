@@ -331,16 +331,20 @@ def run_checkout(
                          "(needs mode=live + confirm to donate for real)",
                 )
 
-            # Final submit (gated): the card-step "Give $X". Real money moves here.
+            # Final submit (gated): the card-step "Give $X". Real money moves here
+            # with a real card; a Stripe TEST card is declined on the live site.
             page.get_by_role("button", name=give_amount).last.click(timeout=8000)
-            page.wait_for_load_state("networkidle", timeout=timeout_ms)
+            # networkidle never settles on this tracking-heavy SPA — give Stripe a
+            # few seconds to process and render the result, then read the outcome.
+            page.wait_for_timeout(9000)
             reference = None
+            outcome = "unknown"
             try:
-                body = page.inner_text("body")
-                for marker in ("thank you", "confirmation", "receipt", "your donation", "donation id"):
-                    if marker in body.lower():
-                        reference = "confirmed"
-                        break
+                body = page.inner_text("body").lower()
+                if any(m in body for m in ("thank you", "your donation", "confirmation", "receipt", "donation id")):
+                    reference, outcome = "confirmed", "confirmed"
+                elif any(m in body for m in ("declined", "card was declined", "incorrect", "invalid", "not supported", "try again", "couldn't process", "could not process", "error")):
+                    outcome = "declined"
             except Exception:
                 pass
             if screenshot_path:
@@ -352,7 +356,7 @@ def run_checkout(
                 status="submitted", submitted=True, mode=mode,
                 donation_url=donation_url, amount_cents=amount_cents,
                 reference=reference, screenshot=screenshot_path,
-                note="donation submitted to charity: water",
+                note=f"submit clicked on charity: water; payment outcome={outcome}",
             )
         except Exception as exc:  # noqa: BLE001
             shot = None
