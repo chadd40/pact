@@ -13,6 +13,7 @@ vi.mock("../api", async (importOriginal) => {
     ...actual,
     api: {
       linkStatus: vi.fn(),
+      linkPreflight: vi.fn(),
       linkConnect: vi.fn(),
       mintAgentToken: vi.fn(),
       connectorHealth: vi.fn(),
@@ -148,6 +149,7 @@ describe("Onboard", () => {
 
   beforeEach(() => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(false));
+    vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus());
   });
 
   it("refreshes connector health after minting an agent token", async () => {
@@ -255,14 +257,16 @@ describe("Onboard", () => {
 
   it("does not unlock setup when live Link is connected but missing a ready payment method", async () => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(true));
-    vi.mocked(api.linkStatus).mockResolvedValue({
+    const notReadyLink: LinkStatus = {
       ...linkStatus(),
       ready: false,
       payment_method_id: null,
       payment_method_label: null,
       payment_method_last4: null,
       error: "No usable Link payment method is available",
-    });
+    };
+    vi.mocked(api.linkStatus).mockResolvedValue(notReadyLink);
+    vi.mocked(api.linkPreflight).mockResolvedValue(notReadyLink);
     vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
 
@@ -274,5 +278,34 @@ describe("Onboard", () => {
     expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
     expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
     expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("refreshes live Link with preflight before deciding setup is ready", async () => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
+    vi.mocked(api.linkStatus).mockResolvedValue({
+      owner: DEMO_OWNER,
+      connected: false,
+      funding_ref: null,
+      error: null,
+    });
+    vi.mocked(api.linkPreflight).mockResolvedValue({
+      owner: DEMO_OWNER,
+      connected: true,
+      ready: true,
+      funding_ref: "pm_live_123",
+      payment_method_id: "pm_live_123",
+      payment_method_label: "Visa",
+      payment_method_last4: "4242",
+      error: null,
+    });
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    await waitFor(() => expect(api.linkPreflight).toHaveBeenCalledWith(DEMO_OWNER));
+    expect(screen.getByText(/Connected · Visa .*4242/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^dashboard$/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /connect link/i })).toBeNull();
   });
 });

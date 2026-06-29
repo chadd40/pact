@@ -38,9 +38,21 @@ export function Onboard() {
   );
 
   useEffect(() => {
-    api.linkStatus(owner).then(setLink).catch(() => setLink(null));
-    api.connectorHealth(owner).then(setHealth).catch(() => setHealth(null));
-    api.runtime().then(setRuntime).catch(() => setRuntime(null));
+    let cancelled = false;
+    async function loadSetup() {
+      const [nextRuntime, nextHealth] = await Promise.all([
+        api.runtime().catch(() => null),
+        api.connectorHealth(owner).catch(() => null),
+      ]);
+      if (cancelled) return;
+      setRuntime(nextRuntime);
+      setHealth(nextHealth);
+      const live = nextRuntime?.live_money_enabled ?? true;
+      const nextLink = await (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null);
+      if (!cancelled) setLink(nextLink);
+    }
+    loadSetup();
+    return () => { cancelled = true; };
   }, [owner]);
   // Learn which agent the user chose when they sealed, so step 2 can install the
   // /pact skill for exactly that agent. Returning users (no pactId) skip this.

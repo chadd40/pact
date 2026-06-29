@@ -11,6 +11,7 @@ vi.mock("../api", async (importOriginal) => {
     ...actual,
     api: {
       linkStatus: vi.fn(),
+      linkPreflight: vi.fn(),
       linkConnect: vi.fn(),
       mintAgentToken: vi.fn(),
       connectorHealth: vi.fn(),
@@ -106,6 +107,7 @@ describe("Settings", () => {
 
   beforeEach(() => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(false));
+    vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus(true));
   });
 
   it("shows live-safe funding copy and connected Link details", async () => {
@@ -141,14 +143,16 @@ describe("Settings", () => {
 
   it("keeps live Link in setup state when no payment method is ready", async () => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(true));
-    vi.mocked(api.linkStatus).mockResolvedValue({
+    const notReadyLink: LinkStatus = {
       ...linkStatus(true),
       ready: false,
       payment_method_id: null,
       payment_method_label: null,
       payment_method_last4: null,
       error: "No usable Link payment method is available",
-    });
+    };
+    vi.mocked(api.linkStatus).mockResolvedValue(notReadyLink);
+    vi.mocked(api.linkPreflight).mockResolvedValue(notReadyLink);
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
 
     render(<Settings />);
@@ -157,6 +161,24 @@ describe("Settings", () => {
     expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
     expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
     expect(screen.queryByText(/Pact never holds your money/i)).toBeNull();
+  });
+
+  it("uses live Link preflight to refresh payment-method readiness", async () => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(false));
+    vi.mocked(api.linkPreflight).mockResolvedValue({
+      ...linkStatus(true),
+      ready: true,
+      funding_ref: "pm_live_123",
+      payment_method_id: "pm_live_123",
+    });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    render(<Settings />);
+
+    await waitFor(() => expect(api.linkPreflight).toHaveBeenCalledWith(DEMO_OWNER));
+    expect(screen.getByText(/Visa .*4242/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /connect link/i })).toBeNull();
   });
 
   it("mints a token, copies it, and clears it when the owner changes", async () => {

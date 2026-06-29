@@ -231,10 +231,14 @@ export const api = {
   charities: () => request<Charity[]>("/api/charities"),
 
   // ── Link (funding connection) ──────────────────────────────────────────────
-  // Connected after the first pact: registers a TEST funding source so the
-  // charge-on-fail donation is allowed to fire. No money moves (local-first).
+  // Status reads the persisted account row. Preflight re-checks live Link CLI
+  // readiness when live money is enabled, while remaining a read-only status
+  // check in dry-run packaged builds.
   linkStatus: (owner: string) =>
     request<LinkStatus>(`/api/link/status?owner=${encodeURIComponent(owner)}`),
+
+  linkPreflight: (owner: string) =>
+    request<LinkStatus>(`/api/link/preflight?owner=${encodeURIComponent(owner)}`),
 
   linkConnect: (owner: string) =>
     request<LinkStatus>("/api/link/connect", { json: { owner } }),

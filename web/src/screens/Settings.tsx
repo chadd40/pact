@@ -41,11 +41,12 @@ export function Settings() {
   const [copiedMcp, setCopiedMcp] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextLink, nextHealth, nextRuntime] = await Promise.all([
-      api.linkStatus(owner).catch(() => null),
-      api.connectorHealth(owner).catch(() => null),
+    const [nextRuntime, nextHealth] = await Promise.all([
       api.runtime().catch(() => null),
+      api.connectorHealth(owner).catch(() => null),
     ]);
+    const live = nextRuntime?.live_money_enabled ?? true;
+    const nextLink = await (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null);
     setLink(nextLink);
     setHealth(nextHealth);
     setRuntime(nextRuntime);
