@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { fundingDisplay } from "../lib/funding";
+import { fundingDisplay, fundingIsLocalOnly } from "../lib/funding";
 import { useLocalOwner } from "../owner";
-import type { ConnectorEntry, ConnectorHealth, LinkStatus } from "../types";
+import type { ConnectorEntry, ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
 
 function statusLabel(status: string): string {
   return status.replace(/_/g, " ");
@@ -34,18 +34,21 @@ export function Settings() {
   const [ownerDraft, setOwnerDraft] = useState(owner);
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedMcp, setCopiedMcp] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextLink, nextHealth] = await Promise.all([
+    const [nextLink, nextHealth, nextRuntime] = await Promise.all([
       api.linkStatus(owner).catch(() => null),
       api.connectorHealth(owner).catch(() => null),
+      api.runtime().catch(() => null),
     ]);
     setLink(nextLink);
     setHealth(nextHealth);
+    setRuntime(nextRuntime);
   }, [owner]);
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { setOwnerDraft(owner); }, [owner]);
@@ -75,7 +78,9 @@ export function Settings() {
     if (!health?.mcp.command) return;
     try { await navigator.clipboard.writeText(health.mcp.command); setCopiedMcp(true); setTimeout(() => setCopiedMcp(false), 1800); } catch { /* clipboard blocked */ }
   };
-  const fundingLabel = fundingDisplay(link);
+  const liveMoneyEnabled = runtime?.live_money_enabled ?? true;
+  const localOnlyFunding = fundingIsLocalOnly(link, liveMoneyEnabled);
+  const fundingLabel = fundingDisplay(link, liveMoneyEnabled);
   const workerLabel = health ? `Worker ${health.worker.status}` : "Worker unknown";
   const tokenLabel = health?.agent_token.status === "ready"
     ? `Token ${health.agent_token.token_prefix}`
@@ -110,7 +115,7 @@ export function Settings() {
             <div className="set-k">Funding source (Link)</div>
             <div className="set-v">
               {link == null ? "—" : link.connected
-                ? <span className="set-ok">Connected · {fundingLabel}</span>
+                ? <span className="set-ok">{localOnlyFunding ? fundingLabel : `Connected · ${fundingLabel}`}</span>
                 : `Not connected${link?.error ? ` · ${link.error}` : " — a missed pact can't be charged until you connect."}`}
             </div>
           </div>
@@ -120,7 +125,11 @@ export function Settings() {
             </button>
           )}
         </div>
-        <div className="set-note m">Pact never holds your money. Connecting registers the funding source — no donation moves now.</div>
+        <div className="set-note m">
+          {localOnlyFunding
+            ? "No real card is connected in this packaged build. Link is in local dry-run mode, so no money can move."
+            : "Pact never holds your money. Connecting registers the funding source — no donation moves now."}
+        </div>
       </div>
 
       <div className="set-card">

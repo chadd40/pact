@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Onboard } from "./Onboard";
 import { api, DEMO_OWNER } from "../api";
 import type { ConnectorHealth, LinkStatus, Pact } from "../types";
+import type { RuntimeInfo } from "../types";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -16,9 +17,20 @@ vi.mock("../api", async (importOriginal) => {
       mintAgentToken: vi.fn(),
       connectorHealth: vi.fn(),
       getPact: vi.fn(),
+      runtime: vi.fn(),
     },
   };
 });
+
+function runtime(liveMoneyEnabled = false): RuntimeInfo {
+  return {
+    payment_mode: liveMoneyEnabled ? "link_cli" : "test_link",
+    link_mode: liveMoneyEnabled ? "live" : "dry_run",
+    reasoning_mode: "hybrid",
+    auth_mode: "local_dev",
+    live_money_enabled: liveMoneyEnabled,
+  };
+}
 
 function linkStatus(): LinkStatus {
   return {
@@ -133,6 +145,10 @@ describe("Onboard", () => {
     vi.clearAllMocks();
   });
 
+  beforeEach(() => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(false));
+  });
+
   it("refreshes connector health after minting an agent token", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
     vi.mocked(api.getPact).mockResolvedValue(pact());
@@ -166,7 +182,7 @@ describe("Onboard", () => {
     expect(screen.getByRole("button", { name: /dashboard/i })).toBeTruthy();
   });
 
-  it("does not surface raw test funding references in the setup chat", async () => {
+  it("labels dry-run funding as local-only in the setup chat", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue({
       ...linkStatus(),
       payment_method_id: null,
@@ -181,6 +197,8 @@ describe("Onboard", () => {
 
     await screen.findByRole("log", { name: /hermes setup chat/i });
     expect(screen.queryByText(/test_funding/i)).toBeNull();
-    expect(screen.getByText(/Link connector ready/i)).toBeTruthy();
+    expect(screen.getByText(/Local-only Link ready/i)).toBeTruthy();
+    expect(screen.getByText(/No real card is connected/i)).toBeTruthy();
+    expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
   });
 });

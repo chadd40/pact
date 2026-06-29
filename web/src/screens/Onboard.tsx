@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { ChatShell, StatusPill, type ChatMessage } from "../components/ChatShell";
-import { fundingDisplay } from "../lib/funding";
+import { fundingDisplay, fundingIsLocalOnly } from "../lib/funding";
 import { isDesktop } from "../lib/platform";
 import { useLocalOwner } from "../owner";
-import type { ConnectorHealth, LinkStatus } from "../types";
+import type { ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
 import { AGENTS } from "./Create";
 import "./onboard.css";
 
@@ -25,6 +25,7 @@ export function Onboard() {
   const [owner] = useLocalOwner();
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [agentKey, setAgentKey] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallResult | null>(null);
@@ -33,6 +34,7 @@ export function Onboard() {
   useEffect(() => {
     api.linkStatus(owner).then(setLink).catch(() => setLink(null));
     api.connectorHealth(owner).then(setHealth).catch(() => setHealth(null));
+    api.runtime().then(setRuntime).catch(() => setRuntime(null));
   }, [owner]);
   // Learn which agent the user chose when they sealed, so step 2 can install the
   // /pact skill for exactly that agent. Returning users (no pactId) skip this.
@@ -60,7 +62,9 @@ export function Onboard() {
 
   const fundingDone = !!link?.connected;
   const agentDone = !!token || health?.agent_token.status === "ready";
-  const fundingLabel = fundingDisplay(link);
+  const liveMoneyEnabled = runtime?.live_money_enabled ?? true;
+  const localOnlyFunding = fundingIsLocalOnly(link, liveMoneyEnabled);
+  const fundingLabel = fundingDisplay(link, liveMoneyEnabled);
   const mcpReady = health?.connectors.some((connector) => connector.key === "mcp" && connector.status === "ready");
   const workerStatus = health?.worker.status ?? "offline";
   const agentName = agentKey ?? "Hermes";
@@ -77,11 +81,20 @@ export function Onboard() {
       role: "system",
       meta: "Link funding check",
       body: (
-        <div className="onb-check-row">
-          <span>{fundingDone ? `Connected${fundingLabel ? ` · ${fundingLabel}` : ""}` : "Connect the funding source that backs missed pacts."}</span>
-          <StatusPill tone={fundingDone ? "ok" : busy === "link" ? "busy" : "warn"}>
-            {fundingDone ? "ready" : busy === "link" ? "checking" : "needs setup"}
-          </StatusPill>
+        <div className="onb-check-block">
+          <div className="onb-check-row">
+            <span>
+              {fundingDone
+                ? localOnlyFunding ? fundingLabel : `Connected${fundingLabel ? ` · ${fundingLabel}` : ""}`
+                : "Connect the funding source that backs missed pacts."}
+            </span>
+            <StatusPill tone={fundingDone ? "ok" : busy === "link" ? "busy" : "warn"}>
+              {fundingDone ? "ready" : busy === "link" ? "checking" : "needs setup"}
+            </StatusPill>
+          </div>
+          {localOnlyFunding && (
+            <div className="onb-check-note">No real card is connected in this packaged build.</div>
+          )}
         </div>
       ),
       actions: fundingDone ? null : (

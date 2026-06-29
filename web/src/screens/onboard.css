@@ -27,6 +27,17 @@
   min-width: 0;
 }
 
+.onb-check-block {
+  display: grid;
+  gap: 6px;
+}
+
+.onb-check-note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8a8477;
+}
+
 .onb-mcp {
   display: grid;
   gap: 10px;

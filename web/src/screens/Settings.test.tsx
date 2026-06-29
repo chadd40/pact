@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Settings } from "./Settings";
 import { api, DEMO_OWNER } from "../api";
-import type { ConnectorHealth, LinkStatus } from "../types";
+import type { ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -14,9 +14,20 @@ vi.mock("../api", async (importOriginal) => {
       linkConnect: vi.fn(),
       mintAgentToken: vi.fn(),
       connectorHealth: vi.fn(),
+      runtime: vi.fn(),
     },
   };
 });
+
+function runtime(liveMoneyEnabled = false): RuntimeInfo {
+  return {
+    payment_mode: liveMoneyEnabled ? "link_cli" : "test_link",
+    link_mode: liveMoneyEnabled ? "live" : "dry_run",
+    reasoning_mode: "hybrid",
+    auth_mode: "local_dev",
+    live_money_enabled: liveMoneyEnabled,
+  };
+}
 
 function linkStatus(connected: boolean): LinkStatus {
   return {
@@ -93,7 +104,12 @@ describe("Settings", () => {
     vi.clearAllMocks();
   });
 
+  beforeEach(() => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(false));
+  });
+
   it("shows live-safe funding copy and connected Link details", async () => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(true));
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
 
@@ -105,7 +121,7 @@ describe("Settings", () => {
     expect(screen.queryByRole("button", { name: /connect link/i })).toBeNull();
   });
 
-  it("does not show dry-run funding references as a real payment method", async () => {
+  it("labels dry-run funding as local-only rather than a real payment method", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue({
       ...linkStatus(true),
       payment_method_id: null,
@@ -117,8 +133,10 @@ describe("Settings", () => {
 
     render(<Settings />);
 
-    await waitFor(() => expect(screen.getByText(/Link connector ready/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Local-only Link ready/i)).toBeTruthy());
+    expect(screen.getByText(/No real card is connected/i)).toBeTruthy();
     expect(screen.queryByText(/test_funding/i)).toBeNull();
+    expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
   });
 
   it("mints a token, copies it, and clears it when the owner changes", async () => {
