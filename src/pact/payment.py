@@ -119,9 +119,23 @@ def read_card_secret(card_file: str) -> dict:
     }
 
 
+def _as_obj(payload) -> dict:
+    """Coerce a link-cli JSON payload to a single object.
+
+    link-cli (>=0.4.x) `--format json` returns a single-element ARRAY for these
+    commands, e.g. ``[ { "id": ..., "status": ... } ]``. Older/fake runners
+    returned the bare object. Accept both: unwrap a one-element list, else pass a
+    dict through, else return an empty dict.
+    """
+    if isinstance(payload, list):
+        return payload[0] if payload and isinstance(payload[0], dict) else {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _extract_card_meta(payload: dict) -> dict:
     """Pull NON-secret card metadata (last4/brand/expiry) from a link-cli
     response. Never extracts the PAN — that stays in the --output-file."""
+    payload = _as_obj(payload)
     card = payload.get("card") or payload.get("credential") or payload
     if not isinstance(card, dict):
         card = {}
@@ -173,6 +187,7 @@ def payment_status_is_expired(status: str | None) -> bool:
 
 
 def _extract_provider_ref(payload: dict) -> str | None:
+    payload = _as_obj(payload)
     return (
         payload.get("id")
         or payload.get("spend_request_id")
@@ -181,6 +196,7 @@ def _extract_provider_ref(payload: dict) -> str | None:
 
 
 def _extract_status(payload: dict) -> str:
+    payload = _as_obj(payload)
     nested = payload.get("spend_request") or payload.get("spendRequest") or {}
     approval = payload.get("approval") or {}
     raw = (
@@ -497,8 +513,8 @@ class LinkCliProvider:
             "--format",
             "json",
         ]
-        if test_mode:
-            approval_args.append("--test")
+        # NB: --test is a `create`-only flag in link-cli; request-approval rejects
+        # it ("Unknown flag"). The testmode spend-request id is self-describing.
         approval_payload: dict = {}
         try:
             approval_payload = self.runner.run(approval_args, timeout=30)
@@ -537,8 +553,7 @@ class LinkCliProvider:
             "--max-attempts",
             "1",
         ]
-        if self.link_mode == "live_test":
-            args.append("--test")
+        # --test is create-only; retrieve rejects it. The testmode id is enough.
         payload = self.runner.run(args, timeout=30)
         ref = _extract_provider_ref(payload) or provider_ref
         return PaymentStatus(
@@ -581,16 +596,23 @@ class LinkCliProvider:
             "card",
             "--format",
             "json",
-            "--output-file",
-            card_file,
         ]
-        if self.link_mode == "live_test":
-            args.append("--test")
+        # --test is create-only; retrieve rejects it. The testmode id is enough.
         payload = self.runner.run(args, timeout=self.timeout_seconds)
-        # link-cli wrote the secret card to card_file; lock it down and parse only
-        # the non-secret metadata it echoed to stdout.
-        if os.path.exists(card_file):
-            os.chmod(card_file, 0o600)
+        # link-cli (>=0.4.x) returns the issued card INLINE in the JSON -- there is
+        # no --output-file flag. The card only materializes once the human approves
+        # the spend request in Link. Pull it out, write it to a 0600 file for the
+        # downstream charity checkout, and return only non-secret metadata. The PAN
+        # transits this process briefly; it is never logged, returned, or stored in
+        # an audit row -- only the 0600 card_file and last4/brand/expiry escape.
+        obj = _as_obj(payload)
+        card = obj.get("card") or obj.get("credential")
+        if not isinstance(card, dict) or not card:
+            raise RuntimeError(
+                "link-cli returned no card; the spend request is not approved yet "
+                f"(status={obj.get('status')!r}). Approve it in Link, then retry."
+            )
+        _write_card_file(card_file, {"card": card, "mode": self.link_mode})
         meta = _extract_card_meta(payload)
         return CardCredential(
             provider="link_cli",

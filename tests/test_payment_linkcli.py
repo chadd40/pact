@@ -193,6 +193,35 @@ def test_live_create_is_non_blocking_then_requests_approval():
     assert approval_args[3] == "sr1"
 
 
+def test_create_parses_link_cli_array_response():
+    # Real link-cli 0.4.2 `--format json` returns a single-object ARRAY:
+    # [ { "id": ..., "status": ... } ]. The provider must read the first element,
+    # not crash on list.get(). (Fake runners historically returned a dict, hiding this.)
+    runner = _FakeRunner([{"id": "lsrq_real_1", "status": "created"}])
+    provider = LinkCliProvider(link_mode="live", payment_method_id="pm_123", runner=runner)
+    result = provider.create_donation(_make_pact(pact_id="pact_arr"), idempotency_key="pact_arr:donation")
+    assert result.provider_ref == "lsrq_real_1"
+    assert result.status == "created"
+
+
+def test_get_donation_status_parses_link_cli_array_response():
+    runner = _FakeRunner([{"id": "lsrq_real_1", "status": "approved"}])
+    provider = LinkCliProvider(link_mode="live", payment_method_id="pm_123", runner=runner)
+    status = provider.get_donation_status("lsrq_real_1")
+    assert status.status == "approved"
+    assert status.provider_ref == "lsrq_real_1"
+
+
+def test_retrieve_card_parses_link_cli_array_response(tmp_path):
+    runner = _FakeRunner(
+        [{"card": {"last4": "8855", "brand": "visa", "exp_month": 8, "exp_year": 2028}}]
+    )
+    provider = LinkCliProvider(link_mode="live", payment_method_id="pm_123", runner=runner)
+    cred = provider.retrieve_card("lsrq_real_1", output_dir=str(tmp_path))
+    assert cred.last4 == "8855"
+    assert cred.brand == "visa"
+
+
 def test_request_approval_failure_is_non_fatal_and_keeps_the_ref():
     class _CreateOkApprovalBoom:
         def __init__(self):
@@ -244,6 +273,31 @@ def test_live_test_mode_shells_with_test_flag():
     assert result.payload["mode"] == "live_test"
     create_args = runner.calls[0][0]
     assert "--test" in create_args  # real subprocess path, test credentials, no real money
+
+
+def test_live_test_mode_only_sends_test_flag_to_create(tmp_path):
+    # link-cli accepts --test ONLY on `spend-request create`. `retrieve` and
+    # `request-approval` reject it ("Unknown flag: --test"), so the provider must
+    # not append --test to those even in live_test mode. (The created spend-request
+    # id already carries the testmode context.)
+    runner = _FakeRunner([{"id": "sr_t", "status": "created", "card": {"last4": "0000"}}])
+    provider = LinkCliProvider(link_mode="live_test", payment_method_id="pm_123", runner=runner)
+
+    provider.create_donation(_make_pact(pact_id="pact_t"), idempotency_key="pact_t:donation")
+    create_args, approval_args = runner.calls[0][0], runner.calls[1][0]
+    assert "--test" in create_args
+    assert approval_args[2] == "request-approval"
+    assert "--test" not in approval_args
+
+    runner.calls.clear()
+    provider.get_donation_status("sr_t")
+    assert runner.calls[0][0][2] == "retrieve"
+    assert "--test" not in runner.calls[0][0]
+
+    runner.calls.clear()
+    provider.retrieve_card("sr_t", output_dir=str(tmp_path))
+    assert runner.calls[0][0][2] == "retrieve"
+    assert "--test" not in runner.calls[0][0]
 
 
 def test_link_mode_env_override_to_live_test():

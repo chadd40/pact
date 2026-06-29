@@ -79,8 +79,14 @@ def test_dry_run_retrieve_card_makes_no_subprocess_call(tmp_path):
     assert os.path.exists(cred.card_file)
 
 
-def test_live_retrieve_card_argv_and_parses_metadata(tmp_path):
-    runner = _FakeRunner({"card": {"last4": "1234", "brand": "visa", "exp_month": 11, "exp_year": 2029}})
+def test_live_retrieve_card_argv_writes_inline_card_and_parses_metadata(tmp_path):
+    # link-cli 0.4.x returns the card INLINE in stdout JSON (no --output-file flag).
+    # The provider must write that card to the 0600 file itself and surface only
+    # non-secret metadata.
+    runner = _FakeRunner(
+        {"card": {"number": "4242424242421234", "cvc": "123", "last4": "1234",
+                  "brand": "visa", "exp_month": 11, "exp_year": 2029}}
+    )
     provider = LinkCliProvider(link_mode="live", payment_method_id="pm_1", runner=runner)
 
     cred = provider.retrieve_card("sr_live", output_dir=str(tmp_path))
@@ -89,19 +95,38 @@ def test_live_retrieve_card_argv_and_parses_metadata(tmp_path):
     assert cred.brand == "visa"
     assert cred.exp_month == 11 and cred.exp_year == 2029
     assert cred.card_file.endswith("card_sr_live.json")
+    # The PAN is written to the 0600 file, never carried on the returned handle.
+    assert "4242424242421234" not in json.dumps(cred.__dict__)
+    saved = json.loads(open(cred.card_file).read())
+    assert saved["card"]["number"] == "4242424242421234"
+    assert stat.S_IMODE(os.stat(cred.card_file).st_mode) == 0o600
 
     args, _ = runner.calls[0]
     assert args[:4] == ["link-cli", "spend-request", "retrieve", "sr_live"]
     assert "--include" in args and args[args.index("--include") + 1] == "card"
-    assert "--output-file" in args and args[args.index("--output-file") + 1] == cred.card_file
+    # link-cli has no --output-file and rejects --test on retrieve.
+    assert "--output-file" not in args
+    assert "--test" not in args
 
 
-def test_live_test_retrieve_card_appends_test_flag(tmp_path):
-    runner = _FakeRunner({"card": {"last4": "9999"}})
+def test_live_test_retrieve_card_does_not_send_test_flag(tmp_path):
+    runner = _FakeRunner({"card": {"number": "4242424242429999", "last4": "9999"}})
     provider = LinkCliProvider(link_mode="live_test", payment_method_id="pm_1", runner=runner)
 
     cred = provider.retrieve_card("sr_t", output_dir=str(tmp_path))
 
-    assert "--test" in runner.calls[0][0]
+    assert "--test" not in runner.calls[0][0]
     assert cred.mode == "live_test"
     assert cred.last4 == "9999"
+
+
+def test_retrieve_card_raises_when_not_yet_approved(tmp_path):
+    # Before the human approves in Link, retrieve returns no card -> honest error,
+    # not a bogus empty card file.
+    runner = _FakeRunner({"id": "sr_p", "status": "pending_approval"})
+    provider = LinkCliProvider(link_mode="live", payment_method_id="pm_1", runner=runner)
+    try:
+        provider.retrieve_card("sr_p", output_dir=str(tmp_path))
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "not approved" in str(exc).lower()
