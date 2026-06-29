@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { ChatShell, StatusPill, type ChatMessage } from "../components/ChatShell";
-import { fundingDisplay, fundingIsLocalOnly } from "../lib/funding";
+import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
 import { isDesktop } from "../lib/platform";
 import { useLocalOwner } from "../owner";
 import type { ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
@@ -76,11 +76,12 @@ export function Onboard() {
     } finally { setBusy(null); }
   };
 
-  const fundingDone = !!link?.connected;
   const agentDone = !!token || health?.agent_token.status === "ready";
   const liveMoneyEnabled = runtime?.live_money_enabled ?? true;
+  const fundingDone = fundingIsReady(link, liveMoneyEnabled);
   const localOnlyFunding = fundingIsLocalOnly(link, liveMoneyEnabled);
   const fundingLabel = fundingDisplay(link, liveMoneyEnabled);
+  const fundingIssue = !fundingDone && link?.error ? link.error : null;
   const mcpReady = health?.connectors.some((connector) => connector.key === "mcp" && connector.status === "ready");
   const workerStatus = health?.worker.status ?? "offline";
   const agentName = agentKey ?? "Hermes";
@@ -116,7 +117,7 @@ export function Onboard() {
             <span>
               {fundingDone
                 ? localOnlyFunding ? fundingLabel : `Connected${fundingLabel ? ` · ${fundingLabel}` : ""}`
-                : "Connect the funding source that backs missed pacts."}
+                : fundingIssue ?? "Connect the funding source that backs missed pacts."}
             </span>
             <StatusPill tone={fundingDone ? "ok" : busy === "link" ? "busy" : "warn"}>
               {fundingDone ? "ready" : busy === "link" ? "checking" : "needs setup"}

@@ -139,6 +139,26 @@ describe("Settings", () => {
     expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
   });
 
+  it("keeps live Link in setup state when no payment method is ready", async () => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
+    vi.mocked(api.linkStatus).mockResolvedValue({
+      ...linkStatus(true),
+      ready: false,
+      payment_method_id: null,
+      payment_method_label: null,
+      payment_method_last4: null,
+      error: "No usable Link payment method is available",
+    });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    render(<Settings />);
+
+    await waitFor(() => expect(screen.getByText(/No usable Link payment method is available/i)).toBeTruthy());
+    expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
+    expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
+    expect(screen.queryByText(/Pact never holds your money/i)).toBeNull();
+  });
+
   it("mints a token, copies it, and clears it when the owner changes", async () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },

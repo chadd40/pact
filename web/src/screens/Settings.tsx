@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { fundingDisplay, fundingIsLocalOnly } from "../lib/funding";
+import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
 import { useLocalOwner } from "../owner";
 import type { ConnectorEntry, ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
 
@@ -84,6 +84,7 @@ export function Settings() {
   };
   const liveMoneyEnabled = runtime?.live_money_enabled ?? true;
   const localOnlyFunding = fundingIsLocalOnly(link, liveMoneyEnabled);
+  const fundingReady = fundingIsReady(link, liveMoneyEnabled);
   const fundingLabel = fundingDisplay(link, liveMoneyEnabled);
   const workerLabel = health ? `Worker ${health.worker.status}` : "Worker unknown";
   const tokenLabel = health?.agent_token.status === "ready"
@@ -111,7 +112,7 @@ export function Settings() {
         </div>
         <div className="set-overview-item">
           <span className="m">Funding</span>
-          <strong>{link == null ? "Checking" : link.connected ? localOnlyFunding ? "Dry run" : "Ready" : "Not connected"}</strong>
+          <strong>{link == null ? "Checking" : fundingReady ? localOnlyFunding ? "Dry run" : "Ready" : "Setup needed"}</strong>
         </div>
         <div className="set-overview-item">
           <span className="m">Agent</span>
@@ -147,12 +148,12 @@ export function Settings() {
             <div>
               <div className="set-k">Funding source</div>
               <div className="set-v">
-                {link == null ? "Checking..." : link.connected
+                {link == null ? "Checking..." : fundingReady
                   ? <span className="set-ok">{localOnlyFunding ? fundingLabel : `Connected · ${fundingLabel}`}</span>
                   : `Not connected${link?.error ? ` · ${link.error}` : " — a missed pact can't be charged until you connect."}`}
               </div>
             </div>
-            {!link?.connected && (
+            {!fundingReady && (
               <button className="ov-btn sm" onClick={connect} disabled={busy === "link"}>
                 {busy === "link" ? "Connecting..." : "Connect Link"}
               </button>
@@ -161,6 +162,8 @@ export function Settings() {
           <div className="set-note m">
             {localOnlyFunding
               ? "No real card is connected in this packaged build. Link is in local dry-run mode, so no money can move."
+              : !fundingReady
+                ? "Finish Link setup before Pact can charge missed pacts."
               : "Pact never holds your money. Connecting registers the funding source — no donation moves now."}
           </div>
         </div>

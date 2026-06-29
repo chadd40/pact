@@ -8,8 +8,16 @@ export function fundingIsLocalOnly(link: LinkStatus | null, liveMoneyEnabled: bo
   return !!link?.connected && !liveMoneyEnabled;
 }
 
+export function fundingIsReady(link: LinkStatus | null, liveMoneyEnabled = true): boolean {
+  if (!link?.connected) return false;
+  if (link.ready === false) return false;
+  if (!liveMoneyEnabled) return true;
+  return link.ready === true || !!link.payment_method_id;
+}
+
 export function fundingDisplay(link: LinkStatus | null, liveMoneyEnabled = true): string | null {
-  if (!link?.connected) return null;
+  if (!fundingIsReady(link, liveMoneyEnabled)) return null;
+  if (!link) return null;
   if (fundingIsLocalOnly(link, liveMoneyEnabled)) return "Local-only Link ready";
   if (link.payment_method_last4) {
     return `${link.payment_method_label ?? "Card"} •••• ${link.payment_method_last4}`;

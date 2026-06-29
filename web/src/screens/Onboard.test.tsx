@@ -252,4 +252,27 @@ describe("Onboard", () => {
     expect(screen.getByText(/No real card is connected/i)).toBeTruthy();
     expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
   });
+
+  it("does not unlock setup when live Link is connected but missing a ready payment method", async () => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
+    vi.mocked(api.linkStatus).mockResolvedValue({
+      ...linkStatus(),
+      ready: false,
+      payment_method_id: null,
+      payment_method_label: null,
+      payment_method_last4: null,
+      error: "No usable Link payment method is available",
+    });
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    await screen.findByRole("log", { name: /hermes setup chat/i });
+    expect(screen.getByText(/No usable Link payment method is available/i)).toBeTruthy();
+    expect(screen.getByText(/needs setup/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
+    expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
+    expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });
