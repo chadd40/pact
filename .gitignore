@@ -10,6 +10,7 @@ artifacts/
 web/src-tauri/binaries/
 
 .playwright-mcp/
+.superpowers/
 
 # local screenshot artifacts
 /*.png

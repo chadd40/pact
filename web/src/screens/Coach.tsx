@@ -5,7 +5,7 @@ import { useDemo } from "../App";
 import { useAppData } from "../data";
 import { useLocalOwner } from "../owner";
 import { GoalGlyph } from "../components/GoalGlyph";
-import { StatusPill } from "../components/ChatShell";
+import { ChatShell, StatusPill, type ChatMessage } from "../components/ChatShell";
 import { formatDateTime } from "../lib";
 import { AGENTS } from "./Create";
 import type { CoachingMessage, ConnectorHealth } from "../types";
@@ -37,76 +37,97 @@ export function Coach() {
   const workerOnline = health?.worker.status === "online";
   const tokenReady = health?.agent_token.status === "ready";
   const mcpReady = health?.connectors.some((c) => c.key === "mcp" && c.status === "ready") ?? false;
+  const consoleRows: ChatMessage[] = feed.length
+    ? feed.map((m) => {
+      const p = byId[m.pact_id];
+      return {
+        id: m.id,
+        role: m.direction === "inbound" ? "user" : "agent",
+        meta: p ? `${p.title} · ${formatDateTime(m.sent_at)}` : formatDateTime(m.sent_at),
+        body: m.body,
+        actions: p ? (
+          <button className="coach-chat-action" onClick={() => navigate(`/pact/${m.pact_id}`)} aria-label={`Open chat for ${p.title}`}>
+            Open chat
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+        ) : null,
+      };
+    })
+    : [{
+      id: "empty",
+      role: "agent",
+      body: "No nudges waiting. When a pact needs attention, it will land here as a coaching thread.",
+    }];
 
   return (
     <div className="pg">
       <div className="pg-head">
         <div className="pg-eyebrow m">Your agent</div>
         <div className="pg-title">Coach</div>
-        <div className="pg-lede">Hermes is watching every live pact — nudging you toward your stake and judging your proof. Open any pact to talk.</div>
+        <div className="pg-lede">Hermes keeps the live thread across your pacts: setup health, recent nudges, and a fast path back into each chat.</div>
       </div>
 
-      <div className="coach-hero">
-        <div className="coach-hero-av">{hermes.avatar ? <img src={hermes.avatar} alt="" /> : null}</div>
-        <div className="coach-hero-body">
-          <div className="coach-hero-name">Hermes</div>
-          <div className="coach-hero-sub"><span className="dot" />{workerOnline ? "Live worker online" : "Worker waiting"} · coaching {coached.length} pact{coached.length === 1 ? "" : "s"}</div>
-        </div>
+      <div className="coach-console">
+        <aside className="coach-agent-panel" aria-label="Hermes coach profile">
+          <div className="coach-agent-lockup">
+            <div className="coach-hero-av">{hermes.avatar ? <img src={hermes.avatar} alt="" /> : null}</div>
+            <div>
+              <div className="coach-hero-name">Hermes</div>
+              <div className="coach-hero-sub"><span className="dot" />{workerOnline ? "Live worker online" : "Worker waiting"}</div>
+            </div>
+          </div>
+
+          <div className="coach-setup-list">
+            <div className="coach-setup-row">
+              <span className="coach-status-k m">Agent token</span>
+              <StatusPill tone={tokenReady ? "ok" : "warn"}>{tokenReady ? health?.agent_token.token_prefix ?? "ready" : "missing"}</StatusPill>
+            </div>
+            <div className="coach-setup-row">
+              <span className="coach-status-k m">MCP</span>
+              <StatusPill tone={mcpReady ? "ok" : "warn"}>{mcpReady ? "ready" : "needs setup"}</StatusPill>
+            </div>
+            <div className="coach-setup-row">
+              <span className="coach-status-k m">Vision</span>
+              <StatusPill tone={health?.capabilities.vision ? "ok" : "warn"}>{health?.capabilities.vision ? "ready" : "waiting"}</StatusPill>
+            </div>
+          </div>
+
+          {health?.mcp.command && (
+            <div className="coach-command-block">
+              <div className="coach-status-k m">MCP command</div>
+              <code className="coach-command m">{health.mcp.command}</code>
+            </div>
+          )}
+
+          <div className="coach-side-section">
+            <div className="coach-side-head m">Live pacts · {coached.length}</div>
+            {coached.length === 0 ? (
+              <div className="coach-side-empty">No live pacts right now.</div>
+            ) : (
+              <div className="coach-pacts">
+                {coached.map((p) => (
+                  <button key={p.id} className="coach-pact-row" onClick={() => navigate(`/pact/${p.id}`)} aria-label={`Open pact ${p.title}`}>
+                    <span className="coach-pact-glyph"><GoalGlyph title={p.title} size={18} /></span>
+                    <span className="coach-pact-name">{p.title}</span>
+                    <span className="coach-pact-open">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M9 6l6 6-6 6" /></svg>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <section className="coach-thread-panel" aria-label="Recent coach messages">
+          <ChatShell
+            label="Hermes coach console"
+            agentName="Hermes"
+            agentAvatar={hermes.avatar}
+            messages={consoleRows}
+          />
+        </section>
       </div>
-
-      <div className="coach-status-grid">
-        <div className="coach-status-card">
-          <div className="coach-status-k m">Agent token</div>
-          <StatusPill tone={tokenReady ? "ok" : "warn"}>{tokenReady ? health?.agent_token.token_prefix ?? "ready" : "missing"}</StatusPill>
-        </div>
-        <div className="coach-status-card">
-          <div className="coach-status-k m">MCP</div>
-          <StatusPill tone={mcpReady ? "ok" : "warn"}>{mcpReady ? "ready" : "needs setup"}</StatusPill>
-        </div>
-        <div className="coach-status-card">
-          <div className="coach-status-k m">Capabilities</div>
-          <StatusPill tone={health?.capabilities.vision ? "ok" : "warn"}>{health?.capabilities.vision ? "text + vision" : "waiting"}</StatusPill>
-        </div>
-      </div>
-      {health?.mcp.command && <code className="coach-command m">{health.mcp.command}</code>}
-
-      <div className="pg-section-label m">Recent from your coach</div>
-      {feed.length === 0 ? (
-        <div className="pg-empty">No nudges waiting. You're all caught up.</div>
-      ) : (
-        <div className="coach-feed">
-          {feed.map((m) => {
-            const p = byId[m.pact_id];
-            return (
-              <button key={m.id} className="coach-feed-row" onClick={() => navigate(`/pact/${m.pact_id}`)}>
-                <span className="coach-feed-glyph">{p ? <GoalGlyph title={p.title} size={18} /> : null}</span>
-                <span className="coach-feed-main">
-                  <span className="coach-feed-pact">{p?.title ?? "Pact"}</span>
-                  <span className="coach-feed-body">{m.body}</span>
-                </span>
-                <span className="coach-feed-when m">{formatDateTime(m.sent_at)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="pg-section-label m">Live pacts</div>
-      {coached.length === 0 ? (
-        <div className="pg-empty">No live pacts right now.</div>
-      ) : (
-        <div className="coach-pacts">
-          {coached.map((p) => (
-            <button key={p.id} className="coach-pact-row" onClick={() => navigate(`/pact/${p.id}`)}>
-              <span className="coach-pact-glyph"><GoalGlyph title={p.title} size={18} /></span>
-              <span className="coach-pact-name">{p.title}</span>
-              <span className="coach-pact-open">Open chat
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M9 6l6 6-6 6" /></svg>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
