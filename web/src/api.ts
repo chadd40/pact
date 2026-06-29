@@ -169,9 +169,6 @@ export const api = {
   donationStatus: (pactId: string) =>
     request<DonationState>(`/api/pacts/${pactId}/donation/status`),
 
-  donationReceipt: (pactId: string) =>
-    request<DonationReceipt>(`/api/pacts/${pactId}/donation/receipt`),
-
   recordDonationReceipt: (
     pactId: string,
     payload: {
