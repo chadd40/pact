@@ -124,7 +124,11 @@ def _make_image(tmp_path) -> str:
     return str(path)
 
 
-def test_submit_proof_valid_photo_passes(tmp_path):
+def test_submit_proof_photo_without_vision_judge_is_held_ambiguous(tmp_path):
+    # With only the deterministic fallback (no vision-capable agent connected),
+    # an image proof cannot be content-judged, so it is HELD ambiguous for review
+    # rather than rubber-stamped as passed. Token + phash are still computed, and
+    # the client-supplied content_ok is ignored for images (vision judges content).
     clock = _clock()
     settings = _settings()
     provider = TestLLMProvider()
@@ -150,8 +154,8 @@ def test_submit_proof_valid_photo_passes(tmp_path):
     assert proof.pact_id == pact.id
     assert proof.token_ok is True
     assert proof.dup_of is None
-    assert proof.status == ProofStatus.passed
-    assert proof.judge_checklist == {"token": True, "content": True, "not_dup": True}
+    assert proof.status == ProofStatus.ambiguous
+    assert proof.judge_checklist == {"token": True, "content": False, "not_dup": True}
     assert proof.received_at == clock.now()
     assert proof.day_bucket  # computed in pact tz
     assert proof.phash  # computed for a photo
@@ -196,13 +200,13 @@ def test_submit_proof_duplicate_phash_fails(tmp_path):
     )
     image_path = _make_image(tmp_path)
 
-    # first valid proof
+    # first proof: no vision judge -> held ambiguous (still phashed for dedup)
     token1 = tokens.issue(pact.id, clock)
     first = submit_proof(
         pact, Modality.photo, token1, True, image_path,
         tokens, provider, clock,
     )
-    assert first.status == ProofStatus.passed
+    assert first.status == ProofStatus.ambiguous
 
     # resubmit the SAME image -> duplicate phash -> failed
     token2 = tokens.issue(pact.id, clock)

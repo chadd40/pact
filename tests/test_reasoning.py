@@ -132,6 +132,53 @@ def test_resolve_judge_proof_bad_content_is_ambiguous():
     assert result["checklist"] == {"token": True, "content": False, "not_dup": True}
 
 
+def test_resolve_judge_proof_image_without_vision_judge_is_ambiguous_not_passed():
+    # An image proof reaches the DETERMINISTIC fallback with an artifact_path but
+    # no explicit content_ok (only a vision-capable agent can set that). The
+    # fallback has no vision, so it must NOT rubber-stamp the image as passed --
+    # it holds it as ambiguous for review.
+    provider = TestLLMProvider()
+    task = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_abc123",
+        {
+            "token_ok": True,
+            "is_duplicate": False,
+            "artifact_path": "/tmp/proof.jpg",
+            "phash": "deadbeef",
+            "rubric": {},
+            "modality": "photo",
+        },
+        _clock(),
+    )
+    result = provider.resolve(task)
+    assert result["status"] == "ambiguous"
+    assert result["checklist"] == {"token": True, "content": False, "not_dup": True}
+    assert "vision" in result["reason"].lower()
+
+
+def test_resolve_judge_proof_image_with_explicit_content_ok_is_honored():
+    # When a (vision-capable) caller DOES assert content_ok alongside an
+    # artifact_path, the deterministic judge honors that explicit signal.
+    provider = TestLLMProvider()
+    task = make_reasoning_task(
+        TaskType.judge_proof,
+        "pact_abc123",
+        {
+            "token_ok": True,
+            "is_duplicate": False,
+            "content_ok": True,
+            "artifact_path": "/tmp/proof.jpg",
+            "rubric": {},
+            "modality": "photo",
+        },
+        _clock(),
+    )
+    result = provider.resolve(task)
+    assert result["status"] == "passed"
+    assert result["checklist"] == {"token": True, "content": True, "not_dup": True}
+
+
 def test_resolve_coach_message_contains_pace_math():
     provider = TestLLMProvider()
     task = make_reasoning_task(

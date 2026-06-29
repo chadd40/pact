@@ -203,7 +203,15 @@ class TestLLMProvider:
     def _judge_proof(self, input: dict) -> dict:
         token_ok = bool(input.get("token_ok"))
         is_duplicate = bool(input.get("is_duplicate"))
-        content_ok = bool(input.get("content_ok", input.get("artifact_path")))
+        # The deterministic fallback has no vision. It can confirm token + dedup,
+        # but it can only judge CONTENT when a caller explicitly asserts content_ok
+        # -- either a text/log/url submission or a vision-capable agent posting a
+        # verdict. An image proof arrives with an artifact_path and NO content_ok;
+        # we must NOT rubber-stamp it as passed. Hold it as ambiguous for a real
+        # (agent) judge to review.
+        content_ok_explicit = "content_ok" in input
+        content_unverifiable = bool(input.get("artifact_path")) and not content_ok_explicit
+        content_ok = bool(input.get("content_ok")) and not content_unverifiable
         checklist = {
             "token": token_ok,
             "content": content_ok,
@@ -215,6 +223,13 @@ class TestLLMProvider:
         elif is_duplicate:
             status = "failed"
             reason = "Perceptual hash matches a prior proof; duplicate rejected."
+        elif content_unverifiable:
+            status = "ambiguous"
+            reason = (
+                "No vision-capable judge is connected; image proof held for review. "
+                "The deterministic fallback cannot confirm the rubric -- connect an "
+                "agent with `pact serve` for a real verdict."
+            )
         elif not content_ok:
             status = "ambiguous"
             reason = "Token valid but content does not clearly satisfy the rubric."

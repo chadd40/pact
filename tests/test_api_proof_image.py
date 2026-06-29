@@ -106,7 +106,10 @@ async def test_proof_token_returns_expiry_for_live_countdown(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_image_proof_valid_token_passes_and_persists(tmp_path):
+async def test_image_proof_held_ambiguous_without_vision_judge_but_persists(tmp_path):
+    # No vision-capable agent is connected (plain TestLLMProvider), so an image
+    # proof is HELD ambiguous for review rather than rubber-stamped as passed.
+    # Token/phash/artifact are still computed and persisted server-side.
     clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
     app, repo, settings = _build(tmp_path, clock)
     async with _client(app) as client:
@@ -117,7 +120,7 @@ async def test_image_proof_valid_token_passes_and_persists(tmp_path):
         assert r.status_code == 200, r.text
         proof = r.json()
         assert proof["modality"] == "photo"
-        assert proof["status"] == "passed"
+        assert proof["status"] == "ambiguous"
         assert proof["token_ok"] is True
         assert proof["dup_of"] is None
         assert proof["phash"] is not None
@@ -130,7 +133,7 @@ async def test_image_proof_valid_token_passes_and_persists(tmp_path):
         stored = repo.list_proofs(pact_id)
         assert len(stored) == 1
         assert stored[0].id == proof["id"]
-        assert stored[0].status.value == "passed"
+        assert stored[0].status.value == "ambiguous"
 
 
 @pytest.mark.asyncio
@@ -140,12 +143,13 @@ async def test_duplicate_image_is_rejected(tmp_path):
     async with _client(app) as client:
         pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
 
-        # First submission of a given image: passes.
+        # First submission of a given image: held ambiguous (no vision judge),
+        # but still phashed so the duplicate check below has something to match.
         t1 = await _token(client, pact_id)
         img = _png_bytes((30, 180, 90))
         r1 = await _post_image(client, pact_id, t1, img)
         assert r1.status_code == 200, r1.text
-        assert r1.json()["status"] == "passed"
+        assert r1.json()["status"] == "ambiguous"
         first_phash = r1.json()["phash"]
 
         # Same image again, different (valid) token, next day: pHash dup -> failed.
