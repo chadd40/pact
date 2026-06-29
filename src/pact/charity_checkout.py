@@ -112,9 +112,14 @@ _OVERLAY_CLOSE_SELECTORS = [
     "#onetrust-accept-btn-handler",
     "button:has-text('Accept all')",
     "button:has-text('Accept All')",
+    # Unbounce marketing popup ("...project doubled") — the recurring blocker.
     ".ub-emb-close",
     ".ub-emb-iframe + .ub-emb-close",
+    "[class*='ub-emb'] [class*='close']",
+    "a[id*='close']",
+    "button[class*='close']",
     "[aria-label='Close']",
+    "[aria-label='close']",
     "dialog[aria-label='Cookie consent dialog'] button:has-text('Close')",
 ]
 
@@ -124,14 +129,34 @@ def _log(msg: str) -> None:
 
 
 def _dismiss_overlays(page) -> None:
+    """Best-effort: close cookie + Unbounce marketing popups that intercept clicks.
+    charity: water raises an Unbounce embed that reliably covers the donate widget,
+    so this is called repeatedly through the flow. Tries close buttons in the page
+    and inside any ub-emb iframe, plus Escape."""
     for sel in _OVERLAY_CLOSE_SELECTORS:
         try:
             loc = page.locator(sel).first
             if loc.count() and loc.is_visible():
-                loc.click(timeout=2000)
+                loc.click(timeout=1500)
                 _log(f"dismissed overlay via {sel}")
         except Exception:
             continue
+    # The Unbounce popup is often inside its own iframe — reach its close control.
+    for fsel in ["iframe[class*='ub-emb']", "iframe[id*='ub-emb']", "iframe[src*='unbounce']"]:
+        try:
+            frame = page.frame_locator(fsel).first
+            for csel in ["[class*='close']", "a[id*='close']", "[aria-label*='close' i]", "button"]:
+                btn = frame.locator(csel).first
+                if btn.count() and btn.is_visible():
+                    btn.click(timeout=1500)
+                    _log(f"dismissed ub-emb popup via {fsel} {csel}")
+                    break
+        except Exception:
+            continue
+    try:
+        page.keyboard.press("Escape")
+    except Exception:
+        pass
 
 
 def _fill_stripe_card(page, card: dict) -> None:
@@ -223,9 +248,14 @@ def run_checkout(
         page.set_default_timeout(timeout_ms)
         try:
             page.goto(donation_url, wait_until="domcontentloaded")
+            # The Unbounce popup appears on a delay, so settle then dismiss twice.
+            page.wait_for_timeout(3500)
+            _dismiss_overlays(page)
             _dismiss_overlays(page)
 
-            # Step 1: choose one-time and set the amount.
+            # Step 1: choose one-time and set the amount (re-dismiss first — the
+            # popup re-covers the widget intermittently).
+            _dismiss_overlays(page)
             try:
                 page.get_by_text("Give once", exact=False).first.click(timeout=8000)
             except Exception:
@@ -233,9 +263,17 @@ def run_checkout(
             amount = page.get_by_role("spinbutton").first
             amount.fill(dollars, timeout=8000)
 
-            # Step 2: advance to the card step.
+            # Step 2: advance to the card step. (exact=False matches the "Give"
+            # submit; verified to reach the Stripe step.) Then wait for the Stripe
+            # card iframe to actually mount before attempting to fill.
+            _dismiss_overlays(page)
             page.get_by_role("button", name="Give", exact=False).first.click(timeout=8000)
-            page.wait_for_timeout(2500)
+            try:
+                page.wait_for_selector(
+                    "iframe[src*='js.stripe.com'], iframe[title*='card' i]", timeout=20000
+                )
+            except Exception:
+                _log("stripe card iframe did not mount within timeout")
             _dismiss_overlays(page)
 
             # Step 3: fill the card from the file.
