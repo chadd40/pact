@@ -242,6 +242,12 @@ export interface CoachingMessage {
   body: string;
   sent_at: string;
   delivered_at: string | null;
+  attachments?: Array<{
+    filename: string;
+    content_type?: string | null;
+    size_bytes?: number;
+    artifact_path?: string;
+  }>;
 }
 
 // One scheduler sweep. The backend returns an implementation-defined dict; the UI

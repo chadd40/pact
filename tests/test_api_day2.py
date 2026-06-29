@@ -19,7 +19,7 @@ def _build(tmp_path, clock):
     provider = TestLLMProvider()
     payment = TestLinkProvider()
     tokens = TokenStore(ttl_minutes=10)
-    settings = Settings(db_path=db)
+    settings = Settings(db_path=db, artifacts_dir=str(tmp_path / "artifacts"))
     app = create_app(repo, provider, payment, tokens, clock, settings)
     return app, repo
 
@@ -141,6 +141,36 @@ async def test_coach_post_returns_inbound_and_outbound_and_get_shows_thread(tmp_
         assert replies[0]["direction"] == "inbound"
         assert replies[1]["direction"] == "outbound"
         assert {m["id"] for m in replies} == {body["inbound"]["id"], body["outbound"]["id"]}
+
+
+@pytest.mark.asyncio
+async def test_coach_post_accepts_file_attachments_and_persists_metadata(tmp_path):
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, _ = _build(tmp_path, clock)
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "work out 5x this week or $15 to charity")
+
+        r = await client.post(
+            f"/api/pacts/{pact_id}/coach",
+            data={"message": "Here is the plan screenshot."},
+            files=[
+                ("attachments", ("proof-note.txt", b"hello coach", "text/plain")),
+            ],
+        )
+
+        assert r.status_code == 200, r.text
+        inbound = r.json()["inbound"]
+        assert inbound["body"] == "Here is the plan screenshot."
+        assert inbound["attachments"][0]["filename"] == "proof-note.txt"
+        assert inbound["attachments"][0]["content_type"] == "text/plain"
+        assert inbound["attachments"][0]["size_bytes"] == len(b"hello coach")
+        artifact_path = inbound["attachments"][0]["artifact_path"]
+        assert artifact_path.endswith("proof-note.txt")
+        assert str(tmp_path / "artifacts") in artifact_path
+
+        thread = (await client.get(f"/api/pacts/{pact_id}/coach")).json()
+        persisted = [m for m in thread if m["id"] == inbound["id"]][0]
+        assert persisted["attachments"] == inbound["attachments"]
 
 
 @pytest.mark.asyncio

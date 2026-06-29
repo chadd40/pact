@@ -12,12 +12,12 @@ export function CoachPane({
 }: {
   pact: Pact;
   messages: CoachingMessage[];
-  onSend: (text: string) => Promise<void> | void;
+  onSend: (text: string, attachments?: File[]) => Promise<void> | void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const agent = pact.agent ?? "Hermes";
@@ -29,21 +29,32 @@ export function CoachPane({
     const t = draft.trim();
     if (!t || busy) return;
     setBusy(true);
-    try { await onSend(t); setDraft(""); setAttachments([]); } finally { setBusy(false); }
+    try { await onSend(t, attachments); setDraft(""); setAttachments([]); } finally { setBusy(false); }
   };
 
   const onAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!files.length) return;
-    setAttachments((current) => [...current, ...files.map((file) => file.name)]);
+    setAttachments((current) => [...current, ...files]);
   };
 
   const rows: ChatMessage[] = messages.length
     ? messages.map((m) => ({
       id: m.id,
       role: m.direction === "outbound" ? "agent" : "user",
-      body: m.body,
+      body: (
+        <>
+          <span>{m.body}</span>
+          {!!m.attachments?.length && (
+            <div className="cp-message-attachments">
+              {m.attachments.map((attachment, index) => (
+                <span key={`${attachment.filename}-${index}`}>{attachment.filename}</span>
+              ))}
+            </div>
+          )}
+        </>
+      ),
     }))
     : [{
       id: "empty",
@@ -72,8 +83,8 @@ export function CoachPane({
             <div className="cp-compose-wrap">
               {attachments.length > 0 && (
                 <div className="cp-attachments" aria-label="Selected attachments">
-                  {attachments.map((name, index) => (
-                    <span className="cp-attachment" key={`${name}-${index}`}>{name}</span>
+                  {attachments.map((file, index) => (
+                    <span className="cp-attachment" key={`${file.name}-${index}`}>{file.name}</span>
                   ))}
                 </div>
               )}

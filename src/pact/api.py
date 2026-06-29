@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+import os
+import re
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -87,6 +91,60 @@ _RECEIPT_STATUSES = {
     "provider_confirmed",
     "failed_or_reversed",
 }
+
+
+def _safe_attachment_name(filename: str | None, fallback: str) -> str:
+    raw = Path(filename or fallback).name
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", raw).strip(".-")
+    return safe or fallback
+
+
+async def _read_coach_payload(
+    request: Request,
+    pact_id: str,
+    settings: Settings,
+    clock: Clock,
+) -> tuple[str, list[dict]]:
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" not in content_type:
+        try:
+            payload = await request.json()
+        except Exception:
+            raise HTTPException(status_code=422, detail="invalid coach message payload")
+        body = CoachIn.model_validate(payload)
+        return body.message, []
+
+    form = await request.form()
+    message = str(form.get("message") or "")
+    uploads = form.getlist("attachments")
+    attachments: list[dict] = []
+    stamp = clock.now().strftime("%Y%m%d%H%M%S")
+    out_dir = Path(settings.artifacts_dir) / pact_id / "coach"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for index, upload in enumerate(uploads):
+        if not hasattr(upload, "read"):
+            continue
+        data = await upload.read()
+        filename = _safe_attachment_name(
+            getattr(upload, "filename", None),
+            f"attachment-{index + 1}",
+        )
+        artifact_path = out_dir / f"{stamp}-{index}-{filename}"
+        with open(artifact_path, "wb") as f:
+            f.write(data)
+        attachments.append({
+            "filename": filename,
+            "content_type": getattr(upload, "content_type", None),
+            "size_bytes": len(data),
+            "artifact_path": os.fspath(artifact_path),
+        })
+    if not message.strip() and attachments:
+        count = len(attachments)
+        message = f"Attached {count} file{'s' if count != 1 else ''}."
+    if not message.strip():
+        raise HTTPException(status_code=422, detail="message is required")
+    return message, attachments
 
 
 class DraftIn(BaseModel):
@@ -940,10 +998,18 @@ def create_app(
         ]
 
     @app.post("/api/pacts/{pact_id}/coach")
-    def post_coach(pact_id: str, body: CoachIn):
+    async def post_coach(pact_id: str, request: Request):
         pact = _require(pact_id)
+        message, attachments = await _read_coach_payload(request, pact_id, settings, clock)
         proofs_list = repo.list_proofs(pact_id)
-        inbound, outbound = user_reply(pact, body.message, proofs_list, provider, clock)
+        inbound, outbound = user_reply(
+            pact,
+            message,
+            proofs_list,
+            provider,
+            clock,
+            attachments=attachments,
+        )
         repo.save_coaching_message(inbound)
         repo.save_coaching_message(outbound)
         return {

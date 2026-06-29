@@ -188,6 +188,7 @@ def user_reply(
     proofs: list[Proof],
     provider: ReasoningProvider,
     clock: Clock,
+    attachments: list[dict] | None = None,
 ) -> tuple[CoachingMessage, CoachingMessage]:
     """Persist a user's inbound reply and generate an outbound coach response.
 
@@ -197,6 +198,7 @@ def user_reply(
     pace (distinct valid days proven so far) rather than a fixed zero.
     """
     now = clock.now()
+    attachment_meta = attachments or []
 
     # Inbound: the user's own message.
     inbound = CoachingMessage(
@@ -208,6 +210,7 @@ def user_reply(
         channel="web",
         body=text,
         sent_at=now,
+        attachments=attachment_meta,
     )
 
     # Outbound: coach response grounded in the real distinct-valid-day count.
@@ -227,6 +230,7 @@ def user_reply(
             "stake_cents": pact.stake_amount_cents,
             "status": pact.status.value,
             "user_message": text,
+            "attachments": attachment_meta,
         },
         clock,
     )

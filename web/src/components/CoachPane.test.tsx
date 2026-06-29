@@ -77,4 +77,18 @@ describe("CoachPane", () => {
 
     expect(screen.getByText("proof-note.txt")).toBeTruthy();
   });
+
+  it("sends selected files with the coach message", async () => {
+    const onSend = vi.fn();
+    render(<CoachPane pact={pact()} messages={[]} onSend={onSend} onClose={() => {}} />);
+
+    const file = new File(["hello"], "proof-note.txt", { type: "text/plain" });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await userEvent.type(screen.getByRole("textbox", { name: /message hermes/i }), "please review");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    expect(onSend).toHaveBeenCalledWith("please review", [file]);
+  });
 });

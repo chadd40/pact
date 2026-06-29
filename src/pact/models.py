@@ -278,3 +278,4 @@ class CoachingMessage(BaseModel):
     body: str
     sent_at: datetime
     delivered_at: datetime | None = None
+    attachments: list[dict] = []

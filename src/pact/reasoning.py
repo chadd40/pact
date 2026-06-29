@@ -230,10 +230,16 @@ class TestLLMProvider:
         charity = str(input.get("charity", "your chosen charity"))
         title = str(input.get("title") or input.get("goal") or "this pact")
         user_message = str(input.get("user_message") or "").strip()
+        attachments = input.get("attachments") or []
         remaining = max(target - valid, 0)
         pace_line = (
             f"{valid} of {target} done, {days_left} days left — "
             f"you need {remaining} more to keep your stake out of {charity}."
+        )
+        attachment_line = (
+            f" I see {len(attachments)} attachment{'s' if len(attachments) != 1 else ''}."
+            if attachments
+            else ""
         )
         if user_message:
             ask = user_message.lower()
@@ -245,9 +251,9 @@ class TestLLMProvider:
                 next_step = "You are safe if the remaining reps fit inside the days left; otherwise we tighten the plan today."
             else:
                 next_step = "Pick the next visible rep and remove one bit of friction before you leave this chat."
-            message = f"For {title}: {pace_line} {next_step}"
+            message = f"For {title}: {pace_line}{attachment_line} {next_step}"
         else:
-            message = pace_line
+            message = f"{pace_line}{attachment_line}"
         return {"message": message}
 
     def _verdict(self, input: dict) -> dict:

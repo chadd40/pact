@@ -205,9 +205,9 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     }
   }, []);
 
-  const sendCoach = async (text: string) => {
+  const sendCoach = async (text: string, attachments: File[] = []) => {
     if (!pact) return;
-    await api.postCoach(pact.id, text).catch(() => {});
+    await api.postCoach(pact.id, text, attachments).catch(() => {});
     setCoach(await api.getCoach(pact.id).catch(() => coach));
   };
 

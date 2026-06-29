@@ -196,11 +196,21 @@ export const api = {
   getCoach: (pactId: string) =>
     request<CoachingMessage[]>(`/api/pacts/${pactId}/coach`),
 
-  postCoach: (pactId: string, message: string) =>
-    request<{ inbound: CoachingMessage; outbound: CoachingMessage }>(
+  postCoach: (pactId: string, message: string, attachments: File[] = []) => {
+    if (attachments.length === 0) {
+      return request<{ inbound: CoachingMessage; outbound: CoachingMessage }>(
+        `/api/pacts/${pactId}/coach`,
+        { json: { message } }
+      );
+    }
+    const form = new FormData();
+    form.append("message", message);
+    attachments.forEach((file) => form.append("attachments", file));
+    return request<{ inbound: CoachingMessage; outbound: CoachingMessage }>(
       `/api/pacts/${pactId}/coach`,
-      { json: { message } }
-    ),
+      { method: "POST", body: form }
+    );
+  },
 
   // Run one scheduler sweep: reconcile, close dispute windows, and enqueue any
   // proactive coaching nudges into the outbox.
