@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-SKILL_PATH = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "pact" / "SKILL.md"
+_ROOT = Path(__file__).resolve().parents[1]
+SKILL_PATH = _ROOT / ".claude" / "skills" / "pact" / "SKILL.md"
+AGENTS_SKILL_PATH = _ROOT / ".agents" / "skills" / "pact" / "SKILL.md"
 
 
 def _read_skill() -> str:
@@ -36,6 +38,17 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
 def test_skill_file_exists():
     assert SKILL_PATH.exists()
     assert SKILL_PATH.is_file()
+
+
+def test_claude_and_agents_skill_copies_stay_identical():
+    # The .claude/ and .agents/ skill files are the same agent-brain contract. They
+    # are hand-maintained copies, so guard against silent drift (edit one, forget the
+    # other) — both must be byte-identical.
+    assert AGENTS_SKILL_PATH.exists(), f"missing skill file: {AGENTS_SKILL_PATH}"
+    assert (
+        AGENTS_SKILL_PATH.read_text(encoding="utf-8")
+        == SKILL_PATH.read_text(encoding="utf-8")
+    ), ".claude and .agents pact SKILL.md copies have drifted — keep them in sync"
 
 
 def test_frontmatter_has_name_pact():
