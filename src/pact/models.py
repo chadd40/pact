@@ -8,6 +8,7 @@ from pydantic import BaseModel, field_validator
 
 class PactStatus(str, Enum):
     draft = "draft"
+    awaiting_stake = "awaiting_stake"  # spend-request opened; awaiting Link approval at creation
     active = "active"
     evaluating = "evaluating"
     succeeded = "succeeded"
@@ -16,7 +17,8 @@ class PactStatus(str, Enum):
     canceled_release = "canceled_release"
     canceled_forfeit = "canceled_forfeit"
     donation_pending = "donation_pending"
-    donated = "donated"
+    donated = "donated"  # agent submitted the charge; awaiting Link confirmation
+    donation_complete = "donation_complete"  # Link-confirmed charge; terminal/resolved
     donation_failed = "donation_failed"
     donation_declined = "donation_declined"
 
@@ -110,6 +112,9 @@ class Pact(BaseModel):
     status: PactStatus = PactStatus.draft
     stake_state: StakeState = StakeState.none
     spend_request_id: str | None = None
+    # The Link approval URL the owner must visit to authorize the pre-staked
+    # spend-request at creation (live mode). Cleared once the stake is approved.
+    stake_approval_url: str | None = None
     # Provisioned virtual card (Tier 1): non-secret last4 + the server-side path
     # to the card file the Stripe-Checkout helper uses. The PAN never lives here.
     card_last4: str | None = None

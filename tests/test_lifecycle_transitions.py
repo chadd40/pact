@@ -67,6 +67,34 @@ def test_allowed_transitions_is_keyed_by_status():
     assert ALLOWED_TRANSITIONS[PactStatus.succeeded] == set()
 
 
+def test_pre_authorize_creation_transitions_exist():
+    # Stake is pre-authorized at creation: draft -> awaiting_stake -> active.
+    assert PactStatus.awaiting_stake in ALLOWED_TRANSITIONS[PactStatus.draft]
+    assert PactStatus.active in ALLOWED_TRANSITIONS[PactStatus.awaiting_stake]
+    # Abandoning the Link approval releases (no charge).
+    assert PactStatus.canceled_release in ALLOWED_TRANSITIONS[PactStatus.awaiting_stake]
+
+
+def test_donated_to_donation_complete_allowed():
+    # Link-confirmed charge resolves the donation.
+    pact = _make_pact(PactStatus.donated)
+    result = transition(pact, PactStatus.donation_complete)
+    assert result.status == PactStatus.donation_complete
+    assert ALLOWED_TRANSITIONS[PactStatus.donation_complete] == set()
+
+
+def test_active_to_donation_complete_raises():
+    pact = _make_pact(PactStatus.active)
+    with pytest.raises(TransitionError):
+        transition(pact, PactStatus.donation_complete)
+
+
+def test_pact_carries_stake_approval_url_field():
+    pact = _make_pact(PactStatus.awaiting_stake)
+    pact.stake_approval_url = "https://link.example/approve/abc"
+    assert pact.stake_approval_url == "https://link.example/approve/abc"
+
+
 def test_new_pact_id_deterministic_for_seed():
     first = new_pact_id("work out 5x this week")
     second = new_pact_id("work out 5x this week")

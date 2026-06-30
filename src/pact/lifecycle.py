@@ -16,9 +16,14 @@ class PactRefused(Exception):
 
 ALLOWED_TRANSITIONS: dict[PactStatus, set[PactStatus]] = {
     PactStatus.draft: {
+        PactStatus.awaiting_stake,
         PactStatus.active,
         PactStatus.canceled_release,
         PactStatus.canceled_forfeit,
+    },
+    PactStatus.awaiting_stake: {
+        PactStatus.active,
+        PactStatus.canceled_release,
     },
     PactStatus.active: {
         PactStatus.evaluating,
@@ -46,9 +51,12 @@ ALLOWED_TRANSITIONS: dict[PactStatus, set[PactStatus]] = {
         PactStatus.donation_failed,
         PactStatus.donation_declined,
     },
+    PactStatus.donated: {
+        PactStatus.donation_complete,
+    },
     PactStatus.succeeded: set(),
     PactStatus.canceled_release: set(),
-    PactStatus.donated: set(),
+    PactStatus.donation_complete: set(),
     PactStatus.donation_failed: set(),
     PactStatus.donation_declined: set(),
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { GrainGradient } from "@paper-design/shaders-react";
 import { Create } from "./Create";
 import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { asset } from "../lib/asset";
@@ -228,6 +229,20 @@ export function Landing() {
       {/* ── Act 1–3 · pinned phone, scroll-revealed conversation ─────────────── */}
       <div className="lp-pin" ref={pinRef}>
         <div className="lp-sticky">
+          {/* Animated watercolor-on-paper shader behind the phone (Paper Design). */}
+          <div className="lp-shader" aria-hidden="true">
+            <GrainGradient
+              style={{ width: "100%", height: "100%" }}
+              colorBack="#efe6d3"
+              colors={["#f5edda", "#ecdfc8", "#e6d1b6", "#e0c2a2", "#d8c6a8"]}
+              softness={0.9}
+              intensity={0.24}
+              noise={0.13}
+              shape="blob"
+              speed={0.5}
+              scale={1.2}
+            />
+          </div>
           {/* ambient drifting wishes (scale with the window) */}
           <div className="lp-field" aria-hidden="true">
             {DRIFT.map((w, i) => (

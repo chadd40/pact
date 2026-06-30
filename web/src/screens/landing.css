@@ -45,6 +45,22 @@
   align-items: center;
   padding-top: clamp(92px, 12vh, 132px);
 }
+/* Animated watercolor-on-paper shader, full-bleed behind everything in the hero.
+   z-index 0 sits under the wishes (1), the phone (5) and the headline (6). The
+   solid fallback shows if WebGL is unavailable, so the hero never goes blank. */
+.lp-shader {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--l-bg);
+}
+.lp-shader canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
 /* The phone scene fills the space under the headline and scales as one unit. */
 .lp-stagewrap {
   flex: 1 1 auto;
@@ -72,6 +88,7 @@
 .lp-field {
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
   overflow: hidden;
 }
@@ -104,13 +121,13 @@
   display: grid;
   text-align: center;
   padding: 0 18px;
-  margin-bottom: clamp(30px, 5vh, 56px);
-  font-size: clamp(16px, 1.3vw + 8px, 22px);
-  line-height: 1.4;
+  margin-bottom: clamp(26px, 4vh, 48px);
+  font-size: clamp(30px, 4.6vw, 56px);
+  line-height: 1.12;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  color: rgba(21, 20, 15, 0.7);
-  max-width: 540px;
+  letter-spacing: -0.02em;
+  color: rgba(21, 20, 15, 0.84);
+  max-width: 760px;
   pointer-events: none;
 }
 /* Both states share one grid cell so they crossfade in place (height reserved
