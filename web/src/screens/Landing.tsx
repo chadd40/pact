@@ -249,7 +249,7 @@ export function Landing() {
                 className="lp-drift"
                 style={{ ...w.pos, animationDelay: w.d, animationDuration: w.dur }}
               >
-                {w.t}
+                <span className="lp-drift-t">{w.t}</span>
               </span>
             ))}
             <span className="lp-drift lp-sparkle" style={{ left: "15%", top: "22%", animationDelay: "1.8s" }}>

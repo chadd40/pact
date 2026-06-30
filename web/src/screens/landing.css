@@ -102,7 +102,9 @@
   font-size: clamp(18px, 1.65vw, 24px);
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: rgba(21, 20, 15, 0.23);
+  /* The warm brown from the section below (--l-muted #6c6452), kept low-opacity
+     so over the parchment the wishes read as a soft light tan rather than gray. */
+  color: rgba(108, 100, 82, 0.3);
   white-space: nowrap;
   /* Invisible at rest. Every wish is only ever shown BY its animation — there is
      no static, visible base state to flash on first paint and then reset. The
@@ -117,6 +119,25 @@
   color: rgba(176, 67, 42, 0.2);
   font-size: clamp(18px, 1.8vw, 26px);
   font-weight: 400;
+}
+/* The wish text carries the blur (the float + opacity live on the parent span).
+   Most words sit at a soft static blur; a staggered subset breathes in and out
+   of focus on its own timing, so the field always has some words sharpening
+   while others soften. */
+.lp-drift-t {
+  display: inline-block;
+  filter: blur(1.6px);
+}
+.lp-drift:nth-child(3n) .lp-drift-t {
+  animation: driftFocus 9s ease-in-out infinite;
+}
+.lp-drift:nth-child(4n) .lp-drift-t {
+  animation: driftFocus 13s ease-in-out infinite;
+  animation-delay: -6s;
+}
+@keyframes driftFocus {
+  0%, 100% { filter: blur(0.8px); }
+  50% { filter: blur(4px); }
 }
 
 /* Headline sits just below the fixed chrome (logo + Start a pact). */
@@ -250,8 +271,10 @@
   flex: none;
   padding: 4px 16px 11px;
   border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
-  background: rgba(251, 251, 253, 0.86);
-  backdrop-filter: blur(12px);
+  /* Solid (matches the screen bg) instead of a translucent backdrop-filter: the
+     filter escapes the screen's rounded-corner clip and bled the header onto the
+     black bezel at the top corners. Nothing sits behind the header to blur. */
+  background: #fbfbfd;
   display: flex;
   flex-direction: column;
   align-items: center;
