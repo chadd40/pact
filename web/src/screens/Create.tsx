@@ -30,14 +30,18 @@ interface GoalCard {
 // `art` is display-only (it's never persisted — the seal sends `template`), so
 // resolve it against the Vite base here. `template` and `card_art` stay raw.
 const GOALS: GoalCard[] = [
+  { title: "Custom goal", desc: "Make your own", template: null, art: null },
   { title: "Work out", desc: "Move your body", template: "workout", art: asset("/cards/workout.svg") },
   { title: "Meditate", desc: "Find some quiet", template: "meditate", art: asset("/cards/meditate.svg") },
   { title: "Read", desc: "Feed your mind", template: "read", art: asset("/cards/read.svg") },
   { title: "Ship something", desc: "Build in public", template: "ship_daily", art: asset("/cards/ship.svg") },
   { title: "No phone at night", desc: "Reclaim your evenings", template: "no_phone_night", art: asset("/cards/nophone.svg") },
-  { title: "Custom goal", desc: "Make your own", template: null, art: null },
 ];
-const CUSTOM_INDEX = GOALS.length - 1;
+// The custom "create your own" card now leads the deck (far left), but the carousel
+// opens on the first template so a concrete card greets the user — the custom card
+// sits one step to the left (press Back / ◀ to reach it).
+const CUSTOM_INDEX = GOALS.findIndex((g) => g.template === null);
+const START_INDEX = CUSTOM_INDEX + 1;
 
 // Painterly card fronts a custom goal can wear (picked via the image button on
 // step 1). The goal name is overlaid at the bottom, mirroring the template cards.
@@ -88,6 +92,9 @@ const STAKE_MAX = 500;
 const STAGE_W = 1080;
 const STAGE_H = 760;
 const DECK_SCALE = 0.72;
+// Resting offset of the chosen card, left of stage center. Paired with the rail
+// on the right; nudged ~12px toward the rail (from -258) to tighten the gap ~25%.
+const HERO_X = -246;
 
 const Arrow = ({ size = 16 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
@@ -165,12 +172,13 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const [owner] = useLocalOwner();
 
   const [stage, setStage] = useState<Stage>(0);
-  const [active, setActive] = useState(0); // carousel focus index
+  const [active, setActive] = useState(START_INDEX); // carousel focus index (opens on the first template)
   const [goalIndex, setGoalIndex] = useState<number | null>(null); // chosen card
   const [customTitle, setCustomTitle] = useState("");
   const [customDesc, setCustomDesc] = useState(""); // custom goals: "what counts"
   const [days, setDays] = useState(5);
   const [weeks, setWeeks] = useState(4);
+  const [customWeeks, setCustomWeeks] = useState(""); // far-right free-entry weeks box
   const [stake, setStake] = useState(200);
   const [charityId, setCharityId] = useState<string | null>(null);
   const [agentKey, setAgentKey] = useState<string | null>(null);
@@ -218,6 +226,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     }
     setDays(d.frequency.days_per_week);
     setWeeks(d.frequency.weeks);
+    // Seed the free-entry box only when the imported pace isn't a preset, so the
+    // far-right box reflects the custom value instead of looking empty.
+    setCustomWeeks(WEEK_OPTIONS.includes(d.frequency.weeks) ? "" : String(d.frequency.weeks));
     setStake(Math.round(d.stake_amount_cents / 100));
     setCharityId(d.charity_id);
     setAgentKey(d.agent);
@@ -281,11 +292,13 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   // is never stranded on hidden deck controls.
   const railHeadRef = useRef<HTMLHeadingElement>(null);
   const openBtnRef = useRef<HTMLButtonElement>(null);
+  const webDoneRef = useRef<HTMLAnchorElement>(null); // web signed-state download link
   useEffect(() => {
     if ((stage === 1 && isCustom) || stage === 5) return; // name inputs auto-focus themselves
     // When embedded on the landing, never let focus yank the page-scroll around.
     if (stage >= 1 && stage <= 5) railHeadRef.current?.focus({ preventScroll: embedded });
-    else if (stage === 7) openBtnRef.current?.focus({ preventScroll: embedded });
+    else if (stage === 7)
+      (isDesktop() ? openBtnRef.current : webDoneRef.current)?.focus({ preventScroll: embedded });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -299,6 +312,30 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   const checkins = days * weeks;
   const weeksWord = weeks === 1 ? "week" : "weeks";
+  // The far-right box owns any pace that isn't one of the four presets. While the
+  // box drives `weeks`, none of the preset pills light up.
+  const isCustomWeeks = !WEEK_OPTIONS.includes(weeks);
+
+  // Free-entry weeks: digits only, clamped to 1–52. Empty keeps the last `weeks`
+  // so backspacing to retype never snaps the value back under the cursor; otherwise
+  // the box always shows the same clamped number it commits (so "0"/">52" can't
+  // leave the cell disagreeing with the card).
+  const onCustomWeeks = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "").slice(0, 2);
+    if (digits === "") {
+      setCustomWeeks("");
+      return;
+    }
+    const n = Math.min(52, Math.max(1, parseInt(digits, 10)));
+    setCustomWeeks(String(n));
+    setWeeks(n);
+  };
+
+  // Picking a preset hands control back to the pills and clears the box.
+  const pickWeeks = (w: number) => {
+    setWeeks(w);
+    setCustomWeeks("");
+  };
 
   const sealedDate = new Date()
     .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -309,6 +346,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     // Fresh card every time — don't carry over a prior in-progress pact.
     setDays(5);
     setWeeks(4);
+    setCustomWeeks("");
     setStake(200);
     setCharityId(null);
     setAgentKey(null);
@@ -481,9 +519,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
     }
     // hero (chosen card)
     if (i === goalIndex) {
-      const exiting = stage >= 6;
+      // Holds position + scale through signing. As the final beat it flips back to
+      // its front in place (see flipStyle) — the reverse of the choose flip — while
+      // the rail morphs into the signed state. Same in web + app.
       return {
-        transform: slotTransform(-258, exiting ? 44 : 0, 60, 0, exiting ? 0.86 : 1),
+        transform: slotTransform(HERO_X, 0, 60, 0, 1),
         opacity: 1,
         zIndex: 200,
         transition: "transform .72s cubic-bezier(.34,.72,.26,1), opacity .55s ease",
@@ -511,12 +551,23 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   };
 
   const flipStyle = (i: number): React.CSSProperties => {
-    // The chosen card shows its editorial back while editing — except during a
-    // peek, when it flips back to the front for a beat.
-    const flipped = stage >= 1 && stage <= 5 && i === goalIndex && !peeking;
+    // Editing: the chosen card shows its editorial back (a peek flips it to the
+    // front for a beat). After signing (stage ≥ 6) it flips back to its front for
+    // good — the reverse of the choose flip — UNLESS it has no real front (a custom
+    // card with no picture), in which case it rests on its signed back instead.
+    const heroHasFront = !isCustom || !!customArt;
+    const flipped =
+      i === goalIndex &&
+      !peeking &&
+      ((stage >= 1 && stage <= 5) || (stage >= 6 && !heroHasFront));
+    // The signing reverse flip is slower than the snappy choose flip, with a gentle
+    // ease-in then a long decelerating tail (slows through the last half).
+    const reverseFlip = i === goalIndex && stage >= 6 && heroHasFront;
     return {
       transform: `rotateY(${flipped ? 180 : 0}deg)`,
-      transition: "transform .85s cubic-bezier(.2,.72,.26,1) .1s",
+      transition: reverseFlip
+        ? "transform 1.15s cubic-bezier(.4, 0, .2, 1) .06s"
+        : "transform .85s cubic-bezier(.2, .72, .26, 1) .1s",
     };
   };
 
@@ -531,6 +582,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   const deckMode = stage === 0;
   const editing = stage >= 1 && stage <= 5;
+  // Web has no account to seal into, so instead of a centered modal the rail stays
+  // put and morphs in place: sign form → loading skeleton (6) → signed state (7).
+  const webSealing = !isDesktop() && stage === 6;
+  const webSigned = !isDesktop() && stage === 7;
+  const railVisible = editing || webSealing || webSigned;
 
   // ── Editor rail step copy ────────────────────────────────────────────────────
   const stepMeta =
@@ -733,15 +789,74 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           Choose this card <Arrow size={17} />
         </button>
 
-        {/* ── Editor rail (stages 1–4) ─────────────────────────────────────────── */}
+        {/* ── Editor rail — the right-hand box. Holds the editor (steps 1–5), then on
+              the web morphs in place into the loading skeleton (6) and signed state
+              (7) so it never becomes a centered modal. ─────────────────────────── */}
         <div
           className="pc-rail"
           style={{
-            opacity: editing ? 1 : 0,
-            transform: editing ? "translate(0,-50%)" : "translate(24px,-50%)",
-            pointerEvents: editing ? "auto" : "none",
+            opacity: railVisible ? 1 : 0,
+            transform: railVisible ? "translate(0,-50%)" : "translate(24px,-50%)",
+            pointerEvents: railVisible ? "auto" : "none",
           }}
         >
+          {webSealing ? (
+            /* Loading beat — the sign form is gone, a shimmer skeleton stands in its
+               place, shaped like the signed card so the morph reads as continuous. */
+            <div className="pc-rail-signed" aria-live="polite" aria-label="Signing your pact">
+              <div className="pc-signed-head">
+                <span className="pc-sk pc-skel-check" />
+                <div className="pc-signed-headtext">
+                  <div className="pc-sk pc-skel-name" />
+                  <div className="pc-sk pc-skel-status" />
+                </div>
+              </div>
+              <div className="pc-sk pc-skel-lede" />
+              <div className="pc-skel-steps">
+                <div className="pc-sk pc-skel-btn" />
+                <div className="pc-sk pc-skel-btn" />
+              </div>
+              <div className="pc-sk pc-skel-blob" />
+            </div>
+          ) : webSigned ? (
+            /* Signed — same dark box, same size. Check + name, the stake line, then
+               the two steps to put it on the line (download the app, copy the pact). */
+            <div className="pc-rail-signed">
+              <div className="pc-signed-head">
+                <span className="pc-signed-check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+                <div className="pc-signed-headtext">
+                  <div className="pc-signed-name">Pact signed by {signerName.trim() || "you"}</div>
+                  <div className="pc-signed-status">
+                    ${stake} on {goalName.toLowerCase()} · {days}×/wk · {weeks} {weeksWord}
+                  </div>
+                </div>
+              </div>
+              <p className="pc-signed-lede">
+                Two steps to put it on the line: get the Pact app, then paste your signed pact in.
+              </p>
+              <div className="pc-signed-steps">
+                <a className="pc-signed-download" href={PACT_DOWNLOAD_URL} target="_blank" rel="noreferrer" ref={webDoneRef}>
+                  <DownloadIcon /> Download the app
+                </a>
+                <button className="pc-signed-copy" onClick={copyBlob}>
+                  {copied ? "Copied, now paste it in ✓" : "Copy your pact"}
+                </button>
+              </div>
+              <textarea
+                className="pc-handoff-blob pc-signed-blob"
+                readOnly
+                value={blobText ?? ""}
+                rows={3}
+                aria-label="Pact payload: copy and paste this into the Pact desktop app"
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              />
+            </div>
+          ) : (
+          <>
           <div className="pc-rail-head">
             <div className="m step">Step {stepMeta.n} of 5</div>
             <h2 ref={railHeadRef} tabIndex={-1}>{stepMeta.head}</h2>
@@ -788,6 +903,12 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                             }}
                           >
                             <img src={asset(src)} alt={`Card picture ${idx + 1}`} loading="lazy" />
+                            {/* Hover/focus preview: the same picture shown large so
+                                the user can see it before picking. Decorative — the
+                                thumbnail above already carries the alt text. */}
+                            <span className="pc-art-zoom" aria-hidden="true">
+                              <img src={asset(src)} alt="" loading="lazy" />
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -830,13 +951,26 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
                   {WEEK_OPTIONS.map((w) => (
                     <button
                       key={w}
-                      className={`pc-pill ${weeks === w ? "sel" : ""}`}
-                      onClick={() => setWeeks(w)}
-                      aria-pressed={weeks === w}
+                      className={`pc-pill ${weeks === w && !isCustomWeeks ? "sel" : ""}`}
+                      onClick={() => pickWeeks(w)}
+                      aria-pressed={weeks === w && !isCustomWeeks}
                     >
                       {w} {w === 1 ? "wk" : "wks"}
                     </button>
                   ))}
+                  {/* Far-right free-entry: type any number of weeks. One input styled
+                      as a pill — reads as a faint, empty "wks" cell until you click in,
+                      then fills cream like a chosen pill once it owns the pace. */}
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className={`pc-week-custom${isCustomWeeks ? " sel" : ""}`}
+                    placeholder="wks"
+                    aria-label="Custom number of weeks"
+                    value={customWeeks}
+                    maxLength={2}
+                    onChange={(e) => onCustomWeeks(e.target.value)}
+                  />
                 </div>
                 <div className="pc-checkins m">= {checkins} check-ins over the pact</div>
               </div>
@@ -974,10 +1108,12 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
               </button>
             )}
           </div>
+          </>
+          )}
         </div>
 
-        {/* Sealing (stage 6) */}
-        <div className="pc-sending" aria-live="polite" style={{ opacity: stage === 6 ? 1 : 0 }}>
+        {/* Sealing (stage 6) — desktop only; the web rail shows its own skeleton. */}
+        <div className="pc-sending" aria-live="polite" style={{ opacity: stage === 6 && isDesktop() ? 1 : 0 }}>
           <div className="pc-sealing-card">
             <div className="pc-sealing-head">
               <span className="pc-sealing-avatar" aria-hidden="true">
@@ -1001,61 +1137,25 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
         </div>
 
-        {/* Final screen (stage 7) */}
-        <div
-          className={`pc-msg ${isDesktop() && created ? "pc-msg-setup" : "pc-msg-web"}`}
-          style={{ opacity: stage === 7 ? 1 : 0, pointerEvents: stage === 7 ? "auto" : "none" }}
-        >
-          <div className="card" style={{ transform: stage === 7 ? "translateY(0)" : "translateY(14px)" }}>
-            {isDesktop() && created ? (
-              <ChatShell
-                label={`${agentDef?.name || "Hermes Agent"} setup chat`}
-                agentName={agentDef?.name || "Hermes Agent"}
-                agentAvatar={agentDef?.avatar}
-                messages={setupMessages}
-              />
-            ) : (
-              /* Web: the pact is signed but lives in the copy-paste blob. Send the
-                 user to the app — download it, then paste the pact in. */
-              <>
-                <div className="head pc-done-head">
-                  <div className="ic done">
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="nm">Pact signed by {signerName.trim() || "you"}</div>
-                    <div className="status">
-                      <span className="dot" />${stake} on {goalName.toLowerCase()} · {days}×/wk · {weeks} {weeksWord}
-                    </div>
-                  </div>
-                </div>
-                <div className="body">
-                  <p className="pc-done-lede">
-                    Two steps to put it on the line: get the Pact app, then paste your signed pact in.
-                  </p>
-                  <div className="pc-done-steps">
-                    <a className="pc-done-download" href={PACT_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-                      <DownloadIcon /> Download the app
-                    </a>
-                    <button className="pc-done-copy" onClick={copyBlob}>
-                      {copied ? "Copied, now paste it in ✓" : "Copy your pact"}
-                    </button>
-                  </div>
-                  <textarea
-                    className="pc-handoff-blob pc-done-blob"
-                    readOnly
-                    value={blobText ?? ""}
-                    rows={3}
-                    aria-label="Pact payload: copy and paste this into the Pact desktop app"
-                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                  />
-                </div>
-              </>
-            )}
+        {/* Final desktop setup chat (stage 7). The web signed state lives in the rail
+            (it morphs in place), so this lane is desktop-only. */}
+        {isDesktop() && (
+          <div
+            className="pc-msg pc-msg-setup"
+            style={{ opacity: stage === 7 ? 1 : 0, pointerEvents: stage === 7 ? "auto" : "none" }}
+          >
+            <div className="card" style={{ transform: stage === 7 ? "translateY(0)" : "translateY(14px)" }}>
+              {created && (
+                <ChatShell
+                  label={`${agentDef?.name || "Hermes Agent"} setup chat`}
+                  agentName={agentDef?.name || "Hermes Agent"}
+                  agentAvatar={agentDef?.avatar}
+                  messages={setupMessages}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Error toast */}
         {error && (
