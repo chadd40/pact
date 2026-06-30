@@ -61,12 +61,16 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
 - `/pact verdict <id>` — settle, then GET the evidence + verdict packet.
 - `/pact freeze <id>` — spend a freeze (extend the deadline by one period); pre-deadline only.
 - `/pact dispute <id>` — submit extra proof into the single dispute window (re-judged once, then final).
-- `/pact pay <id>` — **complete a failed pact's donation by crawling the charity page**:
-  provision the card (`donation/card`), fetch the full single-use card via
-  `donation/card-credential`, open the chosen charity's donate page in your own browser, pay
-  with that card, then confirm the receipt (`donation/receipt`). Only after the human approved
-  the spend in Link. Treat the card as a secret — it is single-use and locked to that one
-  charity. `donated` (Link approval) is NOT a charity-confirmed receipt; the receipt is.
+- `/pact pay <id>` — **the last mile: pay a failed pact's charity with the pre-approved card.**
+  The Link spend-request + single-use card are authorized when the pact is *created* (the human
+  approves the stake in Link then; `pact_confirm_stake` picks up the card → `active`). So when a
+  pact is `donation_pending` (a verified miss + the 24h dispute window elapsed): fetch the full
+  card with `pact_card_credential`, open the pact's `charity_url` in your own browser, donate the
+  stake amount with that card, then call `pact_resolve_donation`. Pact reads the Link
+  spend-request and, once it shows the charge captured, records a provider-confirmed receipt and
+  moves the pact to `donation_complete`. The card is single-use and merchant-locked — use it only
+  on that one charity's page. **Link confirmation (not your word) is the source of truth;** use
+  `pact_record_donation_receipt` only as a manual fallback if Link can't confirm.
 - `/pact renew <id>` — clone a finished pact's terms into a fresh pact.
 - `/pact me` — your streak + history ("kept N of last M").
 - `/pact serve [--owner]` — **worker mode**: poll the broker and resolve pending **website**
@@ -167,7 +171,7 @@ The capabilities map to tools as follows:
 | **Coach around evidence** | `pact_coach` (send a message into the thread). Recall first with `pact_get_coaching`. |
 | **Submit evidence** | `pact_issue_proof_token` → `pact_submit_proof` (text/log/url) or `pact_submit_proof_image` (reads a local image file and uploads it). The backend judges the proof against the frozen rubric and returns the verdict. |
 | **Submit evidence decisions** | `pact_settle` (judge pending proofs now, compute the verdict, fire donation if failed); or the broker loop — `pact_list_reasoning_tasks` → `pact_claim_reasoning_task` → reason inline → `pact_post_reasoning_result`. The posted `result` **is** the decision (judge `{status, reason, checklist}`, coach `{message}`, verdict prose, or a draft). |
-| **Complete a donation** (agent-side crawl) | After a failed pact is approved (status `donated`): `pact_provision_card` → `pact_card_credential` (the full single-use, merchant-locked card), open the charity's donate page in your own browser and pay with that card, then `pact_record_donation_receipt` with your evidence. The card is a secret — use it only on that one charity's page. |
+| **Complete a donation** (the last mile) | When a pact is `donation_pending` (verified miss + 24h window): `pact_card_credential` (the full single-use, merchant-locked card) → open the pact's `charity_url` in your own browser and donate the stake with that card → `pact_resolve_donation`. Pact confirms the charge via the Link spend-request and moves the pact to `donation_complete`. The card is a secret — use it only on that one charity's page. Use `pact_record_donation_receipt` only as a manual fallback when Link can't confirm. (Pre-auth at creation: `pact_confirm_stake` after the human approves the stake in Link.) |
 
 **Two decision paths.** Direct: you own a pact by id, so `pact_submit_proof[_image]`
 (judged inline) and/or `pact_settle` finalizes it. Broker: for a task the website

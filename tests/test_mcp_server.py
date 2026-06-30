@@ -59,8 +59,23 @@ def test_server_registers_full_tool_set():
         "pact_claim_reasoning_task", "pact_post_reasoning_result",
         # donation completion (agent-side crawl)
         "pact_provision_card", "pact_card_credential", "pact_record_donation_receipt",
+        "pact_confirm_stake", "pact_resolve_donation",
     }
     assert expected.issubset(names)
+
+
+def test_confirm_stake_posts_to_stake_confirm():
+    fake = FakeClient(result={"status": "active"})
+    server = build_server(fake)
+    asyncio.run(server.call_tool("pact_confirm_stake", {"pact_id": "p"}))
+    assert fake.calls == [("POST", "/api/pacts/p/stake/confirm", None, {})]
+
+
+def test_resolve_donation_posts_to_resolve():
+    fake = FakeClient(result={"status": "donation_complete", "confirmed": True})
+    server = build_server(fake)
+    asyncio.run(server.call_tool("pact_resolve_donation", {"pact_id": "p"}))
+    assert fake.calls == [("POST", "/api/pacts/p/donation/resolve", None, {})]
 
 
 def test_legacy_tool_names_preserved():

@@ -445,13 +445,39 @@ def build_server(client: Any):
         return _dumps(client.post_json(f"/api/pacts/{pact_id}/donation/card-credential", {}))
 
     @tool(
+        name="pact_confirm_stake",
+        description=(
+            "Pick up the pre-authorized stake card after the human approved the spend in "
+            "Link at pact creation. Call this when a pact is awaiting_stake; once Link shows "
+            "the spend approved, the single-use card is provisioned and the pact goes active. "
+            "Idempotent: safe to poll."
+        ),
+    )
+    def pact_confirm_stake(pact_id: str) -> str:
+        return _dumps(client.post_json(f"/api/pacts/{pact_id}/stake/confirm", {}))
+
+    @tool(
+        name="pact_resolve_donation",
+        description=(
+            "The last mile: after you paid the charity with the pre-approved single-use "
+            "card, call this to confirm the charge via Link and resolve the pact. Pact reads "
+            "the Link spend-request: once it shows a captured charge it records a "
+            "provider-confirmed receipt and moves the pact to donation_complete. Idempotent — "
+            "if Link cannot confirm yet the pact stays 'donated' (submitted, awaiting "
+            "confirmation) and you can call this again shortly."
+        ),
+    )
+    def pact_resolve_donation(pact_id: str) -> str:
+        return _dumps(client.post_json(f"/api/pacts/{pact_id}/donation/resolve", {}))
+
+    @tool(
         name="pact_record_donation_receipt",
         description=(
-            "Record/confirm the charity donation receipt after you paid on the charity's "
-            "page. Provide the evidence you have: a confirmation reference (receipt_ref), a "
-            "receipt URL (receipt_url), and/or a saved screenshot path (receipt_artifact_path). "
-            "Use receipt_status='provider_confirmed' only with real evidence. This flips the "
-            "pact from 'approved' to a charity-confirmed donation."
+            "Record a charity donation receipt as supplementary/manual evidence (a "
+            "confirmation reference, receipt URL, or saved screenshot path). NOTE: this only "
+            "stores evidence — it does NOT by itself confirm the charge. Link confirmation via "
+            "pact_resolve_donation is the source of truth that advances the pact to "
+            "donation_complete; use this for a manual_receipt fallback when Link cannot confirm."
         ),
     )
     def pact_record_donation_receipt(
