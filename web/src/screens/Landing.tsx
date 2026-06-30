@@ -46,19 +46,24 @@ const DRIFT: Array<{ t: string; pos: React.CSSProperties; d: string; dur: string
 // incoming line ("in") shows the friend's typing dots first; an outgoing line
 // ("out") gets typed into the composer, then sent.
 type Side = "in" | "out";
-const SIDES: Side[] = ["in", "out", "in", "out", "in", "in", "in", "in"];
+const SIDES: Side[] = ["in", "out", "in", "out", "in", "out", "in", "in", "out", "in", "out", "in", "in"];
 const MSG_COUNT = SIDES.length;
 
 // Map scroll progress (0..1) through the pinned hero to how many messages should
 // be revealed. The first two (friend's opener + your wish) are up at the top.
 function targetFor(p: number): number {
-  if (p < 0.1) return 2;
-  if (p < 0.22) return 3;
-  if (p < 0.33) return 4;
-  if (p < 0.44) return 5;
-  if (p < 0.55) return 6; // headline flips here; the rest is dwell so it can be read
-  if (p < 0.7) return 7;
-  return 8;
+  if (p < 0.08) return 2;
+  if (p < 0.15) return 3;
+  if (p < 0.22) return 4;
+  if (p < 0.3) return 5;
+  if (p < 0.38) return 6;
+  if (p < 0.46) return 7; // headline flips here (the pact lands); the rest is dwell so it can be read
+  if (p < 0.54) return 8;
+  if (p < 0.62) return 9;
+  if (p < 0.7) return 10;
+  if (p < 0.78) return 11;
+  if (p < 0.87) return 12;
+  return 13;
 }
 
 // The iPhone status-bar clock — the viewer's local time, iOS-style (h:mm, no AM/PM).
@@ -88,7 +93,7 @@ export function Landing() {
   const revealedRef = useRef(0);
   revealedRef.current = revealed;
 
-  const payoff = revealed >= 6; // headline crossfades once the pact link lands
+  const payoff = revealed >= 7; // headline crossfades once "you make a pact" lands
 
   // Keep the phone clock on the viewer's current local time.
   useEffect(() => {
@@ -217,7 +222,18 @@ export function Landing() {
 
   // What's being typed into the composer right now (outgoing beat).
   const composing = phase === "out";
-  const composeText = revealed === 1 ? `ehh… I wish I ${GOALS[goal]}` : revealed === 3 ? "ok ok i know 😩" : "";
+  const composeText =
+    revealed === 1
+      ? `ehh… I wish I ${GOALS[goal]}`
+      : revealed === 3
+        ? "ok ok i know 😩"
+        : revealed === 5
+          ? "wait how does it work"
+          : revealed === 8
+            ? "ok but will i actually stick to it 😅"
+            : revealed === 10
+              ? "ok i'm in, how do i start"
+              : "";
 
   return (
     <div className="landing">
@@ -315,13 +331,21 @@ export function Landing() {
 
                     {revealed > 2 && <div className="lp-msg lp-in">you said that last week 😭</div>}
                     {revealed > 3 && <div className="lp-msg lp-out">ok ok i know 😩</div>}
-                    {revealed > 4 && <div className="lp-msg lp-in">your agent can help with that now</div>}
-                    {revealed > 5 && (
-                      <div className="lp-msg lp-in">
-                        <span className="lp-link">pact.new</span>
-                      </div>
+                    {revealed > 4 && <div className="lp-msg lp-in">your agent can actually help with that now</div>}
+                    {revealed > 5 && <div className="lp-msg lp-out">wait how does it work</div>}
+                    {revealed > 6 && <div className="lp-msg lp-in">you make a pact with it 🤝</div>}
+                    {revealed > 7 && (
+                      <div className="lp-msg lp-in">if you flake, then it donates what you staked to charity automatically</div>
                     )}
-                    {revealed > 6 && (
+                    {revealed > 8 && <div className="lp-msg lp-out">ok but will i actually stick to it 😅</div>}
+                    {revealed > 9 && (
+                      <div className="lp-msg lp-in">it's on you all week. nudges you, you send proof 📸</div>
+                    )}
+                    {revealed > 10 && <div className="lp-msg lp-out">ok i'm in, how do i start</div>}
+                    {revealed > 11 && (
+                      <div className="lp-msg lp-in">go here, then run /pact with your agent 👇</div>
+                    )}
+                    {revealed > 12 && (
                       <div className="lp-card-wrap">
                         <button className="lp-richlink" onClick={onboard}>
                           <div className="lp-richlink-hero">
@@ -334,9 +358,6 @@ export function Landing() {
                           </div>
                         </button>
                       </div>
-                    )}
-                    {revealed > 7 && (
-                      <div className="lp-msg lp-in lp-after">put money on it. then you'll actually show up 💪</div>
                     )}
 
                     {/* friend's typing dots — plays right before each incoming line */}
