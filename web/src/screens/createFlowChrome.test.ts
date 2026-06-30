@@ -61,7 +61,7 @@ describe("create flow chrome", () => {
     const setupCard = ruleFor(".pc-msg-setup .card");
 
     expect(decl(sending, "width")).toBe("452px");
-    expect(decl(sending, "left")).toBe("594px");
+    expect(decl(sending, "left")).toBe("582px");
     expect(decl(sealingCard, "border-radius")).toBe("18px");
     expect(decl(sealingCard, "box-shadow")).toContain("0 26px 60px");
     expect(decl(setupCard, "width")).toBe("452px");

@@ -1347,8 +1347,26 @@
   flex-direction: column;
   padding: clamp(40px, 6vh, 80px) clamp(20px, 5vw, 40px) clamp(8px, 2vh, 18px);
   overflow: hidden;
+  /* Match the standalone /create backdrop exactly: the same warm radial gradient
+     (sized to the viewport, like .pc-root), so the embedded deck reads as the real
+     create flow rather than a flat marketing band. The embedded .pc-root is
+     transparent + its vignette is suppressed, so it shows this through. */
+  background: radial-gradient(130% 100% at 50% 6%, var(--pc-bg-grad-1) 0%, var(--pc-bg-grad-2) 62%, var(--pc-bg-grad-3) 100%);
+}
+/* The same ambient vignette /create paints over its gradient (.pc-vignette): a soft
+   top highlight + bottom shadow, behind the headline and deck. */
+.lp-deck-sticky::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(85% 60% at 50% 116%, rgba(22, 21, 15, 0.12), transparent 62%),
+    radial-gradient(120% 80% at 50% -12%, rgba(255, 250, 238, 0.45), transparent 56%);
 }
 .lp-deck-head {
+  position: relative;
+  z-index: 1;
   text-align: center;
   max-width: 680px;
   margin: 0 auto;
@@ -1359,6 +1377,8 @@
   margin-right: auto;
 }
 .lp-embed-deck {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 0;
   margin-top: 4px;
