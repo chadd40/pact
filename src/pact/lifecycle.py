@@ -183,8 +183,9 @@ def confirm_and_start(
             "started_at": clock.now(),
         }
     )
-    if payment is None:
-        # Pure flow (no pre-authorization): go active directly.
+    if payment is None or not hasattr(payment, "retrieve_card"):
+        # Pure flow, or a provider that can't provision a card: go active directly
+        # with no pre-authorization.
         return started
     # Pre-authorize the stake NOW: open the Link spend-request and, if the card is
     # immediately available (dry-run/test), provision it and go active. In live mode
@@ -566,8 +567,10 @@ def close_dispute_window(
     now = clock.now()
     valid = _valid_count(pact, proofs)
 
-    # Already donated: idempotent rebuild, no second donation.
-    if pact.spend_request_id is not None:
+    # Already resolved (agent charged / Link-confirmed): idempotent, no re-charge.
+    # NOTE: keyed on STATUS now, not spend_request_id -- in the pre-authorized model
+    # the spend-request id is set at creation, so it no longer signals "donated".
+    if pact.status in (PactStatus.donated, PactStatus.donation_complete):
         return pact, _build_verdict(
             pact, proofs, valid, PactStatus.failed,
             PaymentAction.donation_executed, pact.spend_request_id,
@@ -614,6 +617,17 @@ def close_dispute_window(
                     pact, proofs, valid, PactStatus.failed,
                     PaymentAction.donation_declined, None, note=decision.reason,
                 )
+        # Pre-authorized at creation: a spend-request + single-use card already exist
+        # and the human approved them in Link. Do NOT create a new spend-request or
+        # charge here -- the donation is now OWED and the AGENT pays the charity with
+        # the pre-approved card (/pact pay -> /donation/resolve). Mark it ready-to-pay.
+        if pact.spend_request_id is not None:
+            pact.status = PactStatus.donation_pending
+            pact.verdict_at = now
+            return pact, _build_verdict(
+                pact, proofs, valid, PactStatus.failed, PaymentAction.none, None,
+            )
+        # Legacy / no pre-authorization: create the spend-request and charge here.
         pact.status = PactStatus.donation_pending
         try:
             result = payment.create_donation(pact, f"{pact.id}:donation")

@@ -26,6 +26,7 @@ from pact.lifecycle import (
     cancel,
     close_dispute_window,
     confirm_and_start,
+    confirm_stake,
     create_pact_structured,
     decline_donation,
     draft_pact,
@@ -591,6 +592,7 @@ def create_app(
     @app.post("/api/pacts")
     def confirm(body: ConfirmIn):
         pact = _require(body.pact_id)
+        cards_dir = os.path.join(settings.artifacts_dir, "cards")
         try:
             pact = confirm_and_start(
                 pact,
@@ -599,12 +601,28 @@ def create_app(
                 clock,
                 settings,
                 consent_acknowledged=body.consent_acknowledged,
+                payment=raw_payment,
+                artifacts_dir=cards_dir,
             )
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=422, detail=str(exc))
-        # confirm_and_start already activates; persist as-is.
+        # Pre-authorize at creation: active (card provisioned) in dry-run/test, or
+        # awaiting_stake with stake_approval_url in live until the human approves.
         repo.update_pact(pact)
         _seed_handoff(pact)
+        return pact.model_dump(mode="json")
+
+    @app.post("/api/pacts/{pact_id}/stake/confirm")
+    def stake_confirm(pact_id: str):
+        """Pick up the approved stake card after the human approved the spend in Link.
+        Idempotent: returns the pact unchanged if already active or still pending."""
+        pact = _require(pact_id)
+        cards_dir = os.path.join(settings.artifacts_dir, "cards")
+        try:
+            pact = confirm_stake(pact, raw_payment, clock, settings, artifacts_dir=cards_dir)
+        except (ValueError, TransitionError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        repo.update_pact(pact)
         return pact.model_dump(mode="json")
 
     @app.post("/api/pacts/{pact_id}/owner")
@@ -1117,6 +1135,18 @@ def create_app(
         (no-op in local_dev single-user). Provision the card first via /donation/card.
         """
         pact = _require(pact_id)
+        # Safety gate: the chargeable card is released only once the pact is actually
+        # payable -- failed + dispute window elapsed (donation_pending) or mid-payment
+        # (donated). While the pact is active/awaiting_stake the card stays sealed, so a
+        # verified miss + the window are required before the agent can ever charge it.
+        if pact.status not in (PactStatus.donation_pending, PactStatus.donated):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"card not releasable in status {pact.status.value}; the donation "
+                    "becomes payable only after a verified miss and the dispute window."
+                ),
+            )
         if not pact.card_artifact_path:
             raise HTTPException(
                 status_code=409,

@@ -96,20 +96,30 @@ async def test_win_flow_succeeds_with_no_donation(tmp_path):
         assert packet["verdict"]["payment_action"] == "none"
         assert packet["verdict"]["valid_proof_count"] == 5
 
-        # No spend-request on success: the pact never recorded one.
+        # Pre-authorized at creation but never charged on success: the spend-request
+        # id remains (escrow that expires unused), the stake is released, no money moved.
         r = await client.get(f"/api/pacts/{pact_id}")
-        assert r.json()["spend_request_id"] is None
+        assert r.json()["spend_request_id"] == f"test_sr_{pact_id}_1500"
         assert r.json()["stake_state"] == "released"
+        assert r.json()["card_last4"] == "4242"  # provisioned upfront, never used
 
 
 @pytest.mark.asyncio
-async def test_fail_flow_defers_then_donates_after_window(tmp_path):
+async def test_fail_flow_defers_then_owes_after_window(tmp_path):
+    # New model: the spend-request + card are pre-authorized at CREATION. On fail,
+    # after the 24h window the pact OWES the donation (donation_pending) -- it does
+    # NOT auto-charge here; the agent pays the charity with the pre-approved card
+    # (covered end-to-end in test_agent_last_mile_e2e). No new spend-request is created.
     clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
     app, repo = _build(tmp_path, clock)
     async with _client(app) as client:
         pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
 
-        # Owner + connected Link so the deferred charge-on-fail is allowed to fire.
+        # Pre-authorized at creation: spend-request + card already exist.
+        created = repo.get_pact(pact_id)
+        assert created.spend_request_id == f"test_sr_{pact_id}_1500"
+        assert created.card_last4 == "4242"
+
         p0 = repo.get_pact(pact_id)
         p0.owner = "demo@pact.local"
         repo.update_pact(p0)
@@ -118,84 +128,34 @@ async def test_fail_flow_defers_then_donates_after_window(tmp_path):
         for _ in range(4):
             await _submit_valid_proof(client, pact_id)
             clock.advance(days=1)
+        clock.advance(days=30)  # past the deadline
 
-        # Advance well past the deadline so the pact is due.
-        clock.advance(days=30)
-
-        # Phase 1: settle FAILS but defers the donation behind the dispute window.
+        # Phase 1: settle FAILS, defers behind the dispute window. No charge.
         r = await client.post(f"/api/pacts/{pact_id}/settle")
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["status"] == "failed"
-        assert body["valid_proof_count"] == 4
-        assert body["target_count"] == 5
         assert body["payment_action"] == "none"
-        assert body["payment_ref"] is None
 
         pact = repo.get_pact(pact_id)
         assert pact.status == "failed"
-        assert pact.spend_request_id is None
+        assert pact.spend_request_id == f"test_sr_{pact_id}_1500"  # the pre-auth ref, unchanged
         assert pact.stake_state == "committed"
         assert pact.dispute_window_closes_at is not None
 
-        # Re-settling inside the open window is a no-op: still failed, still no money.
-        r_again = await client.post(f"/api/pacts/{pact_id}/settle")
-        assert r_again.status_code == 200, r_again.text
-        assert r_again.json()["payment_action"] == "none"
-        assert repo.get_pact(pact_id).spend_request_id is None
-
-        # Phase 2: advance past the grace window, then settle closes the window and
-        # executes the deferred donation exactly once.
+        # Phase 2: past the window, settle closes it -> the donation is OWED, ready for
+        # the agent to pay. No money moves here; the pre-auth ref is reused (not re-created).
         clock.advance(days=2)  # > 24h default grace
         r = await client.post(f"/api/pacts/{pact_id}/settle")
         assert r.status_code == 200, r.text
-        body2 = r.json()
-        assert body2["payment_action"] == "donation_executed"
-        assert body2["payment_ref"] == f"test_sr_{pact_id}_1500"
+        assert r.json()["payment_action"] == "none"
 
-        donated = repo.get_pact(pact_id)
-        assert donated.status == "donated"
-        assert donated.spend_request_id == f"test_sr_{pact_id}_1500"
-        assert donated.stake_state == "executed"
-        attempts = repo.list_payment_attempts(pact_id)
-        assert len(attempts) == 1
-        assert attempts[0].provider == "test_link"
-        assert attempts[0].status == "succeeded"
-        assert attempts[0].provider_ref == f"test_sr_{pact_id}_1500"
-        assert attempts[0].idempotency_key == f"{pact_id}:donation"
-
-        # Idempotent: a second settle after donation moves no additional money.
-        r2 = await client.post(f"/api/pacts/{pact_id}/settle")
-        assert r2.status_code == 200, r2.text
-        assert r2.json()["payment_ref"] == f"test_sr_{pact_id}_1500"
-        assert repo.get_pact(pact_id).spend_request_id == f"test_sr_{pact_id}_1500"
-        assert len(repo.list_payment_attempts(pact_id)) == 1
-
-        r = await client.get(f"/api/pacts/{pact_id}/packet")
-        assert r.json()["verdict"]["payment_action"] == "donation_executed"
-        assert r.json()["verdict"]["payment_ref"] == f"test_sr_{pact_id}_1500"
-        assert r.json()["verdict"]["receipt_status"] == "unconfirmed"
-
-        receipt = await client.post(
-            f"/api/pacts/{pact_id}/donation/receipt",
-            json={
-                "receipt_status": "manual_receipt",
-                "receipt_source": "user_upload",
-                "receipt_ref": "AMF-123",
-                "receipt_url": "https://www.againstmalaria.com/receipt/AMF-123",
-                "confirmation_notes": "Uploaded receipt from charity checkout.",
-            },
-        )
-        assert receipt.status_code == 200, receipt.text
-        assert receipt.json()["receipt_status"] == "manual_receipt"
-
-        receipt_get = await client.get(f"/api/pacts/{pact_id}/donation/receipt")
-        assert receipt_get.status_code == 200
-        assert receipt_get.json()["receipt_ref"] == "AMF-123"
-
-        packet_with_receipt = await client.get(f"/api/pacts/{pact_id}/packet")
-        assert packet_with_receipt.json()["verdict"]["receipt_status"] == "manual_receipt"
-        assert packet_with_receipt.json()["verdict"]["receipt_ref"] == "AMF-123"
+        owed = repo.get_pact(pact_id)
+        assert owed.status == "donation_pending"  # ready for the agent to pay
+        assert owed.spend_request_id == f"test_sr_{pact_id}_1500"  # reused, not re-created
+        assert owed.stake_state == "committed"
+        # No Pact-side charge attempt: the agent charges the card at the charity.
+        assert repo.list_payment_attempts(pact_id) == []
 
 
 @pytest.mark.asyncio
