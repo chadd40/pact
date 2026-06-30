@@ -122,8 +122,8 @@
   text-align: center;
   padding: 0 18px;
   margin-bottom: clamp(26px, 4vh, 48px);
-  font-size: clamp(30px, 4.6vw, 56px);
-  line-height: 1.12;
+  font-size: clamp(27px, 3.9vw, 48px);
+  line-height: 1.13;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: rgba(21, 20, 15, 0.84);
