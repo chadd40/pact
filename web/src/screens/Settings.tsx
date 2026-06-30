@@ -252,7 +252,7 @@ export function Settings() {
             ? "Checking..."
             : policy.spend_limit_cents == null
               ? "No limit set — your agent can donate up to the per-pact stake cap."
-              : `Your agent may spend up to $${(policy.spend_limit_cents / 100).toFixed(2)} per missed pact. ${policy.rail === "nemoguard" ? "NemoGuard" : "The spend policy"} enforces this on every spend.`}
+              : `Your agent may spend up to $${(policy.spend_limit_cents / 100).toFixed(2)} per missed pact. ${policy.rail === "nemoguard" ? "NemoGuard" : "A spend rail modeled on NVIDIA NeMo Guardrails"} enforces this on every spend.`}
         </div>
       </div>
 

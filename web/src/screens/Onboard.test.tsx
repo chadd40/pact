@@ -289,7 +289,7 @@ describe("Onboard", () => {
 
     await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(DEMO_OWNER, 1500));
     expect(screen.getByText(/agent may spend up to \$15\.00/i)).toBeTruthy();
-    expect(screen.getByText(/NemoGuard checks every charge/i)).toBeTruthy();
+    expect(screen.getByText(/modeled on NVIDIA NeMo Guardrails/i)).toBeTruthy();
   });
 
   it("does not unlock setup when live Link is connected but missing a ready payment method", async () => {

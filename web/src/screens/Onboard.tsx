@@ -256,10 +256,10 @@ export function Onboard() {
                   : `Agent may spend up to ${formatPolicyLimit(policy.spend_limit_cents)} per missed pact.`}
             </span>
             <StatusPill tone={policy == null || busy === "limit" ? "busy" : "ok"}>
-              {policy == null || busy === "limit" ? "checking" : policy.rail === "nemoguard" ? "NemoGuard" : "policy"}
+              {policy == null || busy === "limit" ? "checking" : policy.rail === "nemoguard" ? "NemoGuard" : "NeMo-modeled"}
             </StatusPill>
           </div>
-          <div className="onb-check-note">Your standing authorization: if you miss, your agent handles the donation to your chosen charity, up to this limit. NemoGuard checks every charge.</div>
+          <div className="onb-check-note">Your standing authorization: if you miss, your agent handles the donation to your chosen charity, up to this limit. The spend rail — modeled on NVIDIA NeMo Guardrails — checks every charge.</div>
           <form
             className="onb-limit-form"
             onSubmit={(event) => { event.preventDefault(); saveLimit(); }}

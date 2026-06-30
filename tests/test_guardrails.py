@@ -5,9 +5,18 @@ known-charity allowlist, and that the guard allows/denies correctly. (The gate i
 plain deterministic policy — no NeMo Guardrails framework.)
 """
 
-from pact.guardrails import SpendGuard, policy_for_profile
+from pact.guardrails import SpendGuard, intake_input_rail, policy_for_profile
 from pact.models import Profile
 from pact.spend_policy import SpendPolicy, SpendRequest
+
+
+def test_intake_input_rail_refuses_dangerous_and_allows_safe():
+    # The intake INPUT rail (modeled on NeMo Guardrails' self-check-input rail):
+    # refuses unsafe goals with a reason, passes safe ones (returns None).
+    assert intake_input_rail("work out 5 times this week or $20 to charity") is None
+    harm = intake_input_rail("hurt myself if I skip a workout")
+    assert harm is not None and "988" in harm
+    assert intake_input_rail("lose 15 pounds in 10 days") is not None
 
 
 def _req(**overrides) -> SpendRequest:
