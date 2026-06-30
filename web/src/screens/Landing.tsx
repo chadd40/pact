@@ -402,7 +402,7 @@ export function Landing() {
               </div>
               <div className="bento-foot">
                 <div className="bento-h">Create a pact</div>
-                <p className="bento-p">Pick the thing you keep wishing you'd do, then browse the deck and choose your card.</p>
+                <p className="bento-p">Pick the thing you keep wishing you'd do, browse the deck, or create your own pact.</p>
               </div>
             </article>
 
@@ -455,7 +455,7 @@ export function Landing() {
               </div>
               <div className="bento-foot">
                 <div className="bento-h">Stake it</div>
-                <p className="bento-p">Put real money behind it through Link. Miss your goal and you're donating to charity.</p>
+                <p className="bento-p">Put your money behind it through our Link integration. Miss your goal and your agent is donating to charity.</p>
               </div>
             </article>
 
@@ -483,7 +483,7 @@ export function Landing() {
               </div>
               <div className="bento-foot">
                 <div className="bento-h">Prove it</div>
-                <p className="bento-p">Snap a photo or screenshot. Your agent verifies it on the spot.</p>
+                <p className="bento-p">Snap a photo or screenshot. Your agent reads it, confirms you hit your goal, and logs the win.</p>
               </div>
             </article>
           </div>
@@ -520,8 +520,9 @@ export function Landing() {
             <div className="lp-eyebrow m">Integrations</div>
             <h2 className="lp-sec-title">Bring your own agent.</h2>
             <p className="lp-int-lede">
-              Pact works with the agent you already talk to. Hermes is built in, or bring Claude Code, NVIDIA NeMo,
-              or any MCP agent over the API to judge your proof and keep you honest.
+              Pact ships as a skill, so it runs right inside the agent you already use instead of asking you to learn a
+              new one. Hermes is built in and recommended, Claude Code is one connect away, and anywhere else your
+              skills run, Pact runs.
             </p>
           </div>
           <div className="lp-int-grid">
@@ -531,7 +532,7 @@ export function Landing() {
               </span>
               <div className="lp-int-name">Hermes</div>
               <div className="lp-int-sub">Built in · ready the moment you seal</div>
-              <span className="lp-int-tag m on">Default</span>
+              <span className="lp-int-tag m on">Recommended</span>
             </div>
             <div className="lp-int-card" data-reveal style={{ transitionDelay: ".06s" }}>
               <span className="lp-int-logo">
@@ -552,14 +553,13 @@ export function Landing() {
             <div className="lp-int-card" data-reveal style={{ transitionDelay: ".18s" }}>
               <span className="lp-int-logo">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#2e2a20" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="26" height="26" aria-hidden="true">
-                  <circle cx="6" cy="6" r="2.5" />
-                  <circle cx="18" cy="18" r="2.5" />
-                  <circle cx="18" cy="6" r="2.5" />
-                  <path d="M8.2 7.2l7.6 9.6M16 8v8" />
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3 12h18" />
+                  <path d="M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" />
                 </svg>
               </span>
-              <div className="lp-int-name">MCP</div>
-              <div className="lp-int-sub">Connect any agent over MCP</div>
+              <div className="lp-int-name">Anywhere skills run</div>
+              <div className="lp-int-sub">If your agent loads skills, it loads Pact</div>
               <span className="lp-int-tag m on">Available</span>
             </div>
           </div>
@@ -619,22 +619,34 @@ export function Landing() {
 const FAQS: Array<{ q: string; a: string }> = [
   {
     q: "What is a pact?",
-    a: "A pact is a promise you put money behind. You pick a goal, choose how often and for how long, and stake real cash. Prove you showed up and you keep your money. Miss a check-in and the stake goes to a charity you chose.",
+    a: "A pact is a promise you put real money behind. You pick a goal, set how often and for how many weeks you'll show up, and stake anywhere from $10 to $500. Your agent coaches you the whole way and checks your proof at each check-in. Show up enough times and you keep every dollar. Fall short by the deadline and your stake goes to a charity you chose when you made the pact.",
   },
   {
     q: "Where does the money go if I fail?",
-    a: "To a real cause you pick when you create the pact, like the World Wildlife Fund or Save the Children. Pact never keeps your stake; it only moves to your charity if you don't follow through.",
-  },
-  {
-    q: "How does Pact know I actually did it?",
-    a: "You submit evidence, a photo or screenshot, for each check-in. Your agent (Hermes, or one you bring) verifies it against your goal in seconds and logs the result.",
+    a: "To one of fifteen real causes you choose when you create the pact, like the World Wildlife Fund, charity: water, Save the Children, or Doctors Without Borders. Pact never keeps your stake and never takes a cut. The money only ever moves to your chosen charity, and only if you don't follow through. Hit your goal and nothing is charged at all.",
   },
   {
     q: "Does Pact hold my money?",
-    a: "No. Pact registers a funding source through Link and only charges it if you miss. Your money stays with you unless you fold.",
+    a: "No. Pact is charge-on-fail, never an escrow or a hold. Connecting Link simply registers a funding source so the stake is ready if you ever need it, and your real money stays in your account until you actually miss. Even then it's a single, capped charge that goes straight to your charity, never to Pact.",
   },
   {
-    q: "Can I use my own agent?",
-    a: "Yes. Hermes is built in, but you can connect Claude, Claude Code, or any MCP agent over the API to coach you and judge your proof.",
+    q: "How does Pact know I actually did it?",
+    a: "At each check-in you submit proof: a photo, a screenshot, a link, a file, or a short note. Your agent reads it against the goal you set and logs the result. To keep things honest, photos have their metadata stripped and Pact checks for near-duplicate images so you can't reuse the same shot twice. It's a best-effort honesty check, not a forensic investigation, so the point is to keep you accountable rather than to interrogate you.",
+  },
+  {
+    q: "What happens if I miss for a real reason?",
+    a: "Missing doesn't fire an instant charge. When a pact comes up short, a dispute window opens, twenty-four hours by default, where you can add more proof or let a borderline check-in get a second look. If that turns it around, the pact succeeds and nothing is charged. Only if the window closes with you still short does the donation go through, and your agent never moves money quietly on its own.",
+  },
+  {
+    q: "What kinds of goals work best?",
+    a: "Anything you can show up for on a regular cadence and prove in a quick photo, screenshot, link, or note. Think workouts, daily writing, language practice, reading, sketching, shipping code, or getting to bed on time. You choose how many days a week and how many weeks, and Pact counts at most one check-in per day, so it rewards consistency over one heroic sprint. If you can describe what done looks like, your agent can verify it.",
+  },
+  {
+    q: "Can I bring my own agent?",
+    a: "Yes, that's the whole idea. Pact ships as a skill, so it loads right into the agent you already use instead of forcing you into a new app. Hermes is built in and recommended, Claude Code is one connect away, and any agent that loads skills can run Pact. Agents that speak MCP can connect over Pact's local server instead. Whichever you pick, your agent does the coaching and the proof-checking while Pact supplies the rules and keeps the receipts.",
+  },
+  {
+    q: "How do I start?",
+    a: "Making a pact takes about a minute: pick a goal or a template, set your cadence and length, choose a stake from $10 to $500, pick your charity and your agent, and sign the card. You don't need an account, a password, or any billing info to seal one. To put real money on the line, download the free Mac app and connect Link during onboarding, which registers a funding source without charging anything. From there your agent keeps you honest, and your money only moves if you don't.",
   },
 ];
