@@ -1282,6 +1282,14 @@ def create_app(
         confirm the charge via Link and resolve the pact to donation_complete. Idempotent;
         if Link cannot confirm yet the pact stays donated and a later resolve retries."""
         pact = _require(pact_id)
+        if pact.status == PactStatus.donation_complete:
+            # Idempotent: already resolved -> return the confirmed state, no re-charge.
+            existing = repo.get_donation_receipt(pact_id)
+            return {
+                "status": pact.status.value,
+                "confirmed": True,
+                "receipt": existing.model_dump(mode="json") if existing else None,
+            }
         if pact.status not in (PactStatus.donation_pending, PactStatus.donated):
             raise HTTPException(
                 status_code=409,
