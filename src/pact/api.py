@@ -227,6 +227,18 @@ class SpendPolicyIn(BaseModel):
     spend_limit_cents: int | None = Field(default=None, ge=0)
 
 
+class BillingIn(BaseModel):
+    owner: str
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    street: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
+
+
 class DonationReceiptIn(BaseModel):
     receipt_status: str = "manual_receipt"
     receipt_source: str | None = None
@@ -1399,6 +1411,31 @@ def create_app(
             "charity_allowlist": all_charity_ids(),
             "rail": build_spend_guard(prof).active_rail,
         }
+
+    _BILLING_FIELDS = (
+        "first_name", "last_name", "email", "street", "city", "state", "postal_code", "country",
+    )
+
+    @app.get("/api/account/billing")
+    def get_billing(owner: str):
+        prof = repo.get_profile(owner) or Profile(owner=owner)
+        return {"owner": owner, **{f: getattr(prof, f) for f in _BILLING_FIELDS}}
+
+    @app.post("/api/account/billing")
+    def set_billing(body: BillingIn, authorization: str | None = Header(default=None)):
+        """Upsert the owner's billing profile (name + address) used to fill a charity
+        donation form on a failed pact. Owner-scoped when auth is on; preserves all
+        other profile fields (streak, spend limit, history)."""
+        session = _require_agent_session(authorization)
+        if session is not None and session.owner != body.owner:
+            raise HTTPException(status_code=403, detail="cannot set another owner's billing")
+        prof = repo.get_profile(body.owner) or Profile(owner=body.owner)
+        for f in _BILLING_FIELDS:
+            value = getattr(body, f)
+            if value is not None:
+                setattr(prof, f, value)
+        repo.save_profile(prof)
+        return {"owner": body.owner, **{f: getattr(prof, f) for f in _BILLING_FIELDS}}
 
     @app.post("/api/policy")
     def set_spend_policy(body: SpendPolicyIn, authorization: str | None = Header(default=None)):

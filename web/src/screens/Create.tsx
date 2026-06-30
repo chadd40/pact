@@ -1003,7 +1003,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
         {/* Final screen (stage 7) */}
         <div
-          className={`pc-msg ${isDesktop() && created ? "pc-msg-setup" : ""}`}
+          className={`pc-msg ${isDesktop() && created ? "pc-msg-setup" : "pc-msg-web"}`}
           style={{ opacity: stage === 7 ? 1 : 0, pointerEvents: stage === 7 ? "auto" : "none" }}
         >
           <div className="card" style={{ transform: stage === 7 ? "translateY(0)" : "translateY(14px)" }}>

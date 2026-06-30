@@ -186,6 +186,21 @@ class Profile(BaseModel):
     # donation. None = no extra ceiling beyond Pact's per-stake cap. Enforced by
     # the spend gate (see pact.guardrails / pact.spend_policy).
     spend_limit_cents: int | None = None
+    # Billing profile, captured at onboarding. Link carries NO cardholder/address
+    # fields, so this is the only source for filling a charity donation form on a
+    # failed pact (the agent enters these alongside the single-use card).
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    street: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
+    # Reminder targeting: deliver the daily nudge at ~nudge_hour local time in the
+    # owner's timezone (falls back to the pact's timezone when unset).
+    timezone: str | None = None
+    nudge_hour: int = 17
 
 
 class LinkAccount(BaseModel):

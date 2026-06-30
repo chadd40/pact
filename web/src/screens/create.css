@@ -1100,6 +1100,18 @@
   height: 44px;
   border-radius: 11px;
 }
+/* Web final screen lands in the editor rail's slot — right side, same bounding
+   box as the "Sign the pact" box — instead of centering as a modal, so the
+   create box reads as transforming into the signed state. Mirrors .pc-rail's
+   geometry: right edge 38px in, 452px wide, vertically centered on the stage. */
+.pc-msg.pc-msg-web {
+  align-items: center;
+  justify-content: flex-end;
+  padding: 42px 38px;
+}
+.pc-msg.pc-msg-web .card {
+  width: 452px;
+}
 .pc-msg .head {
   background: var(--pc-card);
   padding: 18px 22px;
