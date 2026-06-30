@@ -1,4 +1,5 @@
 import type {
+  BillingProfile,
   Charity,
   CoachingMessage,
   DemoAdvanceResult,
@@ -238,6 +239,13 @@ export const api = {
 
   setPolicy: (owner: string, spend_limit_cents: number | null) =>
     request<SpendPolicy>("/api/policy", { json: { owner, spend_limit_cents } }),
+
+  // ── Billing profile (name + address, to fill a charity form on a failed pact) ──
+  getBilling: (owner: string) =>
+    request<BillingProfile>(`/api/account/billing?owner=${encodeURIComponent(owner)}`),
+
+  setBilling: (billing: BillingProfile) =>
+    request<BillingProfile>("/api/account/billing", { json: billing }),
 
   charities: () => request<Charity[]>("/api/charities"),
 

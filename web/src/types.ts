@@ -256,6 +256,20 @@ export interface SpendPolicy {
   rail: string;
 }
 
+// Billing profile (name + address) captured at onboarding, used to fill a charity
+// donation form on a failed pact. Link carries no cardholder/address fields.
+export interface BillingProfile {
+  owner: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+}
+
 export interface CoachingMessage {
   id: string;
   pact_id: string;
