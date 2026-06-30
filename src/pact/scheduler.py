@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from pact.charities import get_charity
 from pact.clock import Clock
-from pact.coaching import donation_nag_message, generate_coach_message, should_nudge
+from pact.coaching import (
+    donation_nag_message,
+    failed_dispute_message,
+    generate_coach_message,
+    renew_message,
+    should_nudge,
+)
 from pact.config import Settings
 from pact.lifecycle import close_dispute_window, settle
 from pact.link import is_owner_connected
@@ -55,6 +61,8 @@ def tick(
     donated_ids: list[str] = []
     nudged_ids: list[str] = []
     nagged_ids: list[str] = []
+    failed_ids: list[str] = []
+    renewed_ids: list[str] = []
 
     # ── Pass 1: reconcile due active pacts (settle opens windows). ──────────────
     for pact in repo.due_active_pacts(now):
@@ -104,7 +112,7 @@ def tick(
             continue
         proofs = repo.list_proofs(pact.id)
         messages = repo.list_coaching_messages(pact.id)
-        trigger = should_nudge(pact, proofs, messages, clock)
+        trigger = should_nudge(pact, proofs, messages, clock, nudge_hour=settings.nudge_hour)
         if trigger is None:
             continue
         charity_name = _charity_name(pact.charity_id)
@@ -129,12 +137,35 @@ def tick(
         repo.save_coaching_message(msg)
         nagged_ids.append(pact.id)
 
+    # ── Pass 5: at the moment of failure, tell the user they can dispute. ────────
+    # One-shot per pact: without this the 24h window passes silently and the dispute
+    # feature is unreachable.
+    for pact in repo.list_pacts():
+        if pact.status != PactStatus.failed or pact.dispute_window_closes_at is None:
+            continue
+        if any(m.trigger == "failed" for m in repo.list_coaching_messages(pact.id)):
+            continue
+        repo.save_coaching_message(failed_dispute_message(pact, clock))
+        failed_ids.append(pact.id)
+
+    # ── Pass 6: celebrate + prompt a renew on terminal outcomes. ────────────────
+    # One-shot per pact when it reaches succeeded or (after a miss) donation_complete.
+    for pact in repo.list_pacts():
+        if pact.status not in (PactStatus.succeeded, PactStatus.donation_complete):
+            continue
+        if any(m.trigger == "renew" for m in repo.list_coaching_messages(pact.id)):
+            continue
+        repo.save_coaching_message(renew_message(pact, clock))
+        renewed_ids.append(pact.id)
+
     return {
         "now": now.isoformat(),
         "settled": settled_ids,
         "donated": donated_ids,
         "nudged": nudged_ids,
         "nagged": nagged_ids,
+        "failed": failed_ids,
+        "renewed": renewed_ids,
     }
 
 

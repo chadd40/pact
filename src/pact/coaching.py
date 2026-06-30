@@ -54,6 +54,57 @@ def donation_nag_message(pact: Pact, clock: Clock, charity_name: str) -> Coachin
     )
 
 
+def failed_dispute_message(pact: Pact, clock: Clock) -> CoachingMessage:
+    """Fired once at the moment a pact fails: tell the user they missed and have
+    until the dispute window closes to contest it. Without this the 24h window
+    elapses silently and the dispute feature is unreachable. Trigger 'failed'."""
+    now = clock.now()
+    deadline = pact.dispute_window_closes_at
+    when = deadline.isoformat() if deadline is not None else "soon"
+    dollars = pact.stake_amount_cents / 100
+    body = (
+        f'You came up short on "{pact.title}". You have until {when} to dispute — '
+        f"send more proof if this is wrong. Otherwise ${dollars:.0f} goes to your charity."
+    )
+    return CoachingMessage(
+        id=_message_id(pact.id, "outbound", "failed", body, now.isoformat()),
+        pact_id=pact.id,
+        direction="outbound",
+        trigger="failed",
+        pact_state_snapshot={"status": pact.status.value, "stake_cents": pact.stake_amount_cents},
+        channel="web",
+        body=body,
+        sent_at=now,
+    )
+
+
+def renew_message(pact: Pact, clock: Clock) -> CoachingMessage:
+    """Fired once when a pact reaches a terminal outcome (succeeded or, after a
+    miss, donation_complete): congratulate / re-motivate and prompt a new pact to
+    keep the momentum. Trigger 'renew'."""
+    now = clock.now()
+    if pact.status == PactStatus.succeeded:
+        body = (
+            f'You kept "{pact.title}" — nice work. Keep the momentum going: '
+            "want to start another pact?"
+        )
+    else:  # donation_complete -- paid after a miss
+        body = (
+            f'"{pact.title}" cost you this time, but the donation is done. '
+            "Let's get the next one — ready to make a new pact?"
+        )
+    return CoachingMessage(
+        id=_message_id(pact.id, "outbound", "renew", body, now.isoformat()),
+        pact_id=pact.id,
+        direction="outbound",
+        trigger="renew",
+        pact_state_snapshot={"status": pact.status.value},
+        channel="web",
+        body=body,
+        sent_at=now,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Task 4: pace()
 # ---------------------------------------------------------------------------
@@ -92,6 +143,7 @@ def should_nudge(
     proofs: list[Proof],
     messages: list[CoachingMessage],
     clock: Clock,
+    nudge_hour: int = 0,
 ) -> str | None:
     """Decide whether (and which) nudge trigger to fire.
 
@@ -117,6 +169,19 @@ def should_nudge(
     # Rule 3: suppress if any proof landed today (any status counts).
     for proof in proofs:
         if proof.received_at.date() == today:
+            return None
+
+    # Rule 3b: time-of-day gate -- only fire at/after nudge_hour in the pact's local
+    # timezone, so the daily reminder lands ~5pm local rather than at the first
+    # post-midnight tick. nudge_hour=0 (default) disables the gate.
+    if nudge_hour > 0:
+        from zoneinfo import ZoneInfo
+
+        try:
+            local = clock.now().astimezone(ZoneInfo(pact.timezone))
+        except Exception:
+            local = clock.now()
+        if local.hour < nudge_hour:
             return None
 
     # Rule 4: compute pace and return the appropriate trigger.

@@ -71,7 +71,8 @@ def _active_pact(
 def _settings() -> Settings:
     # dispute_grace_hours defaults to 24 (config.py). Keep the default so the
     # window math below is explicit: window closes at deadline + 24h.
-    return Settings()
+    # nudge_hour=0 disables the 5pm time gate so nudge plumbing is clock-independent.
+    return Settings(nudge_hour=0)
 
 
 def test_ghosted_pact_ends_donated_after_deadline_plus_grace_and_profile_fails():

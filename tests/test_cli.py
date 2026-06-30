@@ -71,7 +71,7 @@ def _app_with_nudge():
     clock = FixedClock(now)
     repo = _repo()
     payment = TestLinkProvider()
-    settings = Settings()
+    settings = Settings(nudge_hour=0)  # plumbing test: disable the 5pm time gate
     deadline = now + timedelta(days=2)
     repo.save_pact(_active_pact("pact_cli_relay", now, deadline))
     summary = tick(repo, clock, payment, settings)

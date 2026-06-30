@@ -25,6 +25,9 @@ class Settings:
     auth_mode: str = "local_dev"
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 60
+    # Daily reminder is delivered at/after this hour in the pact's local timezone
+    # (so it lands ~5pm local, not at the first post-midnight tick).
+    nudge_hour: int = 17
     # NVIDIA Nemotron (via NIM, OpenAI-compatible) for the backend fallback brain.
     # When an API key is set, the hybrid fallback reasons on Nemotron instead of
     # the deterministic stub. Absent key = stub (no network, tests stay green).
@@ -90,6 +93,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         default_freezes=_int(env, "PACT_DEFAULT_FREEZES", 1),
         freeze_extension_hours=_int(env, "PACT_FREEZE_EXTENSION_HOURS", 24),
         dispute_grace_hours=_int(env, "PACT_DISPUTE_GRACE_HOURS", 24),
+        nudge_hour=_int(env, "PACT_NUDGE_HOUR", 17),
         cooling_off_minutes=_int(env, "PACT_COOLING_OFF_MINUTES", 60),
         db_path=_str(env, "PACT_DB_PATH", "pact.db"),
         artifacts_dir=_str(env, "PACT_ARTIFACTS_DIR", "artifacts"),

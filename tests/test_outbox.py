@@ -69,7 +69,7 @@ def _active_pact(pact_id: str, now: datetime, deadline: datetime) -> Pact:
 def _build_app(clock: FixedClock):
     repo = _repo()
     payment = TestLinkProvider()
-    settings = Settings()
+    settings = Settings(nudge_hour=0)  # plumbing test: disable the 5pm time gate
     app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
     return app, repo, payment, settings
 
@@ -77,7 +77,7 @@ def _build_app(clock: FixedClock):
 def _build_auth_app(clock: FixedClock):
     repo = _repo()
     payment = TestLinkProvider()
-    settings = Settings(auth_mode="agent_token")
+    settings = Settings(auth_mode="agent_token", nudge_hour=0)
     app = create_app(repo, TestLLMProvider(), payment, TokenStore(), clock, settings)
     return app, repo, payment, settings
 
@@ -109,7 +109,7 @@ def test_nudge_appears_in_outbox_and_disappears_after_mark_delivered_via_repo():
     clock = FixedClock(now)
     repo = _repo()
     payment = TestLinkProvider()
-    settings = Settings()
+    settings = Settings(nudge_hour=0)  # plumbing test: disable the 5pm time gate
 
     deadline = now + timedelta(days=2)
     repo.save_pact(_active_pact("pact_outbox_test", now, deadline))
@@ -262,7 +262,7 @@ def test_outbox_only_returns_undelivered_outbound_messages():
     clock = FixedClock(now)
     repo = _repo()
     payment = TestLinkProvider()
-    settings = Settings()
+    settings = Settings(nudge_hour=0)  # plumbing test: disable the 5pm time gate
 
     deadline = now + timedelta(days=2)
     repo.save_pact(_active_pact("pact_filter_test", now, deadline))
