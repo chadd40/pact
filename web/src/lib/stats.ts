@@ -18,6 +18,8 @@ export function dashboardStats(profile: Profile | null, pacts: Pact[]): Dashboar
     bestStreak: profile?.best_streak ?? 0,
     winRate: kept + failed > 0 ? Math.round((100 * kept) / (kept + failed)) : null,
     activePacts: pacts.filter((p) => ACTIVE.has(p.status)).length,
-    donatedCents: pacts.filter((p) => p.status === "donated").reduce((s, p) => s + p.stake_amount_cents, 0),
+    donatedCents: pacts
+      .filter((p) => p.status === "donated" || p.status === "donation_complete")
+      .reduce((s, p) => s + p.stake_amount_cents, 0),
   };
 }

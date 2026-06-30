@@ -3,6 +3,7 @@
 
 export type PactStatus =
   | "draft"
+  | "awaiting_stake"
   | "active"
   | "evaluating"
   | "succeeded"
@@ -12,6 +13,7 @@ export type PactStatus =
   | "canceled_forfeit"
   | "donation_pending"
   | "donated"
+  | "donation_complete"
   | "donation_failed"
   | "donation_declined";
 

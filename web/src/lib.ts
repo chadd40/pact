@@ -32,6 +32,8 @@ export function statusChip(status: PactStatus): { cls: string; label: string } {
     // ledger reads honestly while the verdict is still suspended.
     case "needs_review":
       return { cls: "chip-review", label: "Under review" };
+    case "awaiting_stake":
+      return { cls: "chip-review", label: "Awaiting stake" };
     case "active":
     case "evaluating":
     case "donation_pending":
@@ -41,10 +43,19 @@ export function statusChip(status: PactStatus): { cls: string; label: string } {
       return { cls: "chip-kept", label: "Kept" };
     case "failed":
     case "donated":
+    case "donation_complete":
     case "donation_failed":
     case "donation_declined":
     case "canceled_forfeit":
-      return { cls: "chip-failed", label: status === "donated" ? "Failed · donated" : "Failed" };
+      return {
+        cls: "chip-failed",
+        label:
+          status === "donation_complete"
+            ? "Failed · donated ✓"
+            : status === "donated"
+              ? "Failed · donated"
+              : "Failed",
+      };
     default:
       return { cls: "chip-draft", label: "Draft" };
   }
@@ -54,6 +65,7 @@ export const TERMINAL: PactStatus[] = [
   "succeeded",
   "failed",
   "donated",
+  "donation_complete",
   "donation_failed",
   "donation_declined",
   "canceled_forfeit",

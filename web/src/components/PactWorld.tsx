@@ -20,7 +20,7 @@ import "../screens/create.css";
 
 const LIVE = new Set(["active", "evaluating"]);
 const KEPT = new Set(["succeeded", "canceled_release"]);
-const DONATED = new Set(["donated"]);
+const DONATED = new Set(["donated", "donation_complete"]);
 const DECLINED = new Set(["donation_declined", "canceled_forfeit"]);
 
 // Default coach avatar when the pact's agent has none (or no agent set).
