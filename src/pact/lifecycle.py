@@ -147,6 +147,8 @@ def confirm_and_start(
     clock: Clock,
     settings: Settings,
     consent_acknowledged: bool = False,
+    payment: "PaymentProvider | None" = None,
+    artifacts_dir: str | None = None,
 ) -> Pact:
     # Honest acknowledgment, not a compliance gate: a pact cannot start until the
     # owner explicitly acknowledges that real money goes to charity on failure.
@@ -181,7 +183,63 @@ def confirm_and_start(
             "started_at": clock.now(),
         }
     )
+    if payment is None:
+        # Pure flow (no pre-authorization): go active directly.
+        return started
+    # Pre-authorize the stake NOW: open the Link spend-request and, if the card is
+    # immediately available (dry-run/test), provision it and go active. In live mode
+    # the card is unavailable until the human approves in Link, so park at
+    # awaiting_stake with the approval URL; confirm_stake picks it up later.
+    result = payment.create_donation(started, f"{started.id}:stake")
+    started.spend_request_id = result.provider_ref
+    try:
+        cred = payment.retrieve_card(started.spend_request_id, output_dir=artifacts_dir or ".")
+    except RuntimeError:
+        started.status = PactStatus.awaiting_stake
+        started.stake_approval_url = _approval_url(result.payload)
+        return started
+    started.card_artifact_path = cred.card_file
+    started.card_last4 = cred.last4
     return started
+
+
+def confirm_stake(
+    pact: Pact,
+    payment: "PaymentProvider",
+    clock: Clock,
+    settings: Settings,
+    artifacts_dir: str | None = None,
+) -> Pact:
+    """Pick up the approved stake card once the human approved the spend in Link.
+
+    Idempotent: already-active pacts are returned unchanged; if Link still has no
+    card (not yet approved) the pact stays awaiting_stake.
+    """
+    if pact.status != PactStatus.awaiting_stake or pact.spend_request_id is None:
+        return pact
+    try:
+        cred = payment.retrieve_card(pact.spend_request_id, output_dir=artifacts_dir or ".")
+    except RuntimeError:
+        return pact  # not approved yet
+    pact.card_artifact_path = cred.card_file
+    pact.card_last4 = cred.last4
+    pact.stake_approval_url = None
+    return transition(pact, PactStatus.active)
+
+
+def _approval_url(payload: dict) -> str | None:
+    """Best-effort dig for a Link approval_url anywhere in the create payload."""
+    stack: list = [payload]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            val = cur.get("approval_url")
+            if isinstance(val, str) and val:
+                return val
+            stack.extend(cur.values())
+        elif isinstance(cur, list):
+            stack.extend(cur)
+    return None
 
 
 def submit_proof(
