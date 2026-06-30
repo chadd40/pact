@@ -20,6 +20,9 @@
     "active": true,
     "targets": "all",
     "externalBin": ["binaries/pact-sidecar"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns"],
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }
