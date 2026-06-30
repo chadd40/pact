@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta
 
-from pact.models import Pact, PactStatus, StakeState
+from pact.models import DonationReceipt, Pact, PactStatus, StakeState
 
 
 class TransitionError(Exception):
@@ -367,7 +367,7 @@ from pact.models import (
     Proof,
     Verdict,
 )
-from pact.payment import PaymentProvider
+from pact.payment import PaymentProvider, payment_status_is_captured
 
 _TERMINAL_STATUSES = {
     PactStatus.succeeded,
@@ -712,6 +712,55 @@ def execute_forfeit_donation(
     pact = transition(pact, PactStatus.donated)
     pact.verdict_at = clock.now()
     return pact
+
+
+def finalize_donation(pact: Pact, receipt: DonationReceipt) -> Pact:
+    """Advance a donated pact to terminal donation_complete once a CONFIRMING receipt
+    (provider_confirmed or manual_receipt) exists. Idempotent; non-confirming receipts
+    (failed_or_reversed) leave the pact at donated."""
+    if pact.status == PactStatus.donation_complete:
+        return pact
+    if pact.status != PactStatus.donated:
+        return pact
+    if receipt.receipt_status not in ("provider_confirmed", "manual_receipt"):
+        return pact
+    pact.stake_state = StakeState.executed
+    return transition(pact, PactStatus.donation_complete)
+
+
+def resolve_via_link(
+    pact: Pact, payment: PaymentProvider, clock: Clock
+) -> tuple[Pact, DonationReceipt | None]:
+    """The last mile: confirm the agent's charity charge via Link and resolve.
+
+    The agent has paid the charity with the pre-approved single-use card. We ask Link
+    whether that spend-request was actually charged (captured). If so, record a
+    provider-confirmed receipt and finalize the pact to donation_complete. If Link
+    cannot confirm yet, the pact sits at donated (submitted, awaiting confirmation) and
+    a later resolve retries. Returns (pact, receipt_or_None).
+    """
+    if pact.status not in (PactStatus.donation_pending, PactStatus.donated):
+        return pact, None
+    if pact.spend_request_id is None:
+        return pact, None
+    if pact.status == PactStatus.donation_pending:
+        # Agent is paying the charity with the pre-approved card: interim 'submitted'.
+        pact.stake_state = StakeState.executing
+        pact = transition(pact, PactStatus.donated)
+    status_obj = payment.get_donation_status(pact)
+    raw = str(status_obj.status)
+    if not payment_status_is_captured(raw):
+        return pact, None  # not yet charged; stays donated, agent retries
+    receipt = DonationReceipt(
+        pact_id=pact.id,
+        receipt_status="provider_confirmed",
+        receipt_source="link",
+        receipt_ref=pact.spend_request_id,
+        confirmed_at=clock.now(),
+        confirmation_notes=f"Link spend-request status: {raw}",
+    )
+    pact = finalize_donation(pact, receipt)
+    return pact, receipt
 
 
 def submit_dispute(

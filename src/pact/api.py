@@ -31,7 +31,9 @@ from pact.lifecycle import (
     decline_donation,
     draft_pact,
     execute_forfeit_donation,
+    finalize_donation,
     new_pact_id,
+    resolve_via_link,
     settle,
     spend_freeze,
     submit_dispute,
@@ -1238,6 +1240,9 @@ def create_app(
             confirmation_notes=body.confirmation_notes,
         )
         repo.save_donation_receipt(receipt)
+        # A confirming receipt finalizes the pact to terminal donation_complete.
+        pact = finalize_donation(pact, receipt)
+        repo.update_pact(pact)
         return receipt.model_dump(mode="json")
 
     @app.get("/api/pacts/{pact_id}/donation/receipt")
@@ -1267,7 +1272,30 @@ def create_app(
             ),
         )
         repo.save_donation_receipt(receipt)
+        pact = finalize_donation(pact, receipt)
+        repo.update_pact(pact)
         return receipt.model_dump(mode="json")
+
+    @app.post("/api/pacts/{pact_id}/donation/resolve")
+    def donation_resolve(pact_id: str):
+        """The last mile: after the agent paid the charity with the pre-approved card,
+        confirm the charge via Link and resolve the pact to donation_complete. Idempotent;
+        if Link cannot confirm yet the pact stays donated and a later resolve retries."""
+        pact = _require(pact_id)
+        if pact.status not in (PactStatus.donation_pending, PactStatus.donated):
+            raise HTTPException(
+                status_code=409,
+                detail=f"resolve requires a payable pact (donation_pending/donated), got {pact.status.value}",
+            )
+        pact, receipt = resolve_via_link(pact, payment, clock)
+        if receipt is not None:
+            repo.save_donation_receipt(receipt)
+        repo.update_pact(pact)
+        return {
+            "status": pact.status.value,
+            "confirmed": receipt is not None,
+            "receipt": receipt.model_dump(mode="json") if receipt else None,
+        }
 
     @app.get("/api/pacts/{pact_id}/packet")
     def packet(pact_id: str):

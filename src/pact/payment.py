@@ -186,6 +186,19 @@ def payment_status_is_expired(status: str | None) -> bool:
     return _normalized_status(status) in _EXPIRED_STATUSES
 
 
+# "Captured" = the single-use card was actually CHARGED at the charity, distinct
+# from "approved"/"issued" (the card exists but no money has moved). link-cli 0.4.2
+# exposes no transaction object, so we treat these terminal spend-request statuses
+# as proof of charge; "succeeded"/"success" also covers the dry-run/test simulation.
+# The exact live value is a go-live validation item -- the raw status is always
+# stored on the receipt. Deliberately EXCLUDES approved/issued/created/pending.
+_CAPTURED_STATUSES = {"completed", "captured", "settled", "charged", "paid", "succeeded", "success"}
+
+
+def payment_status_is_captured(status: str | None) -> bool:
+    return _normalized_status(status) in _CAPTURED_STATUSES
+
+
 def _extract_provider_ref(payload: dict) -> str | None:
     payload = _as_obj(payload)
     return (
