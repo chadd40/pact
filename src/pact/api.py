@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -787,7 +788,11 @@ def create_app(
         prior_phashes = [p.phash for p in prior_proofs if p.phash is not None]
 
         try:
-            proof = submit_proof(
+            # submit_proof judges via the provider, which may block for seconds
+            # waiting on a serving agent. Offload so this async endpoint does not
+            # block the event loop (see post_coach for the same reasoning).
+            proof = await run_in_threadpool(
+                submit_proof,
                 pact,
                 Modality.photo,
                 token,
@@ -1359,7 +1364,13 @@ def create_app(
         pact = _require(pact_id)
         message, attachments = await _read_coach_payload(request, pact_id, settings, clock)
         proofs_list = repo.list_proofs(pact_id)
-        inbound, outbound = user_reply(
+        # user_reply may block for seconds polling the broker for an agent-authored
+        # reply (the hybrid provider's wait loop). Run it in a worker thread so this
+        # async endpoint does NOT block the event loop — otherwise the very agent we
+        # are waiting on can't have its claim/result requests served, and the coach
+        # always times out to the stub.
+        inbound, outbound = await run_in_threadpool(
+            user_reply,
             pact,
             message,
             proofs_list,

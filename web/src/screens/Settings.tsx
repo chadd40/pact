@@ -208,8 +208,8 @@ export function Settings() {
                 <button className="set-copy" aria-label="Copy agent token" onClick={copyToken}>{copied ? "Copied" : "Copy"}</button>
               </div>
               <ol className="set-steps">
-                <li>Bring your agent (Hermes is near-built-in; Claude Code = drop the <span className="m">/pact</span> skill file).</li>
-                <li>Install the <span className="m">/pact</span> skill.</li>
+                <li>Pick your agent when you seal a pact; Pact installs the <span className="m">/pact</span> skill into Hermes or Claude Code for you.</li>
+                <li>Restart the agent (or start a new session) so it loads the skill.</li>
                 <li>Paste this token so it claims your pacts and relays coaching.</li>
               </ol>
             </>

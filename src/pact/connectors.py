@@ -37,6 +37,20 @@ def _claude_skill_path() -> Path:
     return Path.home() / ".claude" / "skills" / "pact" / "SKILL.md"
 
 
+def _hermes_skill_path() -> Path:
+    """Where Hermes loads the /pact skill from: HERMES_HOME/skills (default
+    ~/.hermes/skills). Hermes scans this dir at startup; the desktop installer
+    writes the SKILL.md here for the Hermes agent. Mirrors _claude_skill_path so
+    the connector read-model reflects the REAL install state, not a hardcoded flag.
+    """
+    override = os.environ.get("PACT_HERMES_SKILL_PATH")
+    if override:
+        return Path(override).expanduser()
+    hermes_home = os.environ.get("HERMES_HOME")
+    base = Path(hermes_home).expanduser() if hermes_home else Path.home() / ".hermes"
+    return base / "skills" / "pact" / "SKILL.md"
+
+
 def mcp_command(base_url: str = DEFAULT_BASE_URL) -> str:
     return f"pact mcp --base-url {base_url} --agent-token <agent-token>"
 
@@ -64,6 +78,8 @@ def build_connector_health(
     last_seen = repo.worker_last_seen()
     claude_path = _claude_skill_path()
     claude_installed = claude_path.is_file()
+    hermes_path = _hermes_skill_path()
+    hermes_installed = hermes_path.is_file()
 
     def token_status(ready_status: str = "ready") -> str:
         return ready_status if token_ready else "needs_token"
@@ -86,11 +102,18 @@ def build_connector_health(
             "key": "hermes",
             "name": "Hermes",
             "kind": "skill",
-            "status": token_status("ready"),
-            "installed": True,
+            "status": (
+                "ready"
+                if token_ready and hermes_installed
+                else "needs_install"
+                if token_ready
+                else "needs_token"
+            ),
+            "installed": hermes_installed,
+            "install_path": str(hermes_path),
             "capabilities": ["text", "vision"],
-            "detail": "Built in. Generate an agent token, then run /pact serve when you want live agent review.",
-            "action": "Run /pact serve with your Pact token.",
+            "detail": "Install the /pact skill for Hermes, then restart Hermes and run /pact serve with your token.",
+            "action": "Install /pact skill, restart Hermes, run pact serve.",
         },
         {
             "key": "claude_code",

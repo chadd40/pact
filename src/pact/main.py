@@ -66,15 +66,35 @@ def _mount_spa(app: FastAPI, settings: Settings) -> None:
             "/assets", StaticFiles(directory=str(assets)), name="assets"
         )
 
+    # The SPA shell. With spa_desktop on, inject the desktop marker so a plain
+    # browser hitting the standalone sidecar enters desktop mode (isDesktop()=true,
+    # API base = its own origin) — this is what lets the demo UI (create flow +
+    # DemoControls) render without the Tauri shell. Precomputed once; index.html
+    # is static at runtime. Off by default, so production serving is unchanged.
+    if settings.spa_desktop:
+        _shell_html = index.read_text(encoding="utf-8").replace(
+            "<head>",
+            "<head>\n    <script>window.__PACT_API_BASE__ = "
+            "window.location.origin;</script>",
+            1,
+        )
+
+        def _shell():
+            return HTMLResponse(_shell_html)
+    else:
+
+        def _shell():
+            return FileResponse(str(index))
+
     @app.get("/", include_in_schema=False)
-    def _spa_root() -> FileResponse:
-        return FileResponse(str(index))
+    def _spa_root():
+        return _shell()
 
     # SPA fallback: any other GET that is NOT an API/demo path returns the shell
     # so client-side routing (deep links) works. Registered LAST so concrete
     # /api and /demo routes win; we still guard explicitly for safety.
     @app.get("/{full_path:path}", include_in_schema=False)
-    def _spa_fallback(full_path: str) -> FileResponse:
+    def _spa_fallback(full_path: str):
         from fastapi import HTTPException
 
         if ("/" + full_path).startswith(_RESERVED_PREFIXES):
@@ -87,7 +107,7 @@ def _mount_spa(app: FastAPI, settings: Settings) -> None:
             candidate = (dist_root / full_path).resolve()
             if candidate.is_file() and candidate.is_relative_to(dist_root):
                 return FileResponse(str(candidate))
-        return FileResponse(str(index))
+        return _shell()
 
 
 def build_app(env: Mapping[str, str] | None = None):

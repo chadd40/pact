@@ -4,6 +4,7 @@ import hashlib
 import math
 
 from pact.anticheat import count_distinct_valid_days
+from pact.charities import get_charity
 from pact.clock import Clock
 from pact.models import CoachingMessage, Pact, PactStatus, Proof, TaskType
 from pact.reasoning import ReasoningProvider, make_reasoning_task
@@ -281,6 +282,10 @@ def user_reply(
     # Outbound: coach response grounded in the real distinct-valid-day count.
     valid = count_distinct_valid_days(proofs)
     days_left = _days_left(pact, clock)
+    # Human charity name (not the raw id) so the coach prose reads naturally;
+    # fall back to the id only if the charity is unknown. Mirrors the name passed
+    # into generate_coach_message() so both coach paths read the same.
+    charity_name = (get_charity(pact.charity_id) or {}).get("name", pact.charity_id)
     task = make_reasoning_task(
         TaskType.coach,
         pact.id,
@@ -288,7 +293,7 @@ def user_reply(
             "valid": valid,
             "target": pact.target_count,
             "days_left": days_left,
-            "charity": pact.charity_id,
+            "charity": charity_name,
             "title": pact.title,
             "goal": pact.goal,
             "agent": pact.agent or "Hermes",

@@ -67,7 +67,23 @@ class Repository:
 
     @classmethod
     def connect(cls, path: str) -> "Repository":
-        conn = sqlite3.connect(path, check_same_thread=False)
+        # isolation_level=None puts the connection in autocommit mode: every
+        # statement commits immediately and no implicit read transaction lingers.
+        # Without this, a long-lived shared connection keeps a stale read snapshot,
+        # so a thread polling for a row (e.g. the reasoning broker waiting for an
+        # agent-posted result) never observes another thread's committed write — the
+        # interactive coach would always time out and fall back to the stub. All
+        # writes here are single statements, so autocommit loses no atomicity; the
+        # existing explicit commit() calls become harmless no-ops.
+        conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        # WAL lets a reader observe another connection/thread's committed writes
+        # immediately (a polling reader must see an agent-posted result); busy_timeout
+        # avoids spurious "database is locked" under the threadpool. No-ops for :memory:.
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+        except sqlite3.OperationalError:
+            pass
         return cls(conn)
 
     def init_schema(self) -> None:

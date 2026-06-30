@@ -23,6 +23,12 @@ class Settings:
     # provider to wait for the agent brain (vs. falling straight back to the stub).
     worker_presence_seconds: int = 45
     auth_mode: str = "local_dev"
+    # When true, the sidecar-served SPA is marked as the local desktop runtime
+    # (injects window.__PACT_API_BASE__ = origin) so isDesktop() is true in a plain
+    # browser. Lets the standalone sidecar drive the demo UI (create flow +
+    # DemoControls) without the Tauri shell. Default off: production serving is
+    # unchanged; the demo launcher opts in.
+    spa_desktop: bool = False
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 60
     # Daily reminder is delivered at/after this hour in the pact's local timezone
@@ -109,6 +115,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         reasoning_timeout_polls=_int(env, "PACT_REASONING_TIMEOUT_POLLS", 0),
         worker_presence_seconds=_int(env, "PACT_WORKER_PRESENCE_SECONDS", 45),
         auth_mode=_str(env, "PACT_AUTH_MODE", "local_dev"),
+        spa_desktop=_bool(env, "PACT_SPA_DESKTOP", False),
         scheduler_enabled=_bool(env, "PACT_SCHEDULER_ENABLED", True),
         scheduler_interval_seconds=_int(env, "PACT_SCHEDULER_INTERVAL_SECONDS", 60),
         nemotron_api_key=(

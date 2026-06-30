@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::TcpListener;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -52,10 +53,58 @@ struct InstallResult {
     message: String,
 }
 
+/// The display name for an agent key, for onboarding copy.
+fn agent_label(agent_key: &str) -> &'static str {
+    match agent_key.trim().to_lowercase().as_str() {
+        "claude code" | "claude-code" | "claudecode" => "Claude Code",
+        "hermes" => "Hermes",
+        _ => "your agent",
+    }
+}
+
+/// Resolve where the /pact skill installs for the chosen agent, or None when we
+/// can't auto-install (a bring-your-own MCP agent, which gets copy-paste + MCP
+/// instructions instead). Pure so the per-agent path logic is unit-testable
+/// without a Tauri AppHandle.
+///   - Claude Code -> <home>/.claude/skills/pact/SKILL.md  (Claude Code scans ~/.claude/skills)
+///   - Hermes      -> <HERMES_HOME or <home>/.hermes>/skills/pact/SKILL.md
+///                    (Hermes scans HERMES_HOME/skills at startup; see Hermes
+///                    agent/skill_utils.get_skills_dir — it does NOT read ~/.agents/skills)
+fn pact_skill_target(agent_key: &str, home: &Path, hermes_home: Option<&Path>) -> Option<PathBuf> {
+    match agent_key.trim().to_lowercase().as_str() {
+        "claude code" | "claude-code" | "claudecode" => Some(
+            home.join(".claude")
+                .join("skills")
+                .join("pact")
+                .join("SKILL.md"),
+        ),
+        "hermes" => {
+            let base = hermes_home
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| home.join(".hermes"));
+            Some(base.join("skills").join("pact").join("SKILL.md"))
+        }
+        _ => None,
+    }
+}
+
+/// Resolve a HERMES_HOME override to an absolute base dir, or None to fall back to
+/// ~/.hermes. Empty/whitespace/relative values are rejected: Hermes scans the
+/// absolute HERMES_HOME/skills, and a relative value would resolve against the
+/// process CWD and silently write the skill where Hermes never looks. Pure +
+/// testable (the env read stays in install_pact_skill).
+fn resolve_hermes_home(raw: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let path = PathBuf::from(raw?);
+    if path.as_os_str().is_empty() || !path.is_absolute() {
+        return None;
+    }
+    Some(path)
+}
+
 /// Install the /pact skill for the agent the user picked when sealing their pact.
 /// Idempotent: re-running overwrites the file so an updated skill always wins.
 ///   - "Claude Code" -> write ~/.claude/skills/pact/SKILL.md
-///   - "Hermes"      -> built-in, nothing to install
+///   - "Hermes"      -> write <HERMES_HOME|~/.hermes>/skills/pact/SKILL.md
 ///   - anything else -> manual (custom / bring-your-own MCP agent)
 /// The sidecar prefers 127.0.0.1:8000 but can fall forward if that port is busy;
 /// installed skills are templated with the actual runtime URL.
@@ -65,30 +114,34 @@ fn install_pact_skill(app: tauri::AppHandle, agent_key: String) -> Result<Instal
         .try_state::<SidecarRuntime>()
         .map(|runtime| runtime.api_base_url.clone())
         .unwrap_or_else(|| sidecar_base_url(SIDECAR_HOST, SIDECAR_PORT));
-    match agent_key.trim().to_lowercase().as_str() {
-        "claude code" | "claude-code" | "claudecode" => {
-            let home = app.path().home_dir().map_err(|e| e.to_string())?;
-            let skill_dir = home.join(".claude").join("skills").join("pact");
-            std::fs::create_dir_all(&skill_dir).map_err(|e| e.to_string())?;
-            let skill_path = skill_dir.join("SKILL.md");
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    // Honor HERMES_HOME if the launcher set it to an absolute path; otherwise
+    // default to ~/.hermes (a relative value would resolve against the process CWD
+    // and silently land the skill where Hermes never scans).
+    let hermes_home = resolve_hermes_home(std::env::var_os("HERMES_HOME"));
+    let label = agent_label(&agent_key);
+
+    match pact_skill_target(&agent_key, &home, hermes_home.as_deref()) {
+        Some(skill_path) => {
+            if let Some(parent) = skill_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
             std::fs::write(&skill_path, pact_skill_markdown(&api_base_url))
                 .map_err(|e| e.to_string())?;
             Ok(InstallResult {
                 status: "installed".into(),
                 path: Some(skill_path.to_string_lossy().into_owned()),
-                message: format!("Installed the /pact skill for Claude Code at {api_base_url}."),
+                message: format!(
+                    "Installed the /pact skill for {label} at {}. Restart {label} (or start a new session) to load it. It talks to Pact at {api_base_url}.",
+                    skill_path.to_string_lossy()
+                ),
             })
         }
-        "hermes" => Ok(InstallResult {
-            status: "builtin".into(),
-            path: None,
-            message: "Hermes ships with /pact built in — nothing to install.".into(),
-        }),
-        _ => Ok(InstallResult {
+        None => Ok(InstallResult {
             status: "manual".into(),
             path: None,
             message: format!(
-                "Copy .claude/skills/pact/SKILL.md into your agent and point it at {api_base_url}."
+                "Point your agent at the Pact MCP server with: pact mcp --base-url {api_base_url} --agent-token <token>. Or copy .claude/skills/pact/SKILL.md into your agent's skills directory."
             ),
         }),
     }
@@ -287,5 +340,52 @@ mod tests {
 
         assert!(skill.contains("http://127.0.0.1:8042"));
         assert!(!skill.contains("http://127.0.0.1:8000"));
+    }
+
+    #[test]
+    fn skill_target_claude_code_writes_under_dot_claude() {
+        let home = Path::new("/home/u");
+        let target = pact_skill_target("Claude Code", home, None).expect("claude target");
+        assert_eq!(target, Path::new("/home/u/.claude/skills/pact/SKILL.md"));
+    }
+
+    #[test]
+    fn skill_target_hermes_defaults_to_dot_hermes() {
+        let home = Path::new("/home/u");
+        // Hermes scans HERMES_HOME/skills at startup; default home is ~/.hermes.
+        let target = pact_skill_target("Hermes", home, None).expect("hermes target");
+        assert_eq!(target, Path::new("/home/u/.hermes/skills/pact/SKILL.md"));
+    }
+
+    #[test]
+    fn skill_target_hermes_honors_hermes_home_override() {
+        let home = Path::new("/home/u");
+        let hermes_home = Path::new("/custom/hermes");
+        let target =
+            pact_skill_target("hermes", home, Some(hermes_home)).expect("override target");
+        assert_eq!(target, Path::new("/custom/hermes/skills/pact/SKILL.md"));
+    }
+
+    #[test]
+    fn skill_target_byo_agent_is_manual() {
+        // Bring-your-own MCP agent: no known location, so the UI shows MCP setup.
+        assert!(pact_skill_target("your agent", Path::new("/home/u"), None).is_none());
+        assert_eq!(agent_label("your agent"), "your agent");
+        assert_eq!(agent_label("Hermes"), "Hermes");
+        assert_eq!(agent_label("claude-code"), "Claude Code");
+    }
+
+    #[test]
+    fn resolve_hermes_home_rejects_unset_empty_and_relative() {
+        use std::ffi::OsString;
+        assert_eq!(resolve_hermes_home(None), None);
+        assert_eq!(resolve_hermes_home(Some(OsString::from(""))), None);
+        assert_eq!(resolve_hermes_home(Some(OsString::from("   "))), None);
+        assert_eq!(resolve_hermes_home(Some(OsString::from(".hermes"))), None);
+        assert_eq!(resolve_hermes_home(Some(OsString::from("rel/path"))), None);
+        assert_eq!(
+            resolve_hermes_home(Some(OsString::from("/abs/hermes"))),
+            Some(PathBuf::from("/abs/hermes"))
+        );
     }
 }
