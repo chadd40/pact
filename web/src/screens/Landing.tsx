@@ -77,7 +77,6 @@ export function Landing() {
   const pinRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const stageWrapRef = useRef<HTMLDivElement>(null);
-  const cueRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
 
   const [revealed, setRevealed] = useState(0); // # of messages shown
@@ -144,7 +143,6 @@ export function Landing() {
         const y = window.scrollY || 0;
         const p = Math.min(1, Math.max(0, (y - pin.offsetTop) / Math.max(1, pin.offsetHeight - vh)));
         setTarget(targetFor(p));
-        if (cueRef.current) cueRef.current.style.opacity = y > 30 || p > 0.02 ? "0" : "1";
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -357,11 +355,6 @@ export function Landing() {
                     <span className={"lp-send" + (composing ? " armed" : "")}>↑</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="lp-cue" ref={cueRef}>
-                <span className="m">Scroll</span>
-                <span className="lp-cue-arrow">↓</span>
               </div>
             </div>
           </div>

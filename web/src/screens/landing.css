@@ -472,28 +472,6 @@
   font-size: 18px;
   font-weight: 600;
 }
-/* Scroll cue (inside the stage) */
-.lp-cue {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-.lp-cue .m {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--l-muted-2);
-}
-.lp-cue-arrow {
-  font-size: 18px;
-  color: var(--l-ink);
-  animation: pactBob 1.8s ease-in-out infinite;
-}
-
 /* ── Sections (shared) ──────────────────────────────────────────────────────── */
 .lp-section {
   position: relative;
