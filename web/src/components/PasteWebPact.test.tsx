@@ -17,47 +17,57 @@ const DRAFT: PactDraft = {
   stake_amount_cents: 3000, charity_id: "against_malaria_foundation", agent: "Hermes",
 };
 
+function setClipboard(readText: () => Promise<string>) {
+  Object.defineProperty(navigator, "clipboard", {
+    value: { readText },
+    configurable: true,
+    writable: true,
+  });
+}
+
 describe("PasteWebPact", () => {
   afterEach(() => cleanup());
 
-  it("renders the collapsed action as a bespoke clipboard handoff station", () => {
+  it("renders a paste circle with an accessible label and a tooltip", () => {
     render(<PasteWebPact onImport={() => {}} />);
-
     const button = screen.getByRole("button", { name: /paste web pact/i });
-
-    expect(button.querySelector(".pwp-chip-orbit")).toBeTruthy();
-    expect(button.querySelector(".pwp-chip-status")).toBeTruthy();
-    expect(screen.getByText("From pact.com")).toBeTruthy();
-    expect(screen.getByText("Clipboard")).toBeTruthy();
-    expect(button.getAttribute("title")).toBeNull();
+    expect(button.className).toContain("pwp-circle");
+    expect(button.querySelector(".pwp-tip")?.textContent).toContain("Paste web pact");
   });
 
-  it("uses custom paste chrome instead of a generic button treatment", () => {
-    expect(css).toContain(".pwp-chip::before");
-    expect(css).toContain(".pwp-chip-orbit");
-    expect(css).toContain(".pwp-chip-status");
-    expect(css).toMatch(/backdrop-filter:\s*blur\(14px\)/);
-    expect(css).toMatch(/box-shadow:\s*inset 0 1px 0 rgba\(255, 255, 255, 0\.74\)/);
-  });
-
-  it("expands, accepts a valid blob, and calls onImport", async () => {
+  it("reads a valid clipboard pact, imports it, and shows the success pill", async () => {
+    setClipboard(() => Promise.resolve(encodeDraft(DRAFT)));
     const onImport = vi.fn();
     render(<PasteWebPact onImport={onImport} />);
     await userEvent.click(screen.getByRole("button", { name: /paste web pact/i }));
-    const box = screen.getByRole("textbox");
-    await userEvent.type(box, encodeDraft(DRAFT));
-    await userEvent.click(screen.getByRole("button", { name: /submit|✓|done/i }));
+    expect(await screen.findByText("Pact imported")).toBeTruthy();
     expect(onImport).toHaveBeenCalledTimes(1);
     expect(onImport.mock.calls[0][0].goal).toBe("Read nightly");
   });
 
-  it("shows an error for a bad blob and does not call onImport", async () => {
+  it("shows an inline error for a non-pact clipboard and does not import", async () => {
+    setClipboard(() => Promise.resolve("not a pact"));
     const onImport = vi.fn();
     render(<PasteWebPact onImport={onImport} />);
     await userEvent.click(screen.getByRole("button", { name: /paste web pact/i }));
-    await userEvent.type(screen.getByRole("textbox"), "not a pact");
-    await userEvent.click(screen.getByRole("button", { name: /submit|✓|done/i }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
     expect(onImport).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
+  it("shows an error when the clipboard can't be read", async () => {
+    setClipboard(() => Promise.reject(new Error("denied")));
+    const onImport = vi.fn();
+    render(<PasteWebPact onImport={onImport} />);
+    await userEvent.click(screen.getByRole("button", { name: /paste web pact/i }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(onImport).not.toHaveBeenCalled();
+  });
+
+  it("styles the circle and the morphing status pill (with reduced-motion)", () => {
+    expect(css).toContain(".pwp-circle");
+    expect(css).toContain(".pwp-pill");
+    expect(css).toContain(".pwp-pill-ok");
+    expect(css).toContain(".pwp-pill-err");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
 });

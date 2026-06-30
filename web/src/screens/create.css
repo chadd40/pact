@@ -1031,12 +1031,21 @@
   opacity: 0 !important;
   pointer-events: none;
 }
-.pc-choose {
+/* Deck controls group: paste-import circle + Choose pill, centered as one unit.
+   Positioned where .pc-choose used to be; the circle/pill morph lives inside. */
+.pc-controls {
   position: absolute;
   left: 50%;
   bottom: 46px;
   transform: translateX(-50%);
   z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  transition: opacity 0.4s ease;
+}
+.pc-choose {
+  position: relative;
   height: 50px;
   padding: 0 28px;
   border-radius: 999px;
@@ -1049,11 +1058,11 @@
   font-size: 15px;
   font-weight: 600;
   box-shadow: 0 12px 30px rgba(22, 21, 15, 0.28);
-  transition: opacity 0.4s ease, transform 0.2s ease;
+  transition: transform 0.2s ease;
   border: none;
 }
 .pc-choose:hover {
-  transform: translateX(-50%) translateY(-2px);
+  transform: translateY(-2px);
 }
 
 /* ── Sealing (stage 6) ───────────────────────────────────────────────────────── */

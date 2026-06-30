@@ -641,12 +641,6 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           <LandingLogoMenu onGoTo={goToLanding} />
         )
       )}
-      {isDesktop() && stage === 0 && (
-        <div className="pc-paste-slot">
-          <PasteWebPact onImport={importDraft} />
-        </div>
-      )}
-
       {/* Full-page ambient vignette — lives outside the scaled stage so it covers
           the whole viewport, not just the stage box. */}
       <div className="pc-vignette" />
@@ -778,16 +772,23 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
           <Chevron dir="r" />
         </button>
 
-        {/* Choose pill */}
-        <button
-          className="pc-choose"
-          onClick={() => select(active)}
-          tabIndex={deckMode ? 0 : -1}
-          aria-hidden={!deckMode}
+        {/* Deck controls: the paste-import circle (desktop) sits left of the Choose
+            pill as one centered group. On import the circle morphs into a status
+            pill spanning the whole group. */}
+        <div
+          className="pc-controls"
           style={{ opacity: deckMode ? 1 : 0, pointerEvents: deckMode ? "auto" : "none" }}
         >
-          Choose this card <Arrow size={17} />
-        </button>
+          {isDesktop() && <PasteWebPact onImport={importDraft} />}
+          <button
+            className="pc-choose"
+            onClick={() => select(active)}
+            tabIndex={deckMode ? 0 : -1}
+            aria-hidden={!deckMode}
+          >
+            Choose this card <Arrow size={17} />
+          </button>
+        </div>
 
         {/* ── Editor rail — the right-hand box. Holds the editor (steps 1–5), then on
               the web morphs in place into the loading skeleton (6) and signed state
