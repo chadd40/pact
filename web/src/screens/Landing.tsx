@@ -517,14 +517,40 @@ export function Landing() {
       <section className="lp-section lp-integrations" id="integrations">
         <div className="lp-wrap">
           <div className="lp-sec-head dark" data-reveal>
-            <div className="lp-eyebrow m">Integrations</div>
-            <h2 className="lp-sec-title">Bring your own agent.</h2>
+            <div className="lp-eyebrow m">How it works</div>
+            <h2 className="lp-sec-title">Pre-approve once. Your agent handles the money.</h2>
             <p className="lp-int-lede">
-              Pact ships as a skill, so it runs right inside the agent you already use instead of asking you to learn a
-              new one. Hermes is built in and recommended, Claude Code is one connect away, and anywhere else your
-              skills run, Pact runs.
+              Two integrations carry the load. Stripe lets your agent spend for you, NVIDIA gives it a safe place to
+              run. You pre-approve once, and your money only moves if you fall short.
             </p>
           </div>
+          <div className="lp-rails">
+            <article className="lp-rail" data-reveal>
+              <span className="lp-rail-logo">
+                <img src={asset("/link_icon.svg")} alt="Stripe Link" />
+              </span>
+              <div className="lp-rail-eyebrow">Spend · via Stripe</div>
+              <h3 className="lp-rail-title">Your agent spends on your behalf, only after you say so.</h3>
+              <p className="lp-rail-body">
+                The Link CLI's Stripe Skills hand your Hermes agent a virtual card it can use for you, but only after
+                you pre-approve. Hit your goal and nothing moves. Fall short and that card sends your stake straight to
+                the charity you chose.
+              </p>
+            </article>
+            <article className="lp-rail" data-reveal style={{ transitionDelay: ".08s" }}>
+              <span className="lp-rail-logo">
+                <img src={asset("/agents/Nemoclaw.svg")} alt="NVIDIA" />
+              </span>
+              <div className="lp-rail-eyebrow">Deploy · via NVIDIA</div>
+              <h3 className="lp-rail-title">Run the agent in its own safe environment, if you want one.</h3>
+              <p className="lp-rail-body">
+                Want the agent boxed into its own locked-down space? The NVIDIA integration runs it inside guardrailed
+                NeMo infrastructure. Prefer zero setup? It runs straight on Hermes, built in and ready the moment you
+                seal.
+              </p>
+            </article>
+          </div>
+          <div className="lp-int-where" data-reveal>Where it runs</div>
           <div className="lp-int-grid">
             <div className="lp-int-card lp-int-primary" data-reveal>
               <span className="lp-int-logo">
