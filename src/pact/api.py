@@ -227,6 +227,12 @@ class SpendPolicyIn(BaseModel):
     spend_limit_cents: int | None = Field(default=None, ge=0)
 
 
+class AdvanceIn(BaseModel):
+    # Demo time-travel delta. days*24 + hours; omitted -> one day.
+    days: int | None = None
+    hours: int | None = None
+
+
 class BillingIn(BaseModel):
     owner: str
     first_name: str | None = None
@@ -330,6 +336,9 @@ def create_app(
             "live_money_enabled": (
                 settings.payment_mode == "link_cli" and settings.link_mode == "live"
             ),
+            # "demo" (FixedClock — time can be advanced; the app shows demo controls)
+            # or "real" (RealClock — the autonomous scheduler drives time).
+            "clock_mode": "demo" if isinstance(clock, FixedClock) else "real",
         }
 
     @app.get("/api/connectors/health")
@@ -1541,13 +1550,17 @@ def create_app(
         return ids
 
     @app.post("/demo/advance-day")
-    def demo_advance_day_endpoint():
+    def demo_advance_day_endpoint(body: AdvanceIn | None = None):
         if not isinstance(clock, FixedClock):
             raise HTTPException(
                 status_code=409,
                 detail="advance-day requires demo clock mode (FixedClock)",
             )
-        return demo_advance_day(repo, clock, payment, settings)
+        # Advance by an explicit delta when given (days*24 + hours), else one day. Lets
+        # a presenter jump past a deadline or the 24h dispute window in one click.
+        body = body or AdvanceIn()
+        hours = (body.days or 0) * 24 + (body.hours or 0)
+        return demo_advance_day(repo, clock, payment, settings, hours=hours or 24)
 
     @app.post("/demo/reset")
     def demo_reset_endpoint():

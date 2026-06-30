@@ -56,6 +56,7 @@ async def test_runtime_reports_safe_default_modes(repo):
             "reasoning_mode": "hybrid",
             "auth_mode": "local_dev",
             "live_money_enabled": False,
+            "clock_mode": "demo",
         }
 
 

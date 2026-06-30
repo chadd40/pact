@@ -12,6 +12,7 @@ vi.mock("../api", async (importOriginal) => {
     api: {
       listPacts: vi.fn(),
       charities: vi.fn(),
+      runtime: vi.fn(),
     },
   };
 });
@@ -49,6 +50,11 @@ describe("AppShell", () => {
   beforeEach(() => {
     vi.mocked(api.listPacts).mockResolvedValue([]);
     vi.mocked(api.charities).mockResolvedValue([]);
+    // Not demo mode -> the DemoControls strip stays hidden (asserted below).
+    vi.mocked(api.runtime).mockResolvedValue({
+      payment_mode: "test_link", link_mode: "dry_run", reasoning_mode: "hybrid",
+      auth_mode: "local_dev", live_money_enabled: false, clock_mode: "real",
+    });
   });
 
   afterEach(() => {

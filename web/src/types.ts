@@ -147,6 +147,7 @@ export interface RuntimeInfo {
   reasoning_mode: string;
   auth_mode: string;
   live_money_enabled: boolean;
+  clock_mode?: string; // "demo" (FixedClock, demo controls shown) | "real"
 }
 
 export interface ConnectorEntry {

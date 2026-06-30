@@ -17,7 +17,7 @@ interface DemoCtx {
   signalChange: () => void;
   busy: string | null;
   doSeed: () => Promise<void>;
-  doAdvance: () => Promise<void>;
+  doAdvance: (days?: number) => Promise<void>;
   doReset: () => Promise<void>;
 }
 
@@ -107,10 +107,10 @@ export function App() {
     }
   }, [navigate, signalChange, owner]);
 
-  const doAdvance = useCallback(async () => {
+  const doAdvance = useCallback(async (days?: number) => {
     setBusy("advance");
     try {
-      const res = await api.demoAdvance();
+      const res = await api.demoAdvance(days);
       setNowIso(res.now);
       signalChange();
     } finally {

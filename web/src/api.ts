@@ -275,7 +275,11 @@ export const api = {
   // ── Demo control ───────────────────────────────────────────────────────────
   demoSeed: () => request<DemoSeedResult>("/demo/seed", { method: "POST" }),
 
-  demoAdvance: () => request<DemoAdvanceResult>("/demo/advance-day", { method: "POST" }),
+  demoAdvance: (days?: number) =>
+    request<DemoAdvanceResult>(
+      "/demo/advance-day",
+      days != null ? { json: { days } } : { method: "POST" },
+    ),
 
   demoReset: () => request<DemoSeedResult>("/demo/reset", { method: "POST" }),
 };

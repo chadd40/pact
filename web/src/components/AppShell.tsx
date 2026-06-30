@@ -7,6 +7,7 @@ import { useLocalOwner } from "../owner";
 import { CHARITY_CATALOG } from "../lib/charities";
 import { isDesktop } from "../lib/platform";
 import type { Charity, Pact } from "../types";
+import { DemoControls } from "./DemoControls";
 import { LogoMenu } from "./LogoMenu";
 import { PactToast } from "./PactToast";
 
@@ -69,6 +70,9 @@ export function AppShell() {
           pact={pending ?? null}
           onResolve={(id) => navigate(`/pact/${id}`)}
         />
+
+        {/* ── Demo control strip (demo clock mode only; drives the real lifecycle) ── */}
+        <DemoControls />
       </div>
     </AppDataContext.Provider>
   );
