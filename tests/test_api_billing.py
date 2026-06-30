@@ -45,6 +45,43 @@ async def test_billing_set_and_get_round_trip(tmp_path):
         assert got["country"] == "GB" and got["email"] == "ada@example.com"
 
 
+def _seed_donation_pending_pact(repo, tmp_path, owner="demo@pact.local"):
+    from pact.models import Modality, Pact, PactStatus, Rubric, StakeState
+    cred = TestLinkProvider().retrieve_card("sr_seed", output_dir=str(tmp_path / "cards"))
+    pact = Pact(
+        id="pact_billing_seed", owner=owner, original_prompt="x", title="t", goal="g",
+        timezone="America/Los_Angeles", deadline_at=datetime(2026, 6, 28, tzinfo=timezone.utc),
+        target_count=5, recommended_stake_cents=2000, stake_amount_cents=2000,
+        charity_id="against_malaria_foundation", charity_url="https://againstmalaria.com/donate",
+        rubric=Rubric(modality=Modality.photo, must_show=["x"], min_distinct_days=5, count_target=5),
+        status=PactStatus.donation_pending, stake_state=StakeState.committed,
+        spend_request_id="sr_seed", card_last4="4242", card_artifact_path=cred.card_file,
+        created_at=datetime(2026, 6, 24, tzinfo=timezone.utc),
+    )
+    repo.save_pact(pact)
+    return pact
+
+
+@pytest.mark.asyncio
+async def test_card_credential_includes_billing_for_the_agent(tmp_path):
+    # The agent fills the charity form with the card AND the user's billing info, so
+    # the card-credential response must carry both (Link has no billing fields).
+    app, repo = _build(tmp_path)
+    async with _client(app) as c:
+        await c.post("/api/account/billing", json={
+            "owner": "demo@pact.local", "first_name": "Ada", "last_name": "Lovelace",
+            "street": "1 Analytical Way", "city": "London", "postal_code": "EC1A 1AA", "country": "GB",
+        })
+        pact = _seed_donation_pending_pact(repo, tmp_path)
+        r = await c.post(f"/api/pacts/{pact.id}/donation/card-credential")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["number"]  # card fields stay at top level (back-compat)
+        assert body["billing"]["first_name"] == "Ada"
+        assert body["billing"]["last_name"] == "Lovelace"
+        assert body["billing"]["postal_code"] == "EC1A 1AA"
+
+
 @pytest.mark.asyncio
 async def test_billing_preserves_other_profile_fields(tmp_path):
     app, repo = _build(tmp_path)

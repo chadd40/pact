@@ -1175,7 +1175,12 @@ def create_app(
             raise HTTPException(
                 status_code=502, detail=f"could not read provisioned card: {exc}"
             ) from exc
-        return secret
+        # The agent fills the charity form with the card AND the owner's billing info
+        # (Link carries no cardholder/address). Surface both; card fields stay at the
+        # top level for back-compat, billing nests under "billing".
+        prof = repo.get_profile(pact.owner) or Profile(owner=pact.owner)
+        billing = {f: getattr(prof, f) for f in _BILLING_FIELDS}
+        return {**secret, "billing": billing}
 
     @app.post("/api/pacts/{pact_id}/donation/checkout")
     def donation_checkout(pact_id: str, body: DonationCheckoutIn | None = None):

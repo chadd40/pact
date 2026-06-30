@@ -163,7 +163,7 @@ def _dismiss_overlays(page) -> None:
         pass
 
 
-def _fill_stripe_card(page, card: dict) -> None:
+def _fill_stripe_card(page, card: dict, postal: str = "") -> None:
     """Fill Stripe Elements card fields.
 
     charity: water (verified against the live page) renders each Stripe field in
@@ -221,11 +221,14 @@ def _fill_stripe_card(page, card: dict) -> None:
         ],
         card["cvc"], "cvc",
     )
-    # Postal/ZIP may be a plain page input or its own frame.
-    fill_in_any_frame(
-        ["input[autocomplete='postal-code']", "input[name='postalCode']", "input[name='postal']"],
-        "10001", "postal",
-    )
+    # Postal/ZIP may be a plain page input or its own frame. Use the OWNER'S real
+    # postal code (from their billing profile); never a hardcoded value -- submitting
+    # a fake ZIP on a real AVS form is wrong. Skip the field entirely when unknown.
+    if postal:
+        fill_in_any_frame(
+            ["input[autocomplete='postal-code']", "input[name='postalCode']", "input[name='postal']"],
+            postal, "postal",
+        )
 
     if not (ok_num and ok_exp and ok_cvc):
         raise RuntimeError(
@@ -240,9 +243,10 @@ def run_checkout(
     amount_cents: int,
     mode: str,
     confirm: bool,
-    donor_first: str = "Pact",
-    donor_last: str = "Donor",
+    donor_first: str = "",
+    donor_last: str = "",
     donor_email: str = "",
+    billing_postal: str = "",
     screenshot_path: str | None = None,
     headless: bool = True,
     timeout_ms: int = 45000,
@@ -318,7 +322,7 @@ def run_checkout(
             except Exception:
                 _log("stripe card iframe did not mount within timeout")
             _dismiss_overlays(page)
-            _fill_stripe_card(page, card)
+            _fill_stripe_card(page, card, postal=billing_postal)
 
             if screenshot_path:
                 try:
@@ -398,9 +402,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--amount-cents", type=int, required=True)
     parser.add_argument("--mode", default="dry_run", choices=["dry_run", "live_test", "live"])
     parser.add_argument("--confirm", action="store_true", help="actually submit (only honored in --mode live)")
-    parser.add_argument("--donor-first", default="Pact")
-    parser.add_argument("--donor-last", default="Donor")
+    parser.add_argument("--donor-first", default="")
+    parser.add_argument("--donor-last", default="")
     parser.add_argument("--donor-email", default="")
+    parser.add_argument("--billing-postal", default="")
     parser.add_argument("--screenshot")
     parser.add_argument("--no-headless", action="store_true")
     return parser.parse_args(argv)
@@ -417,6 +422,7 @@ def main(argv=None) -> int:
         donor_first=args.donor_first,
         donor_last=args.donor_last,
         donor_email=args.donor_email,
+        billing_postal=args.billing_postal,
         screenshot_path=args.screenshot,
         headless=not args.no_headless,
     )
