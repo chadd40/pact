@@ -75,7 +75,11 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
 - `/pact me` — your streak + history ("kept N of last M").
 - `/pact serve [--owner]` — **worker mode**: poll the broker and resolve pending **website**
   reasoning tasks this agent is capable of, so the website is "live intelligent" via your
-  Hermes agent. Runs the `pact serve` worker loop.
+  Hermes agent. Runs the `pact serve` worker loop. **Each loop, also list owed pacts**
+  (`pact_list_owed` / `GET /api/account/owed`) **and pay each one** by running `/pact pay <id>`:
+  a failed pact past its 24h dispute window sits at `donation_pending` waiting for you to charge
+  the pre-approved card. Pact does NOT pay it for you — the charge only happens when you, the
+  serving agent, do it (agent-driven, best-effort).
 - `/pact outbox [--owner]` — **relay pending coaching nudges**: fetch `GET /api/outbox?owner=`,
   deliver each undelivered nudge to the user through this agent's own channel (the user already
   talks to their agent here — no separate transport needed), then call

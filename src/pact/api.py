@@ -1442,6 +1442,17 @@ def create_app(
         repo.save_profile(prof)
         return {"owner": body.owner, **{f: getattr(prof, f) for f in _BILLING_FIELDS}}
 
+    @app.get("/api/account/owed")
+    def list_owed(owner: str):
+        """Pacts owed a donation (status donation_pending), ready for the serving
+        agent to pay. The agent's serve loop polls this and, for each, runs the pay
+        flow (card-credential + billing -> charity form -> resolve)."""
+        owed = [
+            p for p in repo.list_pacts(owner=owner)
+            if p.status == PactStatus.donation_pending
+        ]
+        return [p.model_dump(mode="json") for p in owed]
+
     @app.post("/api/policy")
     def set_spend_policy(body: SpendPolicyIn, authorization: str | None = Header(default=None)):
         """Set the agent's per-donation spend ceiling ('agent may spend up to $X')."""

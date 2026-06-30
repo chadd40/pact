@@ -471,6 +471,18 @@ def build_server(client: Any):
         return _dumps(client.post_json(f"/api/pacts/{pact_id}/donation/resolve", {}))
 
     @tool(
+        name="pact_list_owed",
+        description=(
+            "List the owner's pacts that owe a donation (status donation_pending) and are "
+            "ready for you to pay. Poll this from your serve loop; for each owed pact run the "
+            "pay flow: pact_card_credential (card + billing) -> fill the charity's donate form "
+            "in your own browser -> pact_resolve_donation."
+        ),
+    )
+    def pact_list_owed(owner: str) -> str:
+        return _dumps(client.get_json("/api/account/owed", {"owner": owner}))
+
+    @tool(
         name="pact_record_donation_receipt",
         description=(
             "Record a charity donation receipt as supplementary/manual evidence (a "
