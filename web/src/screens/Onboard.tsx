@@ -5,7 +5,7 @@ import { ChatShell, StatusPill, type ChatMessage } from "../components/ChatShell
 import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
 import { isDesktop } from "../lib/platform";
 import { useLocalOwner } from "../owner";
-import type { ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
+import type { BillingProfile, ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
 import { AGENTS } from "./Create";
 import "./onboard.css";
 
@@ -34,6 +34,8 @@ export function Onboard() {
   const [agentKey, setAgentKey] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallResult | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [billing, setBillingState] = useState<BillingProfile | null>(null);
+  const [billingDraft, setBillingDraft] = useState<BillingProfile>({ owner });
   const [copiedMcp, setCopiedMcp] = useState(false);
   const [agentBaseUrl, setAgentBaseUrl] = useState(() =>
     window.localStorage.getItem(AGENT_BASE_URL_KEY) ?? ""
@@ -42,15 +44,20 @@ export function Onboard() {
   useEffect(() => {
     let cancelled = false;
     async function loadSetup() {
-      const [nextRuntime, nextHealth, nextPolicy] = await Promise.all([
+      const [nextRuntime, nextHealth, nextPolicy, nextBilling] = await Promise.all([
         api.runtime().catch(() => null),
         api.connectorHealth(owner).catch(() => null),
         api.getPolicy(owner).catch(() => null),
+        api.getBilling(owner).catch(() => null),
       ]);
       if (cancelled) return;
       setRuntime(nextRuntime);
       setHealth(nextHealth);
       setPolicy(nextPolicy);
+      if (nextBilling) {
+        setBillingState(nextBilling);
+        setBillingDraft(nextBilling);
+      }
       setLimitDraft(
         nextPolicy?.spend_limit_cents != null
           ? (nextPolicy.spend_limit_cents / 100).toString()
@@ -109,6 +116,14 @@ export function Onboard() {
       );
     } finally { setBusy(null); }
   };
+  const saveBilling = async () => {
+    setBusy("billing");
+    try {
+      const saved = await api.setBilling({ ...billingDraft, owner });
+      setBillingState(saved);
+      setBillingDraft(saved);
+    } finally { setBusy(null); }
+  };
   // The MCP/worker connector flips ready only after an out-of-app step (pasting the
   // command into the agent). Re-probe on demand so a finished user unlocks without
   // having to navigate away and back.
@@ -131,19 +146,21 @@ export function Onboard() {
   const localOnlyFunding = fundingIsLocalOnly(link, liveMoneyEnabled);
   const fundingLabel = fundingDisplay(link, liveMoneyEnabled);
   const fundingIssue = !fundingDone && link?.error ? link.error : null;
-  const mcpReady = health?.connectors.some((connector) => connector.key === "mcp" && connector.status === "ready");
   const workerStatus = health?.worker.status ?? "offline";
+  const billingDone = !!(
+    billing?.first_name && billing?.last_name && billing?.street && billing?.postal_code
+  );
   const agentName = agentKey ?? "Hermes";
   const agentDef = AGENTS.find((a) => a.key === agentName) ?? AGENTS[0];
-  const canOpenDashboard = fundingDone && agentDone && !!mcpReady;
-  const mcpBaseUrl = (agentBaseUrl || health?.runtime.base_url || DEFAULT_AGENT_BASE_URL).trim();
-  const mcpCommand = `pact mcp --base-url ${mcpBaseUrl} --agent-token <agent-token>`;
+  const canOpenDashboard = fundingDone && billingDone && agentDone;
+  const serveBaseUrl = (agentBaseUrl || health?.runtime.base_url || DEFAULT_AGENT_BASE_URL).trim();
+  const serveCommand = `pact serve --base-url ${serveBaseUrl} --agent-token ${token ?? "<paste your token>"}`;
   useEffect(() => {
     setCopiedMcp(false);
-  }, [mcpCommand]);
+  }, [serveCommand]);
   const copyMcpCommand = async () => {
     try {
-      await navigator.clipboard.writeText(mcpCommand);
+      await navigator.clipboard.writeText(serveCommand);
       setCopiedMcp(true);
       window.setTimeout(() => setCopiedMcp(false), 1800);
     } catch {
@@ -166,7 +183,7 @@ export function Onboard() {
             <span>
               {fundingDone
                 ? localOnlyFunding ? fundingLabel : `Connected${fundingLabel ? ` · ${fundingLabel}` : ""}`
-                : fundingIssue ?? "Connect the funding source that backs missed pacts."}
+                : fundingIssue ?? "Connect Link on this device — the card Pact uses if you miss a pact."}
             </span>
             <StatusPill tone={fundingDone ? "ok" : busy === "link" ? "busy" : "warn"}>
               {fundingDone ? "ready" : busy === "link" ? "checking" : "needs setup"}
@@ -181,6 +198,47 @@ export function Onboard() {
         <button className="onb-action" onClick={connect} disabled={busy === "link"}>
           {busy === "link" ? "Connecting..." : "Connect Link"}
         </button>
+      ),
+    },
+    {
+      id: "billing",
+      role: "system",
+      meta: "Billing details",
+      body: (
+        <div className="onb-check-block">
+          <div className="onb-check-row">
+            <span>
+              {billingDone
+                ? `${billing?.first_name} ${billing?.last_name} · ${billing?.postal_code}`
+                : "Add the name + address your agent enters on the charity's donation form."}
+            </span>
+            <StatusPill tone={billingDone ? "ok" : busy === "billing" ? "busy" : "warn"}>
+              {billingDone ? "ready" : busy === "billing" ? "saving" : "needs setup"}
+            </StatusPill>
+          </div>
+          <form className="onb-limit-form" onSubmit={(e) => { e.preventDefault(); saveBilling(); }}>
+            {([
+              ["first_name", "First name"], ["last_name", "Last name"], ["email", "Billing email"],
+              ["street", "Street"], ["city", "City"], ["state", "State"],
+              ["postal_code", "Postal code"], ["country", "Country"],
+            ] as [keyof BillingProfile, string][]).map(([field, label]) => (
+              <label className="onb-url-field" key={field}>
+                <span className="m">{label}</span>
+                <input
+                  aria-label={label}
+                  value={(billingDraft[field] as string | null | undefined) ?? ""}
+                  onChange={(e) => setBillingDraft({ ...billingDraft, [field]: e.target.value })}
+                />
+              </label>
+            ))}
+            <button className="onb-action" type="submit" disabled={busy === "billing"}>
+              {busy === "billing" ? "Saving..." : "Save billing"}
+            </button>
+          </form>
+          <div className="onb-check-note">
+            Your agent enters these on the charity's form when a missed pact pays out — Link can't supply them.
+          </div>
+        </div>
       ),
     },
     {
@@ -228,13 +286,52 @@ export function Onboard() {
     {
       id: "agent",
       role: "system",
-      meta: "Agent token",
+      meta: "Connect your agent",
       body: (
-        <div className="onb-check-row">
-          <span>{agentDone ? `Token ${health?.agent_token.token_prefix ?? "ready"}` : "Generate the token your agent uses to claim Pact tasks."}</span>
-          <StatusPill tone={agentDone ? "ok" : busy === "token" ? "busy" : "warn"}>
-            {agentDone ? "ready" : busy === "token" ? "minting" : "missing"}
-          </StatusPill>
+        <div className="onb-mcp">
+          <div className="onb-check-row">
+            <span>
+              {agentDone
+                ? `Token ${health?.agent_token.token_prefix ?? "ready"} · ${agentDef.name} ${workerStatus === "online" ? "serving" : "not serving yet"}`
+                : "Generate the token and install the /pact skill for your agent."}
+            </span>
+            <StatusPill tone={agentDone ? "ok" : busy === "token" ? "busy" : "warn"}>
+              {agentDone ? "ready" : busy === "token" ? "minting" : "missing"}
+            </StatusPill>
+          </div>
+          <label className="onb-url-field">
+            <span className="m">Local Pact API URL</span>
+            <input
+              value={serveBaseUrl}
+              onChange={(e) => setAgentBaseUrl(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <div className="onb-check-note">
+            Then run this in {agentDef.name} so it can act on your pacts — claim tasks, coach you, and pay a missed donation:
+          </div>
+          <div className="onb-command-row">
+            <code className="onb-command">{serveCommand}</code>
+            <button
+              type="button"
+              className="onb-copy"
+              aria-label={copiedMcp ? "Serve command copied" : "Copy serve command"}
+              onClick={copyMcpCommand}
+            >
+              {copiedMcp ? "Copied" : "Copy command"}
+            </button>
+          </div>
+          <div className="onb-check-row">
+            <span>Agent {workerStatus === "online" ? "connected & serving" : "not serving yet"}</span>
+            <button
+              type="button"
+              className="onb-copy"
+              onClick={recheck}
+              disabled={busy === "recheck"}
+            >
+              {busy === "recheck" ? "Checking…" : "Re-check"}
+            </button>
+          </div>
         </div>
       ),
       actions: (
@@ -244,67 +341,11 @@ export function Onboard() {
       ),
     },
     {
-      id: "mcp",
-      role: "system",
-      meta: "MCP server",
-      body: (
-        <div className="onb-mcp">
-          <div className="onb-check-row">
-            <span>{mcpReady ? "MCP server ready" : "Add the local Pact MCP server to your agent."}</span>
-            {mcpReady ? (
-              <StatusPill tone="ok">ready</StatusPill>
-            ) : (
-              <button
-                type="button"
-                className="onb-copy"
-                onClick={recheck}
-                disabled={busy === "recheck"}
-              >
-                {busy === "recheck" ? "Checking…" : "Re-check"}
-              </button>
-            )}
-          </div>
-          <label className="onb-url-field">
-            <span className="m">Local Pact API URL</span>
-            <input
-              value={mcpBaseUrl}
-              onChange={(e) => setAgentBaseUrl(e.target.value)}
-              spellCheck={false}
-            />
-          </label>
-          <div className="onb-command-row">
-            <code className="onb-command">{mcpCommand}</code>
-            <button
-              type="button"
-              className="onb-copy"
-              aria-label={copiedMcp ? "MCP command copied" : "Copy MCP command"}
-              onClick={copyMcpCommand}
-            >
-              {copiedMcp ? "Copied" : "Copy command"}
-            </button>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "worker",
-      role: "system",
-      meta: "Live agent check",
-      body: (
-        <div className="onb-check-row">
-          <span>Worker {workerStatus}</span>
-          <StatusPill tone={workerStatus === "online" ? "ok" : "warn"}>
-            {health?.capabilities.vision ? "vision on" : "vision waiting"}
-          </StatusPill>
-        </div>
-      ),
-    },
-    {
       id: "dashboard",
       role: "agent",
       body: canOpenDashboard
         ? "Everything needed to start is in place. Open your dashboard and I'll keep the pact moving from there."
-        : "I'll unlock the dashboard once funding and the agent connector are ready.",
+        : "I'll unlock the dashboard once funding, billing, and your agent are ready.",
       actions: (
         <div className="onb-chat-actions">
           <button
