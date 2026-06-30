@@ -375,7 +375,7 @@ def seed_states(repo: Repository, clock: Clock, settings: Settings) -> dict:
 
     # ── Under review: shortfall with an ambiguous proof that could still lift ──
     review = _showcase_pact(
-        "pact-review", "Cold plunge", PactStatus.needs_review, dpw=5, weeks=1,
+        "pact-review", "Ship a feature", PactStatus.needs_review, dpw=5, weeks=1,
         stake=9000, charity_id="unicef", created=now - timedelta(days=6),
         deadline=now - timedelta(hours=1), verdict_at=now - timedelta(hours=1),
     )
@@ -387,7 +387,7 @@ def seed_states(repo: Repository, clock: Clock, settings: Settings) -> dict:
 
     # ── Donation pending: window already closed, no money moved → Link flow. ───
     donate = _showcase_pact(
-        "pact-donate", "Wake at 6am", PactStatus.donation_pending, dpw=5, weeks=1,
+        "pact-donate", "Read 30 pages", PactStatus.donation_pending, dpw=5, weeks=1,
         stake=20000, charity_id="save_the_children", created=now - timedelta(days=8),
         deadline=now - timedelta(days=2), verdict_at=now - timedelta(days=1),
         dispute_window_closes_at=now - timedelta(days=1),
@@ -413,9 +413,9 @@ def seed_states(repo: Repository, clock: Clock, settings: Settings) -> dict:
     closed = [
         # id, title, status, stake, charity, ended_days_ago, stake_state, spend_request_id
         ("pact-10k", "Ran a 10K", PactStatus.succeeded, 15000, "charity_water", 40, StakeState.released, None),
-        ("pact-dryjan", "Dry January", PactStatus.succeeded, 30000, "feeding_america", 30, StakeState.released, None),
+        ("pact-dryjan", "No phone at dinner", PactStatus.succeeded, 30000, "feeding_america", 30, StakeState.released, None),
         ("pact-sketch", "Sketch daily", PactStatus.succeeded, 7500, "donorschoose", 20, StakeState.released, None),
-        ("pact-sugar", "No sugar", PactStatus.donated, 20000, "feeding_america", 25, StakeState.executed, "test_sr_pact-sugar_20000"),
+        ("pact-sugar", "Meditate each morning", PactStatus.donated, 20000, "feeding_america", 25, StakeState.executed, "test_sr_pact-sugar_20000"),
         ("pact-inbox", "Inbox zero by 6", PactStatus.donated, 15000, "unicef", 18, StakeState.executed, "test_sr_pact-inbox_15000"),
     ]
     for pid, title, status, stake, charity, dago, sstate, spend in closed:
