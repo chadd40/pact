@@ -38,10 +38,10 @@ export interface PactWorldProps {
 }
 
 interface FlipRect { x: number; y: number; width: number; height: number; }
-type ProofFlow = "idle" | "choice" | "fresh" | "choosing" | "analyzing" | ProofStatus | "error";
+type ProofFlow = "idle" | "fresh" | "choosing" | "analyzing" | ProofStatus | "error";
 
 export function PactWorld({ pactId, initialPact }: PactWorldProps) {
-  const { bump, signalChange, nowIso } = useDemo();
+  const { bump, signalChange, nowIso, doAdvance } = useDemo();
   const nowMs = useClock();
   const { charityById } = useAppData();
   const navigate = useNavigate();
@@ -59,6 +59,11 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   // serve`). Drives honest coach/proof copy: replies + verdicts come from the
   // agent only when it's online; otherwise the app says so instead of faking it.
   const [agentServing, setAgentServing] = useState(false);
+  // Demo clock mode (seeded showcase). Every demo pact is pre-populated with the
+  // agent's nudges + the user's evidence, so it should read as a live agent
+  // conversation — suppress the "not connected" fallback copy in demo mode.
+  const [demoMode, setDemoMode] = useState(false);
+  const agentConnected = agentServing || demoMode;
   const [receiptRef, setReceiptRef] = useState("");
   const [receiptErr, setReceiptErr] = useState<string | null>(null);
 
@@ -66,9 +71,10 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const [proofToken, setProofToken] = useState<string | null>(null);
   const [proofTokenExpiresAt, setProofTokenExpiresAt] = useState<string | null>(null);
   const [proofErr, setProofErr] = useState<string | null>(null);
-  const [proofCount, setProofCount] = useState(0);
+  // How many proofs this pact already has. A ref (not state) because it's only
+  // read synchronously inside the upload handler — nothing in render depends on it.
   const proofCountRef = useRef(0);
-  const proofRecoverRef = useRef<ProofFlow>("choice");
+  const proofRecoverRef = useRef<ProofFlow>("idle");
   const proofPickerFallbackRef = useRef<number | null>(null);
   const proofInputRef = useRef<HTMLInputElement>(null);
   // Tracks mount state so onProofFile's awaited work (upload + the demo analyzing
@@ -222,12 +228,10 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       .then((proofs) => {
         if (!alive) return;
         proofCountRef.current = proofs.length;
-        setProofCount(proofs.length);
       })
       .catch(() => {
         if (!alive) return;
         proofCountRef.current = 0;
-        setProofCount(0);
       });
     return () => { alive = false; };
   }, [pact?.id, bump]);
@@ -251,6 +255,16 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     return () => { alive = false; };
   }, [pact?.owner, bump]);
 
+  // Learn whether we're in demo clock mode (seeded showcase). Fetched once — the
+  // clock mode doesn't change within a session.
+  useEffect(() => {
+    let alive = true;
+    api.runtime()
+      .then((r) => { if (alive) setDemoMode(r.clock_mode === "demo"); })
+      .catch(() => { /* no sidecar / not demo */ });
+    return () => { alive = false; };
+  }, []);
+
   const sendCoach = async (text: string, attachments: File[] = []) => {
     if (!pact) return;
     await api.postCoach(pact.id, text, attachments).catch(() => {});
@@ -273,15 +287,6 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     return next.token;
   };
 
-  const openProofChoices = () => {
-    setProofErr(null);
-    if (proofCountRef.current > 0 || proofCount > 0) {
-      pickProofFile("idle");
-      return;
-    }
-    setProofFlow((flow) => (flow === "choice" ? "idle" : "choice"));
-  };
-
   const chooseFreshProof = async () => {
     setProofErr(null);
     setProofFlow("fresh");
@@ -293,7 +298,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     }
   };
 
-  const pickProofFile = (recoverTo: ProofFlow = proofCountRef.current > 0 ? "idle" : "choice") => {
+  const pickProofFile = (recoverTo: ProofFlow = "idle") => {
     setProofErr(null);
     proofRecoverRef.current = recoverTo;
     setProofFlow("choosing");
@@ -339,9 +344,25 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       if (!mountedRef.current) return;
       setProofFlow(proof.status);
       proofCountRef.current = Math.max(proofCountRef.current + 1, 1);
-      setProofCount(proofCountRef.current);
       await load();
       signalChange();
+      // Demo beat: a verified proof rolls the pact forward a day so the whole
+      // check-in loop is visible on stage. Hold on "Proof verified" for a beat
+      // so it's legible, then advance the demo clock and reset the panel for the
+      // next day. Demo-clock only (nowIso set); real pacts move on the wall clock.
+      if (nowIso && proof.status === "passed") {
+        await new Promise((r) => setTimeout(r, 1400));
+        if (!mountedRef.current) return;
+        try {
+          await doAdvance(1);
+        } catch {
+          /* leave the verified state on screen if the advance fails */
+        }
+        if (!mountedRef.current) return;
+        setProofFlow("idle");
+        setProofToken(null);
+        setProofTokenExpiresAt(null);
+      }
     } catch {
       setProofErr("Couldn't submit that proof. Try another file.");
       setProofFlow("error");
@@ -353,7 +374,10 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
       pickProofFile("fresh");
       return;
     }
-    openProofChoices();
+    // The primary check-in action opens the OS file picker immediately — no
+    // "Is this happening now?" gate. Live check-ins with a fresh code stay
+    // reachable via the secondary link under the button.
+    pickProofFile("idle");
   };
 
   const proofButtonLabel = () => {
@@ -460,13 +484,8 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   // pact's agent has no avatar in the catalog.
   const coachAvatar = cbAgent.avatar ?? HERMES_AVATAR;
   const coachName = pact.agent ?? "Hermes";
-  const proofStepIndex =
-    proofFlow === "choice"
-      ? 0
-      : proofFlow === "fresh" || proofFlow === "choosing"
-      ? 1
-      : 2;
-  const proofSteps = ["Choose mode", "Prepare proof", "Agent verdict"];
+  const proofStepIndex = proofFlow === "fresh" || proofFlow === "choosing" ? 0 : 1;
+  const proofSteps = ["Prepare proof", "Agent verdict"];
 
   // ── The status-keyed right panel ──────────────────────────────────────────
   const panelForStatus = () => {
@@ -510,6 +529,11 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
             )}
             {proofButtonLabel()}
           </button>
+          {proofFlow === "idle" && (
+            <button type="button" className="pd-proof-fresh-link" onClick={chooseFreshProof}>
+              Doing it live? Get a fresh proof code
+            </button>
+          )}
           {proofFlow !== "idle" && (
             <div className={`pd-proof-panel proof-${proofFlow}`} data-proof-flow={proofFlow}>
               <div className="pd-proof-rail" aria-hidden="true">
@@ -523,22 +547,6 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
                 ))}
               </div>
               {proofErr && <div className="pd-proof-error">{proofErr}</div>}
-              {proofFlow === "choice" && (
-                <>
-                  <div className="pd-proof-title">Is this happening now?</div>
-                  <div className="pd-proof-copy">Use a fresh code for live check-ins, or upload existing evidence without writing anything into the photo.</div>
-                  <div className="pd-proof-actions">
-                    <button type="button" aria-label="Yes, use a fresh code" onClick={chooseFreshProof}>
-                      <span>Yes, use a fresh code</span>
-                      <small>Best for live check-ins</small>
-                    </button>
-                    <button type="button" aria-label="No, upload evidence" onClick={() => pickProofFile("choice")}>
-                      <span>No, upload evidence</span>
-                      <small>No code written on the image</small>
-                    </button>
-                  </div>
-                </>
-              )}
               {proofFlow === "fresh" && (
                 <>
                   <div className="pd-proof-title">Fresh proof code</div>
@@ -575,7 +583,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
                 <>
                   <div className="pd-proof-title">Held for review</div>
                   <div className="pd-proof-copy">
-                    {agentServing
+                    {agentConnected
                       ? `${coachName} couldn't auto-verify this photo and flagged it for a closer look. Your streak is paused, not broken. Message ${coachName} to confirm it, or submit a clearer photo with the code clearly visible.`
                       : `We couldn't auto-verify this photo, and your agent isn't connected to confirm it. Connect ${coachName} in Settings (or message them), then resubmit a clear photo with the code visible. Your streak is paused, not broken.`}
                   </div>
@@ -601,7 +609,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
                 <>
                   <div className="pd-proof-title">Couldn't submit that proof</div>
                   <div className="pd-proof-copy">Try a clearer file or start with a fresh code.</div>
-                  <button className="pd-proof-upload" type="button" onClick={() => setProofFlow("choice")}>
+                  <button className="pd-proof-upload" type="button" onClick={() => pickProofFile("idle")}>
                     Choose another proof
                   </button>
                 </>
@@ -639,7 +647,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
           <div className="pd-review-eyebrow m">Held for review</div>
           <div className="pd-review-title">{pact.agent ?? "Hermes"} couldn't auto-verify your last proof.</div>
           <div className="pd-review-body">
-            {agentServing
+            {agentConnected
               ? <>Your latest proof was close but unclear, so {pact.agent ?? "Hermes"} flagged it. Message your agent to confirm it before the deadline. Your streak is <b>paused, not broken</b>.</>
               : <>Your latest proof was close but unclear, and your agent isn't connected to confirm it. Connect {pact.agent ?? "Hermes"} in Settings (or message them), then submit a clearer proof before the deadline. Your streak is <b>paused, not broken</b>.</>}
           </div>
@@ -945,7 +953,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
 
       {/* ── Overlays / modals ── */}
       {chatOpen && (
-        <CoachPane pact={pact} messages={coach} agentServing={agentServing} onSend={sendCoach} onClose={() => setChatOpen(false)} />
+        <CoachPane pact={pact} messages={coach} agentServing={agentConnected} onSend={sendCoach} onClose={() => setChatOpen(false)} />
       )}
       {linkOpen && (
         <LinkModal

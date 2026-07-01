@@ -10,8 +10,10 @@ use tauri_plugin_shell::ShellExt;
 /// The /pact skill, embedded at compile time so the installer never depends on
 /// files outside the bundle. `include_str!` is resolved relative to this source
 /// file (web/src-tauri/src/lib.rs); three levels up is the repo root, which is
-/// also the checkout root in CI, so the path resolves in both places.
-const PACT_SKILL_MD: &str = include_str!("../../../.claude/skills/pact/SKILL.md");
+/// also the checkout root in CI, so the path resolves in both places. The skill
+/// lives at .hermes/skills/pact/ (the canonical tracked location; .agents mirrors
+/// it) since it was moved out of .claude/skills/.
+const PACT_SKILL_MD: &str = include_str!("../../../.hermes/skills/pact/SKILL.md");
 const SIDECAR_HOST: &str = "127.0.0.1";
 const SIDECAR_PORT: u16 = 8000;
 const SIDECAR_PORT_ATTEMPTS: u16 = 50;

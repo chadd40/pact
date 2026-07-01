@@ -77,6 +77,16 @@ def test_long_pact_with_payment_goes_active_directly():
     assert pact.spend_request_id is None
 
 
+def test_demo_clock_pre_authorizes_regardless_of_length():
+    # The create UI offers 8/12-week pacts (past the 6-week hold ceiling), which would
+    # normally skip the approval and go straight to active. In demo clock mode the
+    # timeline is compressed, so the one-time-card-expiry concern is void: every pact
+    # pre-authorizes and shows the approval beat, whatever its length.
+    pact = _mk(weeks=12, payment=TestLinkProvider(), settings=Settings(clock_mode="demo"))
+    assert pact.status == PactStatus.awaiting_stake
+    assert pact.spend_request_id
+
+
 def test_no_payment_provider_goes_active():
     pact = _mk(weeks=4, payment=None)
     assert pact.status == PactStatus.active

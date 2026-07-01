@@ -173,6 +173,22 @@
 .pd-submit.proof-failed { background: var(--pc-accent); animation: proofFail 0.8s ease both; }
 .pd-submit.proof-error { background: #3a332b; }
 .pd-submit.is-busy { cursor: wait; }
+.pd-proof-fresh-link {
+  margin-top: 10px;
+  max-width: 380px;
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  color: #8a8168;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: #d8d0bd;
+}
+.pd-proof-fresh-link:hover { color: #16150f; text-decoration-color: currentColor; }
 .pd-spinner {
   width: 18px;
   height: 18px;
@@ -523,8 +539,6 @@
 .lm-await-p { margin-top: 8px; font-size: 14px; line-height: 1.55; color: #615d54; }
 .lm-await-p b { color: #1b1a17; }
 .lm-await .ov-btn { margin-top: 20px; }
-.lm-await-poll { margin-top: 14px; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #9a9488; }
-.lm-await-poll .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pc-amber); animation: ss-dots 1.2s infinite; }
 
 .dm { width: 420px; max-width: 100%; background: #fff; border-radius: 18px; padding: 26px; box-shadow: 0 30px 80px -20px rgba(22, 21, 15, 0.45); animation: ov-pop 0.3s cubic-bezier(0.2, 1, 0.4, 1); }
 .dm-icon { width: 46px; height: 46px; border-radius: 12px; background: #f6ece5; color: var(--pc-accent); display: flex; align-items: center; justify-content: center; }

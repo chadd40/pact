@@ -941,10 +941,14 @@ def create_pact_structured(
     # awaiting_stake until that approval lands (confirm_stake then provisions the card
     # and activates). Longer pacts (Model 3) skip this — the one-time card would expire
     # before the pact could fail — and open the spend-request at settlement instead.
+    # Demo clock mode is exempt from the length ceiling: the timeline is compressed, so
+    # the card-expiry concern is void and every demo pact shows the approval beat (the
+    # UI offers 8/12-week pacts that would otherwise silently skip it).
+    demo_clock = settings.clock_mode == "demo"
     if (
         payment is not None
         and hasattr(payment, "retrieve_card")
-        and weeks <= settings.stake_hold_max_weeks
+        and (demo_clock or weeks <= settings.stake_hold_max_weeks)
     ):
         result = payment.create_donation(pact, f"{pact.id}:stake")
         pact.spend_request_id = result.provider_ref

@@ -92,7 +92,6 @@ export function StakeApprovalModal({
               hold in your Link app so the stake is armed — <b>we're watching for it</b>
               {" "}and will seal the pact the moment you do.
             </div>
-            <div className="m lm-await-poll"><span className="dot" />Waiting for approval…</div>
           </div>
         )}
 

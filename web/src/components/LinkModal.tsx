@@ -156,7 +156,6 @@ export function LinkModal({
             <div className="lm-await-h">Approve in your Link app</div>
             <div className="lm-await-p">We sent the request to Link. Open the Link app and approve the {dollars(pact.stake_amount_cents)} transfer — <b>we're watching for it</b> and will finish the moment you do.</div>
             <button className="ov-btn" onClick={approveNow}>I approved it in Link</button>
-            <div className="m lm-await-poll"><span className="dot" />Waiting for approval…</div>
           </div>
         )}
 

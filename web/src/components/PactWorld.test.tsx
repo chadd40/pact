@@ -171,20 +171,30 @@ describe("PactWorld (active, standalone)", () => {
     expect(screen.getByText(/submit/i)).toBeTruthy();
   });
 
-  it("asks whether a first proof is happening now before choosing upload or code", () => {
+  it("opens the native picker immediately on submit — no 'is this happening now' gate", () => {
+    const clickInput = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
     const { container } = renderWorld();
 
     fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
 
-    expect(screen.queryByRole("dialog", { name: /submit evidence/i })).toBeNull();
-    expect(screen.getByText(/Is this happening now/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /yes, use a fresh code/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /no, upload evidence/i })).toBeTruthy();
-    expect(container.querySelector(".pd-proof-panel")?.getAttribute("data-proof-flow")).toBe("choice");
+    expect(clickInput).toHaveBeenCalled();
+    expect(screen.queryByText(/Is this happening now/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /no, upload evidence/i })).toBeNull();
+    // The panel steps straight to "Prepare proof" -> "Agent verdict".
+    expect(container.querySelector(".pd-proof-panel")?.getAttribute("data-proof-flow")).toBe("choosing");
     expect(container.querySelector(".pd-proof-rail")).toBeTruthy();
-    expect(container.querySelectorAll(".pd-proof-step")).toHaveLength(3);
-    expect(container.querySelector(".pd-proof-step.is-active")?.textContent).toContain("Choose mode");
-    expect(screen.queryByText(/Prototype/i)).toBeNull();
+    expect(container.querySelectorAll(".pd-proof-step")).toHaveLength(2);
+    expect(container.querySelector(".pd-proof-step.is-active")?.textContent).toContain("Prepare proof");
+  });
+
+  it("still exposes the fresh-code path via a secondary link", async () => {
+    vi.spyOn(api, "proofToken").mockResolvedValue({ token: "PACT-LIVE", expires_at: null });
+    renderWorld();
+
+    fireEvent.click(screen.getByRole("button", { name: /get a fresh proof code/i }));
+
+    expect(await screen.findByText(/fresh proof code/i)).toBeTruthy();
+    expect(screen.getByText("PACT-LIVE")).toBeTruthy();
   });
 
   it("uploads an existing first proof directly from the inline prompt", async () => {
@@ -201,7 +211,6 @@ describe("PactWorld (active, standalone)", () => {
     const { container } = renderWorld(undefined, pact);
 
     fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
-    fireEvent.click(screen.getByRole("button", { name: /no, upload evidence/i }));
 
     expect(clickInput).toHaveBeenCalled();
 
@@ -225,8 +234,7 @@ describe("PactWorld (active, standalone)", () => {
 
     renderWorld(undefined, activePact());
 
-    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
-    fireEvent.click(screen.getByRole("button", { name: /yes, use a fresh code/i }));
+    fireEvent.click(screen.getByRole("button", { name: /get a fresh proof code/i }));
 
     expect(await screen.findByText(/fresh proof code/i)).toBeTruthy();
     expect(screen.getByText("PACT-NOW")).toBeTruthy();
@@ -243,8 +251,7 @@ describe("PactWorld (active, standalone)", () => {
 
     const { container } = renderWorld(undefined, activePact());
 
-    fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
-    fireEvent.click(screen.getByRole("button", { name: /yes, use a fresh code/i }));
+    fireEvent.click(screen.getByRole("button", { name: /get a fresh proof code/i }));
 
     expect(await screen.findByText("PACT-NOW")).toBeTruthy();
     const primary = container.querySelector(".pd-submit") as HTMLButtonElement;
@@ -267,6 +274,51 @@ describe("PactWorld (active, standalone)", () => {
 
     expect(clickInput).toHaveBeenCalled();
     expect(screen.queryByText(/Fresh proof code/i)).toBeNull();
+  });
+
+  it("auto-advances the demo clock a day after a verified proof", async () => {
+    vi.useFakeTimers();
+    try {
+      const pact = activePact();
+      const file = new File(["proof"], "proof.png", { type: "image/png" });
+      const doAdvance = vi.fn().mockResolvedValue(undefined);
+      vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+      vi.spyOn(api, "proofToken").mockResolvedValue({ token: "PACT-GO", expires_at: null });
+      vi.spyOn(api, "uploadProofImage").mockResolvedValue(proof());
+      vi.spyOn(api, "getPact").mockResolvedValue(pact);
+      vi.spyOn(api, "getCoach").mockResolvedValue([]);
+      vi.spyOn(api, "getProofs").mockResolvedValue([]);
+
+      // nowIso set => demo clock is active, which is what arms the auto-advance.
+      const demo = { ...DEMO, nowIso: "2026-01-01T00:00:00Z", doAdvance };
+      const { container } = render(
+        <MemoryRouter
+          initialEntries={[{ pathname: "/pact/p1" }]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <DemoContext.Provider value={demo}>
+            <ClockContext.Provider value={Date.parse("2026-01-01T00:00:00Z")}>
+              <AppDataContext.Provider value={APP_DATA}>
+                <PactWorld pactId="p1" initialPact={pact} />
+              </AppDataContext.Provider>
+            </ClockContext.Provider>
+          </DemoContext.Provider>
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /submit today's proof/i }));
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+      fireEvent.change(input, { target: { files: [file] } });
+
+      // Flush the analyzing hold + the "Proof verified" beat + the advance.
+      await vi.runAllTimersAsync();
+
+      expect(doAdvance).toHaveBeenCalledWith(1);
+      // Panel resets so the button is ready for the next day's check-in.
+      expect(screen.getByRole("button", { name: /submit today's proof/i })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does NOT render the old At stake / Goes to chips", () => {

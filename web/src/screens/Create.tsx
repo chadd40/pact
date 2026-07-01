@@ -10,6 +10,7 @@ import { ChatShell, type ChatMessage } from "../components/ChatShell";
 import { StakeApprovalModal } from "../components/StakeApprovalModal";
 import { Tooltip } from "../components/Tooltip";
 import { isDesktop } from "../lib/platform";
+import { fundingIsReady } from "../lib/funding";
 import { CHARITY_CATALOG } from "../lib/charities";
 import { encodeDraft } from "../lib/handoff";
 import type { PactDraft } from "../lib/handoff";
@@ -197,6 +198,11 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   // A short pact pre-authorizes its stake in Link at creation and comes back
   // awaiting_stake; this holds the sealing beat while the owner approves the spend.
   const [stakePending, setStakePending] = useState<Pact | null>(null);
+  // Whether the owner's agent token + Link funding are already in place. When they
+  // are (a returning user, or the demo where the agent is already serving), the
+  // post-seal "set up agent and Link" step is redundant — we skip it and open the
+  // dashboard directly instead of routing through onboarding.
+  const [agentAlreadySetUp, setAgentAlreadySetUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Web-mode handoff: clipboard copy state.
   const [copied, setCopied] = useState(false);
@@ -256,6 +262,29 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       alive = false;
     };
   }, []);
+
+  // Probe whether the agent + Link are already connected (desktop only). Mirrors the
+  // "skip the setup wall" check in Onboard: agent token ready + funding ready. Drives
+  // whether the post-seal chat offers "set up agent and Link" or just "open dashboard".
+  useEffect(() => {
+    if (!isDesktop()) return;
+    let alive = true;
+    (async () => {
+      const [health, runtime] = await Promise.all([
+        api.connectorHealth(owner).catch(() => null),
+        api.runtime().catch(() => null),
+      ]);
+      if (!alive) return;
+      const live = runtime?.live_money_enabled ?? true;
+      const link = await (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null);
+      if (!alive) return;
+      const ready = health?.agent_token.status === "ready" && fundingIsReady(link, live);
+      setAgentAlreadySetUp(!!ready);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [owner]);
 
   // Responsive scale: fit the fixed world into the *visible* area below the
   // sticky demo bar, so the stage centers correctly and nothing clips under the fold.
@@ -457,7 +486,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   const openPact = () => {
     if (created) {
-      if (isDesktop()) {
+      // Desktop routes new users through onboarding to finish agent + Link setup;
+      // an already-connected user (returning, or the demo) skips straight to the pact.
+      if (isDesktop() && !agentAlreadySetUp) {
         navigate("/onboard", { state: { pactId: created.id } });
       } else {
         navigate(`/pact/${created.id}`);
@@ -629,16 +660,28 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       role: "agent",
       body: `Signed. ${goalName} is now a real pact with $${stake} on the line.`,
     },
-    {
-      id: "setup",
-      role: "agent",
-      body: "Next I'll check Link funding, your agent token, and the local MCP server before opening the dashboard.",
-      actions: (
-        <button className="open" ref={openBtnRef} onClick={openPact}>
-          Set up agent and Link <Arrow />
-        </button>
-      ),
-    },
+    agentAlreadySetUp
+      ? {
+          // Agent + Link are already connected — no setup step to run.
+          id: "ready",
+          role: "agent",
+          body: `${agentDef?.name || "Your agent"} and Link are already connected, so your pact is live.`,
+          actions: (
+            <button className="open" ref={openBtnRef} onClick={openPact}>
+              Open dashboard <Arrow />
+            </button>
+          ),
+        }
+      : {
+          id: "setup",
+          role: "agent",
+          body: "Next I'll check Link funding, your agent token, and the local MCP server before opening the dashboard.",
+          actions: (
+            <button className="open" ref={openBtnRef} onClick={openPact}>
+              Set up agent and Link <Arrow />
+            </button>
+          ),
+        },
   ];
 
   return (
