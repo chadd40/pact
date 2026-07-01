@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useDemo } from "../App";
-import { useLocalOwner } from "../owner";
+import { getDisplayName, setDisplayName, useLocalOwner } from "../owner";
 import type { Charity, Pact } from "../types";
 import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { PasteWebPact } from "../components/PasteWebPact";
@@ -183,7 +183,7 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
   const [stake, setStake] = useState(200);
   const [charityId, setCharityId] = useState<string | null>(null);
   const [agentKey, setAgentKey] = useState<string | null>(null);
-  const [signerName, setSignerName] = useState(""); // step 5 — signs the card
+  const [signerName, setSignerName] = useState(() => getDisplayName()); // step 5 — signs the card (pre-filled from your saved name)
   const [customArt, setCustomArt] = useState<string | null>(null); // custom-goal front
   const [pickerOpen, setPickerOpen] = useState(false); // image picker open
   const [peeking, setPeeking] = useState(false); // momentary flip-to-front peek
@@ -437,6 +437,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         signer_name: signerName.trim() || undefined,
       });
       setCreated(pact);
+      // Remember the name they signed with, so the next pact and Settings pre-fill it.
+      const signed = signerName.trim();
+      if (signed) setDisplayName(signed);
       signalChange();
       if (pact.status === "awaiting_stake") {
         // Short pact (Model 1): the stake is pre-authorized in Link at creation.

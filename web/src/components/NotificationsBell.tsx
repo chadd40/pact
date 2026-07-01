@@ -87,8 +87,8 @@ export interface NotificationsMenuProps {
   onMarkAllRead: () => void;
 }
 
-// Presentational tray. Prop-driven (no hooks/network) so it's trivially testable,
-// mirroring PactToast. The NotificationsBell container below wires the live data.
+// Presentational tray. Prop-driven (no hooks/network) so it's trivially testable.
+// The NotificationsBell container below wires the live data.
 export function NotificationsMenu({
   resolutions,
   nudges,
@@ -144,15 +144,15 @@ export function NotificationsMenu({
 
           {ordered.length > 0 && (
             <>
-              <div className="nb-sec urgent">Needs resolution</div>
+              <div className="nb-sec nb-urgent">Needs resolution</div>
               <div className="nb-list nb-list--urgent">
                 {ordered.map((p) => {
                   const charityName = charityById[p.charity_id]?.name ?? "charity";
                   const line = resolutionLine(p, charityName);
                   return (
-                    <div className="nb-row urgent" key={p.id}>
+                    <div className="nb-row nb-urgent" key={p.id}>
                       <button className="nb-rbody" onClick={() => onOpenPact(p.id)}>
-                        <span className="nb-ico urgent">{line.icon === "clock" ? <ClockIcon /> : <AlertIcon />}</span>
+                        <span className="nb-ico nb-urgent">{line.icon === "clock" ? <ClockIcon /> : <AlertIcon />}</span>
                         <span className="nb-rmain">
                           <span className="nb-rtitle">{p.title}</span>
                           <span className="nb-rsub">{line.sub}</span>
@@ -175,9 +175,9 @@ export function NotificationsMenu({
                 {nudges.map((n) => {
                   const title = pactById[n.pact_id]?.title;
                   return (
-                    <div className="nb-row coach" key={n.id}>
+                    <div className="nb-row nb-coach" key={n.id}>
                       <button className="nb-rbody" onClick={() => onOpenPact(n.pact_id)}>
-                        <span className="nb-ico coach"><CoachIcon /></span>
+                        <span className="nb-ico nb-coach"><CoachIcon /></span>
                         <span className="nb-rmain">
                           <span className="nb-coach-body">{n.body}</span>
                           <span className="nb-coach-meta">Coach · {relTime(n.sent_at, nowMs)}{title ? ` · ${title}` : ""}</span>

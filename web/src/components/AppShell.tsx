@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { useDemo } from "../App";
 import { AppDataContext, type AppData } from "../data";
@@ -10,11 +10,9 @@ import type { Charity, Pact } from "../types";
 import { DemoControls } from "./DemoControls";
 import { LogoMenu } from "./LogoMenu";
 import { NotificationsBell } from "./NotificationsBell";
-import { PactToast } from "./PactToast";
 
 export function AppShell() {
   const { bump } = useDemo();
-  const navigate = useNavigate();
   const onDashboard = useLocation().pathname === "/dashboard";
   const [owner] = useLocalOwner();
   const [pacts, setPacts] = useState<Pact[]>([]);
@@ -42,8 +40,6 @@ export function AppShell() {
     return () => { alive = false; };
   }, []);
 
-  const pending = useMemo(() => pacts.find((p) => p.status === "donation_pending"), [pacts]);
-
   const appData = useMemo<AppData>(
     () => ({
       pacts,
@@ -69,12 +65,6 @@ export function AppShell() {
         <main className="as-main">
           <Outlet />
         </main>
-
-        {/* ── Pending donation toast ── */}
-        <PactToast
-          pact={pending ?? null}
-          onResolve={(id) => navigate(`/pact/${id}`)}
-        />
 
         {/* ── Demo control strip (demo clock mode only; drives the real lifecycle) ── */}
         <DemoControls />

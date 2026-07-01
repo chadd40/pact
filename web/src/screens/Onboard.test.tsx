@@ -246,8 +246,8 @@ describe("Onboard", () => {
     renderOnboard();
 
     await screen.findByRole("region", { name: /hermes setup/i });
-    expect(screen.getByText("connected")).toBeTruthy();  // Link CLI pill
-    expect(screen.getByText("ready")).toBeTruthy();       // agent pill
+    expect(screen.getByText("Connected")).toBeTruthy();  // Link overview status
+    expect(screen.getByText("Ready")).toBeTruthy();       // agent overview status
     expect(screen.getByText(/Link CLI connected/i)).toBeTruthy();
     // The serve command is pre-filled with a token, not the empty placeholder.
     expect(screen.queryByText(/<paste your token>/i)).toBeNull();

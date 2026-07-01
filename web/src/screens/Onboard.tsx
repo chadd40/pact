@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { StatusPill } from "../components/ChatShell";
 import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
 import { isDesktop } from "../lib/platform";
 import { useLocalOwner } from "../owner";
 import type { ConnectorHealth, LinkStatus, RuntimeInfo } from "../types";
 import { AGENTS } from "./Create";
+import { RewindIcon, TokenIcon } from "./agentIcons";
 import "./onboard.css";
 
 // Result of the native skill installer (web/src-tauri/src/lib.rs::install_pact_skill).
@@ -22,31 +22,6 @@ async function installSkill(agentKey: string): Promise<InstallResult | null> {
   const bridge = (window as unknown as { __TAURI__?: { core?: { invoke?: (c: string, a?: unknown) => Promise<unknown> } } }).__TAURI__;
   if (!bridge?.core?.invoke) return null;
   return (await bridge.core.invoke("install_pact_skill", { agent_key: agentKey })) as InstallResult;
-}
-
-// A horizontal key glyph (bow left, shaft right, teeth down) for the
-// generate-token square — reads unmistakably as a credential at small sizes.
-function TokenIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="6.6" cy="12" r="3.3" />
-      <path d="M9.9 12 H20" />
-      <path d="M16.4 12 V15.5" />
-      <path d="M19.4 12 V14.6" />
-    </svg>
-  );
-}
-
-// A circular rewind / re-check arrow.
-function RewindIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
-      <path d="M20 4v4h-4" />
-    </svg>
-  );
 }
 
 // Post-seal setup. Funding + agent are the only things that gate the dashboard;
@@ -193,113 +168,119 @@ export function Onboard() {
 
   return (
     <div className="onb">
-      <div className="onb-card" role="region" aria-label={`${agentName} setup`}>
-        <header className="onb-header">
-          <span className="onb-eyebrow">Setup</span>
+      <div className="onb-page" role="region" aria-label={`${agentName} setup`}>
+        <header className="onb-head">
+          <div className="onb-eyebrow">Setup</div>
           <h1 className="onb-title">{headline}</h1>
-          <p className="onb-sub">{subcopy}</p>
+          <p className="onb-lede">{subcopy}</p>
         </header>
 
-        {/* ── Step 1 · Link CLI ─────────────────────────────────────────────── */}
-        <section className={`onb-section${fundingDone ? " is-done" : ""}`}>
-          <div className="onb-step">01</div>
-          <div className="onb-body">
-            <div className="onb-section-head">
-              <h2 className="onb-section-title">Link CLI</h2>
-              <StatusPill tone={fundingDone ? "ok" : "warn"}>
-                {fundingDone ? "connected" : "not connected"}
-              </StatusPill>
+        {/* At-a-glance status strip, mirroring the Settings overview. */}
+        <div className="onb-overview">
+          <div className="onb-ov-item">
+            <span>Link</span>
+            <strong className={fundingDone ? "ok" : undefined}>
+              {fundingDone ? "Connected" : "Not connected"}
+            </strong>
+          </div>
+          <div className="onb-ov-item">
+            <span>Agent</span>
+            <strong className={agentDone ? "ok" : undefined}>
+              {agentDone ? "Ready" : "Needs token"}
+            </strong>
+          </div>
+        </div>
+
+        {/* ── Link CLI ──────────────────────────────────────────────────────── */}
+        <section className="onb-card">
+          <div className="onb-row">
+            <div className="onb-row-main">
+              <h2 className="onb-k">Link CLI</h2>
+              {fundingDone ? (
+                <>
+                  <div className="onb-v">
+                    <span className="onb-ok">
+                      Link CLI connected{fundingLabel ? ` · ${fundingLabel}` : ""}
+                    </span>
+                  </div>
+                  {localOnlyFunding && (
+                    <div className="onb-note">No real card is connected in this packaged build.</div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="onb-v">
+                    Link is the card Pact charges to your chosen charity if you miss a pact.
+                  </div>
+                  {fundingError && <div className="onb-err">{fundingError}</div>}
+                </>
+              )}
             </div>
-            <p className="onb-section-note">
-              Link is the card Pact charges to your chosen charity if you miss a pact.
-            </p>
-            {fundingDone ? (
-              <>
-                <div className="onb-readout">
-                  <span className="onb-readout-label">Link CLI connected</span>
-                  {fundingLabel && <span className="onb-readout-funding">{fundingLabel}</span>}
-                </div>
-                {localOnlyFunding && (
-                  <p className="onb-section-note">No real card is connected in this packaged build.</p>
-                )}
-              </>
-            ) : (
-              <>
-                {fundingError && <p className="onb-section-error">{fundingError}</p>}
-                <a
-                  className="onb-install-btn"
-                  href={LINK_CLI_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Install Link CLI
-                </a>
-              </>
+            {!fundingDone && (
+              <a className="onb-install" href={LINK_CLI_URL} target="_blank" rel="noreferrer">
+                Install Link CLI
+              </a>
             )}
           </div>
         </section>
 
-        {/* ── Step 2 · Connect your agent ───────────────────────────────────── */}
-        <section className={`onb-section${agentDone ? " is-done" : ""}`}>
-          <div className="onb-step">02</div>
-          <div className="onb-body">
-            <div className="onb-section-head">
-              <h2 className="onb-section-title">Connect your agent</h2>
-              <StatusPill tone={agentDone ? "ok" : busy === "token" ? "busy" : "warn"}>
-                {agentDone ? "ready" : busy === "token" ? "minting" : "missing"}
-              </StatusPill>
+        {/* ── Connect your agent ────────────────────────────────────────────── */}
+        <section className="onb-card">
+          <div className="onb-row">
+            <div className="onb-row-main">
+              <h2 className="onb-k">Connect your agent</h2>
+              <div className="onb-v">{agentNote}</div>
             </div>
-            <label className="onb-field">
-              <span className="onb-field-label">Local Pact API URL</span>
-              <input
-                className="onb-input"
-                value={serveBaseUrl}
-                onChange={(e) => setAgentBaseUrl(e.target.value)}
-                spellCheck={false}
-              />
-            </label>
-            <p className="onb-section-note">{agentNote}</p>
-            <code className="onb-code">{serveCommand}</code>
-            <div className="onb-toolbar">
-              <button
-                type="button"
-                className="onb-tool onb-tool-generate"
-                aria-label={agentDone ? "Regenerate token" : "Generate token"}
-                onClick={mint}
-                disabled={busy === "token"}
-              >
-                <TokenIcon />
-              </button>
-              <button
-                type="button"
-                className={`onb-tool-copy${copiedMcp ? " is-copied" : ""}`}
-                aria-label={copiedMcp ? "Serve command copied" : "Copy serve command"}
-                onClick={copyMcpCommand}
-              >
-                {copiedMcp ? "Copied" : "Copy command"}
-              </button>
-              <button
-                type="button"
-                className={`onb-tool onb-tool-recheck${busy === "recheck" ? " is-busy" : ""}`}
-                aria-label="Re-check agent"
-                onClick={recheck}
-                disabled={busy === "recheck"}
-              >
-                <RewindIcon />
-              </button>
-            </div>
-            {agentDone && (
-              <p className="onb-section-hint">
-                Token {health?.agent_token.token_prefix ?? "ready"} · {agentDef.name}{" "}
-                {workerStatus === "online" ? "serving" : "not serving yet"}
-              </p>
-            )}
-            {install && (
-              <p className={`onb-install-note${install.status === "installed" ? " is-ok" : ""}`}>
-                {install.status === "installed" ? "✓ " : ""}{install.message}
-              </p>
-            )}
           </div>
+          <label className="onb-field">
+            <span className="onb-field-label">Local Pact API URL</span>
+            <input
+              className="onb-input"
+              value={serveBaseUrl}
+              onChange={(e) => setAgentBaseUrl(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <code className="onb-code">{serveCommand}</code>
+          <div className="onb-toolbar">
+            <button
+              type="button"
+              className="onb-gen"
+              aria-label={agentDone ? "Regenerate token" : "Generate token"}
+              onClick={mint}
+              disabled={busy === "token"}
+            >
+              <TokenIcon />
+            </button>
+            <button
+              type="button"
+              className={`onb-copy${copiedMcp ? " is-copied" : ""}`}
+              aria-label={copiedMcp ? "Serve command copied" : "Copy serve command"}
+              onClick={copyMcpCommand}
+            >
+              {copiedMcp ? "Copied" : "Copy command"}
+            </button>
+            <button
+              type="button"
+              className={`onb-recheck${busy === "recheck" ? " is-busy" : ""}`}
+              aria-label="Re-check agent"
+              onClick={recheck}
+              disabled={busy === "recheck"}
+            >
+              <RewindIcon />
+            </button>
+          </div>
+          {agentDone && (
+            <div className="onb-hint">
+              Token {health?.agent_token.token_prefix ?? "ready"} · {agentDef.name}{" "}
+              {workerStatus === "online" ? "serving" : "not serving yet"}
+            </div>
+          )}
+          {install && (
+            <div className={`onb-install-note${install.status === "installed" ? " is-ok" : ""}`}>
+              {install.status === "installed" ? "✓ " : ""}{install.message}
+            </div>
+          )}
         </section>
 
         {/* ── Footer ────────────────────────────────────────────────────────── */}

@@ -17,3 +17,6 @@ web/src-tauri/binaries/
 
 # local screenshot artifacts
 /*.png
+
+# scratch demo recording frames
+/frames/

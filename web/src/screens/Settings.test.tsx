@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Settings } from "./Settings";
 import { api, DEMO_OWNER } from "../api";
-import type { ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
+import type { ConnectorHealth, LinkStatus, Pact, RuntimeInfo, SpendPolicy } from "../types";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -18,8 +18,7 @@ vi.mock("../api", async (importOriginal) => {
       runtime: vi.fn(),
       getPolicy: vi.fn(),
       setPolicy: vi.fn(),
-      getBilling: vi.fn(),
-      setBilling: vi.fn(),
+      listPacts: vi.fn(),
     },
   };
 });
@@ -70,30 +69,7 @@ function connectorHealth(status: "missing" | "ready" = "ready"): ConnectorHealth
       text: status === "ready",
       vision: status === "ready",
     },
-    connectors: [
-      {
-        key: "hermes",
-        name: "Hermes",
-        kind: "skill",
-        status: "ready",
-        installed: true,
-        capabilities: ["text", "vision"],
-        detail: "Built in.",
-        action: "Run /pact serve.",
-      },
-      {
-        key: "mcp",
-        name: "MCP",
-        kind: "mcp",
-        status: status === "ready" ? "ready" : "needs_token",
-        installed: status === "ready",
-        capabilities: ["text"],
-        detail: "Use Pact MCP.",
-        action: "Add the Pact MCP server command.",
-        command: "pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>",
-        config: {},
-      },
-    ],
+    connectors: [],
     mcp: {
       server_name: "pact",
       command: "pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>",
@@ -111,6 +87,10 @@ function spendPolicy(limit: number | null = null): SpendPolicy {
   };
 }
 
+function pactWithSigner(signer: string): Pact {
+  return { signer_name: signer } as unknown as Pact;
+}
+
 describe("Settings", () => {
   afterEach(() => {
     cleanup();
@@ -121,46 +101,72 @@ describe("Settings", () => {
   beforeEach(() => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(false));
     vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus(true));
-    vi.mocked(api.getPolicy).mockResolvedValue(spendPolicy());
-    vi.mocked(api.setPolicy).mockImplementation(async (_owner, limit) => spendPolicy(limit));
-    vi.mocked(api.getBilling).mockResolvedValue({ owner: DEMO_OWNER });
-    vi.mocked(api.setBilling).mockImplementation(async (b) => b);
-  });
-
-  it("shows live-safe funding copy and connected Link details", async () => {
-    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(true));
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    vi.mocked(api.getPolicy).mockResolvedValue(spendPolicy());
+    vi.mocked(api.setPolicy).mockImplementation(async (_owner, limit) => spendPolicy(limit));
+    vi.mocked(api.listPacts).mockResolvedValue([]);
+  });
+
+  it("drops the account id and the billing form entirely", async () => {
+    render(<Settings />);
+
+    await screen.findByLabelText(/your name/i);
+    expect(screen.queryByText(/account id/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /save owner/i })).toBeNull();
+    expect(screen.queryByLabelText(/street/i)).toBeNull();
+    expect(screen.queryByLabelText(/postal code/i)).toBeNull();
+    expect(screen.queryByText(/billing details/i)).toBeNull();
+  });
+
+  it("seeds Your name from a sealed pact's signer name", async () => {
+    vi.mocked(api.listPacts).mockResolvedValue([pactWithSigner("Ada Lovelace")]);
 
     render(<Settings />);
 
-    await waitFor(() => expect(screen.getByText(/connected/i)).toBeTruthy());
+    await screen.findByDisplayValue("Ada Lovelace");
+    expect(window.localStorage.getItem("pact.displayName")).toBe("Ada Lovelace");
+  });
+
+  it("saves an explicit name to local display storage", async () => {
+    render(<Settings />);
+
+    const nameInput = await screen.findByLabelText(/your name/i);
+    fireEvent.change(nameInput, { target: { value: "Grace Hopper" } });
+    fireEvent.click(screen.getByRole("button", { name: /save name/i }));
+
+    await waitFor(() => expect(window.localStorage.getItem("pact.displayName")).toBe("Grace Hopper"));
+  });
+
+  it("shows live-safe Link copy and the connected card", async () => {
+    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
+
+    render(<Settings />);
+
+    await waitFor(() => expect(screen.getByText(/Visa .*4242/)).toBeTruthy());
     expect(screen.getByText(/Pact never holds your money/i).textContent).not.toMatch(/\btest\b/i);
-    expect(screen.getByText(/Visa .*4242/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /connect link/i })).toBeNull();
   });
 
-  it("labels dry-run funding as local-only rather than a real payment method", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue({
+  it("labels dry-run funding as local-only rather than a real card", async () => {
+    vi.mocked(api.linkPreflight).mockResolvedValue({
       ...linkStatus(true),
       payment_method_id: null,
       payment_method_label: null,
       payment_method_last4: null,
       funding_ref: "test_funding_demo@pact.local",
     });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
 
     render(<Settings />);
 
     await waitFor(() => expect(screen.getByText(/Local-only Link ready/i)).toBeTruthy());
     expect(screen.getByText(/No real card is connected/i)).toBeTruthy();
     expect(screen.queryByText(/test_funding/i)).toBeNull();
-    expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
   });
 
-  it("keeps live Link in setup state when no payment method is ready", async () => {
+  it("keeps Link in setup state with a connect action when no method is ready", async () => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(true));
-    const notReadyLink: LinkStatus = {
+    const notReady: LinkStatus = {
       ...linkStatus(true),
       ready: false,
       payment_method_id: null,
@@ -168,81 +174,59 @@ describe("Settings", () => {
       payment_method_last4: null,
       error: "No usable Link payment method is available",
     };
-    vi.mocked(api.linkStatus).mockResolvedValue(notReadyLink);
-    vi.mocked(api.linkPreflight).mockResolvedValue(notReadyLink);
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    vi.mocked(api.linkPreflight).mockResolvedValue(notReady);
 
     render(<Settings />);
 
     await waitFor(() => expect(screen.getByText(/No usable Link payment method is available/i)).toBeTruthy());
     expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
-    expect(screen.queryByText(/Connected · Link connector ready/i)).toBeNull();
-    expect(screen.queryByText(/Pact never holds your money/i)).toBeNull();
   });
 
-  it("uses live Link preflight to refresh payment-method readiness", async () => {
-    vi.mocked(api.runtime).mockResolvedValue(runtime(true));
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(false));
-    vi.mocked(api.linkPreflight).mockResolvedValue({
-      ...linkStatus(true),
-      ready: true,
-      funding_ref: "pm_live_123",
-      payment_method_id: "pm_live_123",
-    });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-
-    render(<Settings />);
-
-    await waitFor(() => expect(api.linkPreflight).toHaveBeenCalledWith(DEMO_OWNER));
-    expect(screen.getByText(/Visa .*4242/i)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /connect link/i })).toBeNull();
-  });
-
-  it("mints a token, copies it, and clears it when the owner changes", async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
-    });
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(false));
+  it("shows the onboard-style serve command and mints a token into it", async () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth("missing"));
     vi.mocked(api.mintAgentToken).mockResolvedValue({
       owner: DEMO_OWNER,
-      token: "pat_1234567890abcdefghijklmnopqrstuvwxyz",
+      token: "pat_1234567890abcdefghij",
     });
 
     render(<Settings />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /generate token/i }));
-    await waitFor(() => expect(screen.getByText("pat_1234567890abcdefghijklmnopqrstuvwxyz")).toBeTruthy());
+    const before = await screen.findByText(/pact serve --base-url http:\/\/127\.0\.0\.1:8000/i);
+    expect(before.textContent).toContain("<paste your token>");
 
-    fireEvent.click(screen.getByRole("button", { name: /copy agent token/i }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("pat_1234567890abcdefghijklmnopqrstuvwxyz"));
+    fireEvent.click(screen.getByRole("button", { name: /generate token/i }));
 
-    const ownerInput = screen.getByDisplayValue(DEMO_OWNER);
-    fireEvent.change(ownerInput, {
-      target: { value: " next-owner@example.com " },
-    });
-    fireEvent.blur(ownerInput);
+    await waitFor(() =>
+      expect(screen.getByText(/pact serve/i).textContent).toContain("pat_1234567890abcdefghij")
+    );
 
-    await waitFor(() => expect(screen.queryByText("pat_1234567890abcdefghijklmnopqrstuvwxyz")).toBeNull());
-    expect(window.localStorage.getItem("pact.localOwner")).toBe("next-owner@example.com");
+    fireEvent.click(screen.getByRole("button", { name: /copy serve command/i }));
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        "pact serve --base-url http://127.0.0.1:8000 --agent-token pat_1234567890abcdefghij"
+      )
+    );
   });
 
-  it("shows connector health and the MCP server command", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(true));
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+  it("folds in connector health and the MCP command", async () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
 
     render(<Settings />);
 
-    expect(await screen.findByText(/agent connector health/i)).toBeTruthy();
-    expect(screen.getByText(/worker online/i)).toBeTruthy();
-    expect(screen.getByText(/pat_abcdef12/i)).toBeTruthy();
+    expect(await screen.findByText("Token pat_abcdef12")).toBeTruthy();
+    expect(screen.getByText(/Worker online/i)).toBeTruthy();
     expect(screen.getByText(/pact mcp --base-url/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy mcp command/i }));
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        "pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>"
+      )
+    );
   });
 
-  it("saves the agent spend limit in cents and updates the Settings copy", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(true));
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-
+  it("saves the agent spend limit in cents and updates the copy", async () => {
     render(<Settings />);
 
     const limitInput = await screen.findByRole("spinbutton", { name: /agent spend limit/i });
@@ -252,31 +236,5 @@ describe("Settings", () => {
     await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(DEMO_OWNER, 1250));
     expect(screen.getByText(/spend up to \$12\.50/i)).toBeTruthy();
     expect(screen.getByText(/NemoGuard enforces this on every spend/i)).toBeTruthy();
-  });
-
-  it("surfaces setup endpoints and saves the owner from an explicit action", async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
-    });
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus(false));
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-
-    render(<Settings />);
-
-    expect(await screen.findByText(/local api/i)).toBeTruthy();
-    expect(screen.getByText("http://127.0.0.1:8000")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: /copy mcp command/i }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      "pact mcp --base-url http://127.0.0.1:8000 --agent-token <agent-token>"
-    ));
-
-    const ownerInput = screen.getByDisplayValue(DEMO_OWNER);
-    fireEvent.change(ownerInput, {
-      target: { value: " new-owner@example.com " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /save owner/i }));
-
-    await waitFor(() => expect(window.localStorage.getItem("pact.localOwner")).toBe("new-owner@example.com"));
   });
 });
