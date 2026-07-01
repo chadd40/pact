@@ -53,7 +53,7 @@ export function LandingLogoMenu({ onGoTo }: LandingLogoMenuProps) {
                 Home
               </button>
               <button className="lp-menu-item" role="menuitem" onClick={() => goTo("integrations")}>
-                Integrations / MCP
+                How it works
               </button>
               <button className="lp-menu-item" role="menuitem" onClick={() => goTo("faq")}>
                 FAQ
