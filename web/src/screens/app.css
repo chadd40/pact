@@ -732,28 +732,23 @@
   position: fixed; bottom: 20px; right: 20px; z-index: 200;
   background: #16150f; color: #f4ecda;
   border-radius: 16px;
-  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px;
   padding: 14px 16px;
   box-shadow: 0 20px 48px -16px rgba(22, 21, 15, 0.6);
   border: 1px solid #2c2a22;
   max-width: 340px;
 }
-.toast-pulse {
-  position: relative; flex: none;
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--pc-accent);
-  animation: toastPulse 1.8s ease-in-out infinite;
-}
-.toast-body { flex: 1; min-width: 0; }
+.toast-body { min-width: 0; padding-right: 24px; }
 .toast-title { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #b0a99a; margin-bottom: 3px; }
 .toast-msg { font-size: 14px; font-weight: 500; color: #f4ecda; }
 .toast-cta {
-  flex: none; height: 34px; padding: 0 14px; border: 0; border-radius: 9px;
+  height: 34px; padding: 0 14px; border: 0; border-radius: 9px;
   background: var(--pc-accent); color: #fff;
   font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--pc-sans);
 }
 .toast-x {
-  flex: none; width: 28px; height: 28px; border: 0; border-radius: 7px;
+  position: absolute; top: 10px; right: 10px;
+  width: 28px; height: 28px; border: 0; border-radius: 7px;
   background: transparent; color: #8a8173;
   font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
@@ -774,7 +769,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast-pulse, .toast-dot-pulse, .toast-dot { animation: none; }
+  .toast-dot-pulse, .toast-dot { animation: none; }
 }
 
 /* ════════════════════════ PACT WORLD ════════════════════════

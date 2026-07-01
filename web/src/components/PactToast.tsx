@@ -14,13 +14,12 @@ export function PactToast({ pact, onResolve }: { pact: Pact | null; onResolve: (
   }
   return (
     <div className="toast" role="alert" aria-live="assertive">
-      <span className="toast-pulse" aria-hidden="true" />
+      <button className="toast-x" aria-label="Dismiss" onClick={() => setCollapsed(true)}>×</button>
       <div className="toast-body">
         <div className="toast-title m">Action needed</div>
         <div className="toast-msg">Your {dollars(pact.stake_amount_cents)} stake is unresolved.</div>
       </div>
       <button className="toast-cta" onClick={() => onResolve(pact.id)}>Resolve now</button>
-      <button className="toast-x" aria-label="Dismiss" onClick={() => setCollapsed(true)}>×</button>
     </div>
   );
 }
