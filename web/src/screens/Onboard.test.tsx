@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Onboard } from "./Onboard";
 import { api, DEMO_OWNER } from "../api";
-import type { BillingProfile, ConnectorHealth, LinkStatus, Pact, SpendPolicy } from "../types";
+import type { ConnectorHealth, LinkStatus, Pact } from "../types";
 import type { RuntimeInfo } from "../types";
 
 vi.mock("../api", async (importOriginal) => {
@@ -19,10 +19,6 @@ vi.mock("../api", async (importOriginal) => {
       connectorHealth: vi.fn(),
       getPact: vi.fn(),
       runtime: vi.fn(),
-      getPolicy: vi.fn(),
-      setPolicy: vi.fn(),
-      getBilling: vi.fn(),
-      setBilling: vi.fn(),
     },
   };
 });
@@ -39,20 +35,6 @@ function runtime(liveMoneyEnabled = false): RuntimeInfo {
 
 function linkStatus(): LinkStatus {
   return { owner: DEMO_OWNER, connected: true, funding_ref: "link_pm_test", error: null };
-}
-
-function billing(): BillingProfile {
-  return {
-    owner: DEMO_OWNER, first_name: "Ada", last_name: "Lovelace", email: "ada@example.com",
-    street: "1 Analytical Way", city: "London", state: "", postal_code: "EC1A 1AA", country: "GB",
-  };
-}
-
-function spendPolicy(limit: number | null = null): SpendPolicy {
-  return {
-    owner: DEMO_OWNER, spend_limit_cents: limit,
-    charity_allowlist: ["against_malaria_foundation"], rail: "nemoguard",
-  };
 }
 
 function connectorHealth(): ConnectorHealth {
@@ -107,6 +89,7 @@ function renderOnboard() {
       <Routes>
         <Route path="/onboard" element={<Onboard />} />
         <Route path="/dashboard" element={<div>Dashboard route reached</div>} />
+        <Route path="/pact/:id" element={<div>Pact route reached</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -122,71 +105,51 @@ describe("Onboard", () => {
   beforeEach(() => {
     vi.mocked(api.runtime).mockResolvedValue(runtime(false));
     vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPolicy).mockResolvedValue(spendPolicy());
-    vi.mocked(api.setPolicy).mockImplementation(async (_owner, limit) => spendPolicy(limit));
-    vi.mocked(api.getBilling).mockResolvedValue(billing());
-    vi.mocked(api.setBilling).mockImplementation(async (b) => b);
+    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+  });
+
+  it("auto-skips straight to the sealed pact when funding + agent are already set up", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+
+    renderOnboard();
+
+    // A returning / fully-set-up user never sees the setup wall.
+    expect(await screen.findByText("Pact route reached")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: /setup/i })).toBeNull();
+  });
+
+  it("shows the setup sections (Link CLI + connect-agent) when the agent isn't connected yet", async () => {
+    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
+
+    renderOnboard();
+
+    expect(await screen.findByRole("region", { name: /hermes setup/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Link CLI" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /connect your agent/i })).toBeTruthy();
+    // Billing + spend limit moved to Settings — no forms, no note here anymore.
+    expect(screen.queryByRole("button", { name: /save billing/i })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: /agent spend limit/i })).toBeNull();
+    expect(screen.queryByText(/billing/i)).toBeNull();
+    expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("shows a serve command (with the real token) after minting", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue(pact());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
     vi.mocked(api.mintAgentToken).mockResolvedValue({ owner: DEMO_OWNER, token: "pat_onboard1234567890" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
 
     renderOnboard();
     fireEvent.click(await screen.findByRole("button", { name: /generate token/i }));
 
-    await waitFor(() => expect(api.connectorHealth).toHaveBeenCalledWith(DEMO_OWNER));
-    // The copyable command is `pact serve` with the REAL token substituted (no placeholder).
+    await waitFor(() => expect(api.mintAgentToken).toHaveBeenCalledWith(DEMO_OWNER));
     expect(screen.getByText(/pact serve --base-url .* --agent-token pat_onboard1234567890/i)).toBeTruthy();
     expect(screen.getAllByText(/not serving yet/i).length).toBeGreaterThan(0);  // worker offline
   });
 
-  it("captures the billing profile via the form", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue(pact());
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-    vi.mocked(api.getBilling).mockResolvedValue({ owner: DEMO_OWNER });  // empty -> form needed
-
-    renderOnboard();
-    const first = await screen.findByLabelText(/first name/i) as HTMLInputElement;
-    fireEvent.change(first, { target: { value: "Grace" } });
-    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Hopper" } });
-    fireEvent.change(screen.getByLabelText(/^street$/i), { target: { value: "1 Navy Yard" } });
-    fireEvent.change(screen.getByLabelText(/postal code/i), { target: { value: "20374" } });
-    fireEvent.click(screen.getByRole("button", { name: /save billing/i }));
-
-    await waitFor(() => expect(api.setBilling).toHaveBeenCalledWith(
-      expect.objectContaining({ owner: DEMO_OWNER, first_name: "Grace", last_name: "Hopper",
-        street: "1 Navy Yard", postal_code: "20374" }),
-    ));
-  });
-
-  it("locks the dashboard until billing is captured", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-    vi.mocked(api.getBilling).mockResolvedValue({ owner: DEMO_OWNER });  // no billing yet
-
-    renderOnboard();
-    await screen.findByRole("log", { name: /hermes setup chat/i });
-    expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("lets the user view their sealed pact before agent setup is finished", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue(pact());
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
-
-    renderOnboard();
-    const viewPact = await screen.findByRole("button", { name: /view pact/i });
-    expect((viewPact as HTMLButtonElement).disabled).toBe(false);
-  });
-
   it("re-checks connector health on demand so a finished setup unlocks without leaving", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue(pact());
     vi.mocked(api.connectorHealth)
       .mockResolvedValueOnce(connectorHealthNeedsSetup())
       .mockResolvedValue(connectorHealth());
@@ -194,46 +157,23 @@ describe("Onboard", () => {
     renderOnboard();
     expect(await screen.findByText(/install the \/pact skill/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /re-check/i }));
-    await waitFor(() => expect(screen.getByText(/Token pat_onboard12/i)).toBeTruthy());
+    // Unlocks in place (no auto-redirect after an in-session change).
+    await waitFor(() => expect((screen.getByRole("button", { name: /open dashboard/i }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.getByText(/Token pat_onboard12/i)).toBeTruthy();
   });
 
-  it("frames the spend limit as the agent's standing authorization to donate on a miss", async () => {
+  it("lets the user view their sealed pact before agent setup is finished", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
 
     renderOnboard();
-    expect(await screen.findByText(/your agent handles the donation/i)).toBeTruthy();
-  });
-
-  it("presents first-run setup as an agent chat with a billing + agent step", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-
-    renderOnboard();
-    expect(await screen.findByRole("log", { name: /hermes setup chat/i })).toBeTruthy();
-    expect(screen.getByText(/Link funding check/i)).toBeTruthy();
-    expect(screen.getByText(/Billing details/i)).toBeTruthy();
-    expect(screen.getByText(/Connect your agent/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /dashboard/i })).toBeTruthy();
-  });
-
-  it("offers a one-word Dashboard handoff inside the ready setup chat", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-
-    renderOnboard();
-    const dashboard = await screen.findByRole("button", { name: /^dashboard$/i });
-    fireEvent.click(dashboard);
-    expect(await screen.findByText("Dashboard route reached")).toBeTruthy();
+    const viewPact = await screen.findByRole("button", { name: /^view pact$/i });
+    expect((viewPact as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("lets the user confirm the local Pact API URL used by the serve command", async () => {
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
 
     renderOnboard();
     const url = await screen.findByLabelText(/local pact api url/i) as HTMLInputElement;
@@ -248,8 +188,7 @@ describe("Onboard", () => {
   it("copies the customized serve command from the setup chat", async () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
 
     renderOnboard();
     const url = await screen.findByLabelText(/local pact api url/i) as HTMLInputElement;
@@ -267,29 +206,17 @@ describe("Onboard", () => {
       ...linkStatus(), payment_method_id: null, payment_method_label: null,
       payment_method_last4: null, funding_ref: "test_funding_demo@pact.local",
     });
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    vi.mocked(api.linkPreflight).mockResolvedValue({
+      ...linkStatus(), payment_method_id: null, payment_method_label: null,
+      payment_method_last4: null, funding_ref: "test_funding_demo@pact.local",
+    });
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
 
     renderOnboard();
-    await screen.findByRole("log", { name: /hermes setup chat/i });
+    await screen.findByRole("region", { name: /hermes setup/i });
     expect(screen.queryByText(/test_funding/i)).toBeNull();
     expect(screen.getByText(/Local-only Link ready/i)).toBeTruthy();
     expect(screen.getByText(/No real card is connected/i)).toBeTruthy();
-  });
-
-  it("lets new users set the agent spend limit before the dashboard handoff", async () => {
-    vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
-
-    renderOnboard();
-    const limitInput = await screen.findByRole("spinbutton", { name: /agent spend limit/i });
-    fireEvent.change(limitInput, { target: { value: "15" } });
-    fireEvent.click(screen.getByRole("button", { name: /save spend limit/i }));
-
-    await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(DEMO_OWNER, 1500));
-    expect(screen.getByText(/agent may spend up to \$15\.00/i)).toBeTruthy();
-    expect(screen.getByText(/modeled on NVIDIA NeMo Guardrails/i)).toBeTruthy();
   });
 
   it("does not unlock setup when live Link is connected but missing a ready payment method", async () => {
@@ -300,28 +227,33 @@ describe("Onboard", () => {
     };
     vi.mocked(api.linkStatus).mockResolvedValue(notReadyLink);
     vi.mocked(api.linkPreflight).mockResolvedValue(notReadyLink);
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
 
     renderOnboard();
-    await screen.findByRole("log", { name: /hermes setup chat/i });
+    await screen.findByRole("region", { name: /hermes setup/i });
     expect(screen.getByText(/No usable Link payment method is available/i)).toBeTruthy();
-    expect(screen.getByText(/needs setup/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /connect link/i })).toBeTruthy();
+    expect(screen.getByText(/not connected/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /install link cli/i })).toBeTruthy();
     expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("keeps the dashboard locked until setup is ready, but lets the user view their pact", async () => {
+  it("renders every section completed (no auto-skip) in demo clock mode", async () => {
+    vi.mocked(api.runtime).mockResolvedValue({ ...runtime(false), clock_mode: "demo" });
     vi.mocked(api.linkStatus).mockResolvedValue(linkStatus());
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
+    // Even with the agent token missing + worker offline, demo mode shows it done.
     vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
 
     renderOnboard();
-    await screen.findByRole("log", { name: /hermes setup chat/i });
-    expect(screen.getByText(/install the \/pact skill/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /re-check/i })).toBeTruthy();
-    expect((screen.getByRole("button", { name: /finish setup to open dashboard/i }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: /^view pact$/i }) as HTMLButtonElement).disabled).toBe(false);
+
+    await screen.findByRole("region", { name: /hermes setup/i });
+    expect(screen.getByText("connected")).toBeTruthy();  // Link CLI pill
+    expect(screen.getByText("ready")).toBeTruthy();       // agent pill
+    expect(screen.getByText(/Link CLI connected/i)).toBeTruthy();
+    // The serve command is pre-filled with a token, not the empty placeholder.
+    expect(screen.queryByText(/<paste your token>/i)).toBeNull();
+    expect(screen.getByText(/--agent-token pat_/i)).toBeTruthy();
+    // The dashboard is unlocked.
+    expect((screen.getByRole("button", { name: /open dashboard/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("refreshes live Link with preflight before deciding setup is ready", async () => {
@@ -331,13 +263,13 @@ describe("Onboard", () => {
       owner: DEMO_OWNER, connected: true, ready: true, funding_ref: "pm_live_123",
       payment_method_id: "pm_live_123", payment_method_label: "Visa", payment_method_last4: "4242", error: null,
     });
-    vi.mocked(api.getPact).mockResolvedValue({ ...pact(), agent: "Hermes" });
-    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealth());
+    // Agent not yet connected, so the chat still renders (funding ready, agent missing).
+    vi.mocked(api.connectorHealth).mockResolvedValue(connectorHealthNeedsSetup());
 
     renderOnboard();
     await waitFor(() => expect(api.linkPreflight).toHaveBeenCalledWith(DEMO_OWNER));
-    expect(screen.getByText(/Connected · Visa .*4242/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^dashboard$/i })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /connect link/i })).toBeNull();
+    expect(screen.getByText(/Link CLI connected/i)).toBeTruthy();
+    expect(screen.getByText(/Visa .*4242/i)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /install link cli/i })).toBeNull();
   });
 });

@@ -18,6 +18,8 @@ vi.mock("../api", async (importOriginal) => {
       runtime: vi.fn(),
       getPolicy: vi.fn(),
       setPolicy: vi.fn(),
+      getBilling: vi.fn(),
+      setBilling: vi.fn(),
     },
   };
 });
@@ -121,6 +123,8 @@ describe("Settings", () => {
     vi.mocked(api.linkPreflight).mockResolvedValue(linkStatus(true));
     vi.mocked(api.getPolicy).mockResolvedValue(spendPolicy());
     vi.mocked(api.setPolicy).mockImplementation(async (_owner, limit) => spendPolicy(limit));
+    vi.mocked(api.getBilling).mockResolvedValue({ owner: DEMO_OWNER });
+    vi.mocked(api.setBilling).mockImplementation(async (b) => b);
   });
 
   it("shows live-safe funding copy and connected Link details", async () => {

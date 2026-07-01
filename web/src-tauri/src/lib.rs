@@ -37,6 +37,33 @@ fn pact_skill_markdown(api_base_url: &str) -> String {
     PACT_SKILL_MD.replace("http://127.0.0.1:8000", api_base_url)
 }
 
+/// Money-mode env for the sidecar. The shipped app is REAL by default: a verified
+/// missed pact drives the installed link-cli (a real virtual card issued after the
+/// human approves the spend request in their Link app). Launch with PACT_DEMO=1
+/// for a safe demo — dry-run money (nothing moves) + the demo clock so the in-app
+/// DemoControls drive time. Pure so the gating is unit-testable.
+fn money_mode_envs(demo: bool, payment_method_id: Option<String>) -> Vec<(String, String)> {
+    if demo {
+        vec![
+            ("PACT_PAYMENT_MODE".into(), "test_link".into()),
+            ("PACT_LINK_MODE".into(), "dry_run".into()),
+            ("PACT_CLOCK_MODE".into(), "demo".into()),
+        ]
+    } else {
+        let mut envs = vec![
+            ("PACT_PAYMENT_MODE".into(), "link_cli".into()),
+            ("PACT_LINK_MODE".into(), "live".into()),
+            ("PACT_CLOCK_MODE".into(), "real".into()),
+        ];
+        // Optional: pin a specific Link payment method; otherwise link-cli picks
+        // the first usable one.
+        if let Some(id) = payment_method_id.filter(|s| !s.trim().is_empty()) {
+            envs.push(("PACT_LINK_PAYMENT_METHOD_ID".into(), id));
+        }
+        envs
+    }
+}
+
 #[derive(Clone)]
 struct SidecarRuntime {
     api_base_url: String,
@@ -188,26 +215,17 @@ pub fn run() {
             envs.insert("PACT_HOST".into(), SIDECAR_HOST.into());
             envs.insert("PACT_PORT".into(), sidecar_port.to_string());
             envs.insert("PACT_BASE_URL".into(), api_base_url.clone());
-            envs.insert("PACT_CLOCK_MODE".into(), "real".into());
             envs.insert("PACT_EMIT_READY".into(), "1".into());
-            // Desktop builds must not inherit live-money env by accident. Live Link
-            // mode is opt-in for local drills only.
-            let allow_live_link = std::env::var("PACT_TAURI_ALLOW_LIVE_LINK")
+            // Money mode. REAL by default (the shipped app drives link-cli on a
+            // verified miss); launch with PACT_DEMO=1 for a safe dry-run demo + the
+            // demo clock. See money_mode_envs.
+            let demo = std::env::var("PACT_DEMO")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);
-            if allow_live_link {
-                if let Ok(mode) = std::env::var("PACT_PAYMENT_MODE") {
-                    envs.insert("PACT_PAYMENT_MODE".into(), mode);
-                }
-                if let Ok(mode) = std::env::var("PACT_LINK_MODE") {
-                    envs.insert("PACT_LINK_MODE".into(), mode);
-                }
-                if let Ok(method_id) = std::env::var("PACT_LINK_PAYMENT_METHOD_ID") {
-                    envs.insert("PACT_LINK_PAYMENT_METHOD_ID".into(), method_id);
-                }
-            } else {
-                envs.insert("PACT_PAYMENT_MODE".into(), "test_link".into());
-                envs.insert("PACT_LINK_MODE".into(), "dry_run".into());
+            for (key, value) in
+                money_mode_envs(demo, std::env::var("PACT_LINK_PAYMENT_METHOD_ID").ok())
+            {
+                envs.insert(key, value);
             }
             // Give the installed agent (the brain) a real window to judge/draft/coach
             // when it's serving (/pact serve). The hybrid provider only waits when a
@@ -373,6 +391,38 @@ mod tests {
         assert_eq!(agent_label("your agent"), "your agent");
         assert_eq!(agent_label("Hermes"), "Hermes");
         assert_eq!(agent_label("claude-code"), "Claude Code");
+    }
+
+    #[test]
+    fn money_mode_real_by_default() {
+        let envs = money_mode_envs(false, None);
+        let map: std::collections::HashMap<_, _> = envs.into_iter().collect();
+        assert_eq!(map.get("PACT_PAYMENT_MODE").map(String::as_str), Some("link_cli"));
+        assert_eq!(map.get("PACT_LINK_MODE").map(String::as_str), Some("live"));
+        assert_eq!(map.get("PACT_CLOCK_MODE").map(String::as_str), Some("real"));
+        assert!(!map.contains_key("PACT_LINK_PAYMENT_METHOD_ID"));
+    }
+
+    #[test]
+    fn money_mode_real_pins_payment_method_when_provided() {
+        let envs = money_mode_envs(false, Some("csmrpd_123".into()));
+        let map: std::collections::HashMap<_, _> = envs.into_iter().collect();
+        assert_eq!(map.get("PACT_LINK_PAYMENT_METHOD_ID").map(String::as_str), Some("csmrpd_123"));
+        // An empty/whitespace id is ignored (link-cli picks the first usable method).
+        let blank: std::collections::HashMap<_, _> =
+            money_mode_envs(false, Some("  ".into())).into_iter().collect();
+        assert!(!blank.contains_key("PACT_LINK_PAYMENT_METHOD_ID"));
+    }
+
+    #[test]
+    fn money_mode_demo_is_dry_run_with_demo_clock() {
+        let envs = money_mode_envs(true, Some("ignored".into()));
+        let map: std::collections::HashMap<_, _> = envs.into_iter().collect();
+        assert_eq!(map.get("PACT_PAYMENT_MODE").map(String::as_str), Some("test_link"));
+        assert_eq!(map.get("PACT_LINK_MODE").map(String::as_str), Some("dry_run"));
+        assert_eq!(map.get("PACT_CLOCK_MODE").map(String::as_str), Some("demo"));
+        // No real card is pinned in demo mode.
+        assert!(!map.contains_key("PACT_LINK_PAYMENT_METHOD_ID"));
     }
 
     #[test]

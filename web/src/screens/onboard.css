@@ -1,215 +1,411 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   PACT · Onboard / setup
+   A single centered card on flat ivory paper. Editorial numbered sections
+   (01 Link CLI, 02 Connect your agent) with a hairline rhythm, restrained gold
+   accents, and one compact command toolbar. All colors via --pc-* tokens.
+   ════════════════════════════════════════════════════════════════════════════ */
+
 .onb {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
+  /* Own scroll viewport: bound to the window height with overflow-y so a tall
+     card (e.g. the demo's fully-completed state) can scroll instead of centering
+     past the top/bottom and clipping the footer on a short window. */
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  display: flex;
   padding: 54px 24px;
-  background:
-    radial-gradient(90% 60% at 50% 0%, rgba(255, 250, 238, 0.76), transparent 62%),
-    var(--pc-ivory);
+  box-sizing: border-box;
+  background: var(--pc-ivory);
+  font-family: var(--pc-sans);
+  color: var(--pc-ink);
+  /* Shared height for every control in the command toolbar. */
+  --onb-ctl: 38px;
 }
 
 .onb-card {
   width: min(640px, 100%);
+  /* auto margins center the card when it fits and top-align it (scrollable)
+     when it is taller than the viewport — no clipping either way. */
+  margin: auto;
+  flex: 0 0 auto;
+  background: var(--pc-ivory-2);
+  border: 1px solid var(--pc-hair);
+  border-radius: 20px;
+  padding: 44px 48px 40px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 30px 60px -46px rgba(22, 21, 15, 0.5);
 }
 
-.onb-card .chat-shell {
-  min-height: min(720px, calc(100vh - 108px));
+.onb-checking {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  color: var(--pc-muted);
+  font-size: 14px;
 }
 
-.onb-check-row {
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.onb-header {
+  padding-bottom: 30px;
+}
+.onb-eyebrow {
+  display: block;
+  font-family: var(--pc-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--pc-muted-2);
+}
+.onb-title {
+  margin: 12px 0 0;
+  font-size: 27px;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--pc-ink);
+}
+.onb-sub {
+  margin: 10px 0 0;
+  max-width: 46ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pc-ink-soft);
+}
+
+/* ── Numbered sections ───────────────────────────────────────────────────── */
+.onb-section {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  column-gap: 22px;
+  border-top: 1px solid var(--pc-hair-2);
+  padding: 28px 0;
+}
+.onb-step {
+  font-family: var(--pc-mono);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--pc-muted-2);
+  padding-top: 3px;
+  transition: color 220ms ease;
+}
+/* Completed step warms to gold instead of a checkmark — reads finished, not busy. */
+.onb-section.is-done .onb-step {
+  color: var(--pc-gold);
+}
+
+.onb-body {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.onb-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  min-height: 24px;
 }
-
-.onb-check-row > span:first-child {
-  min-width: 0;
+.onb-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--pc-ink);
 }
-
-.onb-check-block {
-  display: grid;
-  gap: 6px;
+.onb-section-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pc-muted);
 }
-
-.onb-check-note {
+.onb-section-hint {
+  margin: 0;
+  font-family: var(--pc-mono);
   font-size: 12px;
   line-height: 1.45;
-  color: #8a8477;
+  color: var(--pc-muted-2);
+}
+.onb-section-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pc-accent);
 }
 
-.onb-mcp {
-  display: grid;
-  gap: 10px;
+/* ── Step 1 · connected readout ──────────────────────────────────────────── */
+.onb-readout {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--pc-hair);
+  border-radius: 12px;
+  background: var(--pc-ivory);
+}
+.onb-readout-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pc-ink);
+}
+.onb-readout-label::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pc-gold);
+  box-shadow: 0 0 0 3px var(--pc-gold-soft);
+}
+.onb-readout-funding {
+  font-family: var(--pc-mono);
+  font-size: 12px;
+  color: var(--pc-muted);
 }
 
-.onb-url-field {
+/* ── Step 1 · install button (not connected) ─────────────────────────────── */
+.onb-install-btn {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  height: var(--onb-ctl);
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--pc-ink);
+  background: var(--pc-ink);
+  color: var(--pc-cream-bright);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.onb-install-btn:hover {
+  background: #24231d;
+}
+.onb-install-btn:active {
+  transform: translateY(1px);
+}
+
+/* ── Step 2 · Local Pact API URL field ───────────────────────────────────── */
+.onb-field {
   display: grid;
   gap: 6px;
 }
-
-.onb-url-field span {
-  color: #8a8477;
+.onb-field-label {
+  font-family: var(--pc-mono);
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: var(--pc-muted-2);
 }
-
-.onb-url-field input {
+/* Scoped + appearance:none so the global input[type=text] rule can't leak in. */
+.onb-body input.onb-input {
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
   min-width: 0;
-  height: 39px;
+  height: var(--onb-ctl);
   border: 1px solid var(--pc-hair);
   border-radius: 10px;
   background: #fff;
-  color: #27261f;
+  color: var(--pc-ink);
   padding: 0 12px;
   font-family: var(--pc-mono);
   font-size: 12px;
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.onb-body input.onb-input:focus {
+  border-color: var(--pc-gold-line);
+  box-shadow: 0 0 0 3px rgba(214, 178, 120, 0.14);
 }
 
-.onb-url-field input:focus {
-  border-color: #c8c1b4;
-  box-shadow: 0 0 0 3px rgba(200, 193, 180, 0.22), inset 0 1px 0 rgba(255,255,255,0.9);
-}
-
-.onb-command,
-.onb-token {
+/* ── Step 2 · command box + toolbar ──────────────────────────────────────── */
+.onb-code {
   display: block;
   border: 1px solid var(--pc-hair);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
-  color: #27261f;
-  padding: 10px 12px;
+  color: var(--pc-ink);
+  padding: 12px 14px;
+  font-family: var(--pc-mono);
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.5;
   word-break: break-word;
 }
 
-.onb-command-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  gap: 8px;
+.onb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-
-.onb-limit-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
-}
-
-.onb-copy {
-  min-height: 100%;
-  border: 1px solid #d9d4ca;
+.onb-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--onb-ctl);
+  height: var(--onb-ctl);
+  flex: 0 0 auto;
   border-radius: 10px;
-  background: #1a1914;
-  color: #fbf7ee;
-  padding: 0 12px;
-  font-family: var(--pc-sans);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
-
-.onb-copy:hover {
-  background: #24231d;
-  border-color: #24231d;
-}
-
-.onb-copy:active {
+.onb-tool:active:not(:disabled) {
   transform: translateY(1px);
 }
-
-.onb-action,
-.onb-dashboard,
-.onb-view-pact {
-  min-height: 38px;
-  border-radius: 10px;
-  border: 1px solid #16150f;
-  padding: 0 14px;
-  font-family: var(--pc-sans);
-  font-size: 13px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.onb-action,
-.onb-dashboard {
-  background: #16150f;
-  color: #fff;
-}
-
-.onb-dashboard:not(:disabled) {
-  min-width: 118px;
-  border-radius: 999px;
-  letter-spacing: 0.01em;
-  box-shadow: 0 14px 28px -22px rgba(22, 21, 15, 0.7);
-}
-
-.onb-dashboard:not(:disabled):active {
-  transform: translateY(1px);
-}
-
-.onb-view-pact {
-  background: #fff;
-  color: #1b1a17;
-  border-color: #e6e4de;
-}
-
-.onb-action:disabled,
-.onb-dashboard:disabled,
-.onb-view-pact:disabled {
-  opacity: 0.5;
+.onb-tool:disabled {
+  opacity: 0.55;
   cursor: default;
 }
 
-.onb-chat-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* Generate = the only solid-black mass in the row. */
+.onb-tool-generate {
+  background: var(--pc-ink);
+  color: var(--pc-cream-bright);
+  border: 1px solid var(--pc-ink);
+}
+.onb-tool-generate:hover:not(:disabled) {
+  background: #24231d;
 }
 
-.onb-secret {
-  margin-top: 12px;
+/* Copy = compact, bordered (not black), just wide enough for its label. */
+.onb-tool-copy {
+  height: var(--onb-ctl);
+  padding: 0 15px;
+  border-radius: 10px;
   border: 1px solid var(--pc-hair);
-  border-radius: 14px;
-  background: #fff;
-  padding: 12px;
-}
-
-.onb-secret .onb-token {
-  margin: 0;
   background: var(--pc-ivory);
-}
-
-.onb-install {
-  margin-top: 10px;
+  color: var(--pc-ink);
+  font-family: var(--pc-sans);
   font-size: 13px;
-  line-height: 1.4;
-  color: #6c6452;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.onb-tool-copy:hover {
+  background: #fff;
+  border-color: #d9d4ca;
+}
+.onb-tool-copy:active {
+  transform: translateY(1px);
+}
+.onb-tool-copy.is-copied {
+  color: var(--pc-kept);
+  border-color: var(--pc-gold-line);
 }
 
-.onb-install-installed {
+/* Re-check = icon-only, anchored hard-right of copy. */
+.onb-tool-recheck {
+  margin-left: auto;
+  border: 1px solid var(--pc-hair);
+  background: var(--pc-ivory);
+  color: var(--pc-ink-soft);
+}
+.onb-tool-recheck:hover:not(:disabled) {
+  background: #fff;
+  border-color: #d9d4ca;
+  color: var(--pc-ink);
+}
+.onb-tool-recheck.is-busy svg {
+  animation: onb-spin 0.9s linear infinite;
+}
+@keyframes onb-spin {
+  to { transform: rotate(-360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onb-tool-recheck.is-busy svg { animation: none; }
+}
+
+.onb-install-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--pc-muted);
+}
+.onb-install-note.is-ok {
   color: var(--pc-kept);
 }
 
-@media (max-width: 540px) {
-  .onb-command-row {
-    grid-template-columns: 1fr;
-  }
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.onb-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--pc-hair-2);
+  padding-top: 30px;
+  margin-top: 4px;
+}
+.onb-primary {
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid var(--pc-ink);
+  background: var(--pc-ink);
+  color: var(--pc-cream-bright);
+  font-family: var(--pc-sans);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 16px 30px -24px rgba(22, 21, 15, 0.8);
+  transition: background 160ms ease, transform 160ms ease;
+}
+.onb-primary:hover:not(:disabled) {
+  background: #24231d;
+}
+.onb-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.onb-primary:disabled {
+  background: var(--pc-cream);
+  color: var(--pc-muted-2);
+  border-color: var(--pc-hair);
+  box-shadow: none;
+  cursor: default;
+}
+.onb-secondary {
+  height: 46px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--pc-hair);
+  background: transparent;
+  color: var(--pc-ink);
+  font-family: var(--pc-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.onb-secondary:hover {
+  background: var(--pc-ivory);
+  border-color: #d9d4ca;
+}
 
-  .onb-limit-form {
-    grid-template-columns: 1fr;
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .onb-card {
+    padding: 30px 22px 26px;
   }
-
-  .onb-copy {
-    min-height: 36px;
+  .onb-section {
+    grid-template-columns: 1fr;
+    row-gap: 12px;
+  }
+  .onb-step {
+    font-size: 16px;
+  }
+  .onb-toolbar {
+    flex-wrap: wrap;
+  }
+  .onb-tool-copy {
+    flex: 1 1 auto;
+  }
+  .onb-primary,
+  .onb-secondary {
+    width: 100%;
   }
 }

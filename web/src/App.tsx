@@ -33,7 +33,7 @@ export const useDemo = () => {
 // Live demo clock, split into its own context so the 1 Hz tick only re-renders
 // the components that actually show a live countdown (PactDetail's dispute window)
 // — not the whole tree (sidebar, carousel, ledger).
-const ClockContext = createContext<number>(0);
+export const ClockContext = createContext<number>(0);
 export const useClock = () => useContext(ClockContext);
 
 export function App() {

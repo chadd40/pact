@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
 import { useDemo } from "../App";
 import { useAppData } from "../data";
-import { useLocalOwner } from "../owner";
 import { dollars, formatDate } from "../lib";
 import { cardArtFor } from "../lib/cardArt";
 import { statusDot } from "../lib/pactStatus";
 import { pickStatement } from "../lib/motivation";
 import { GoalGlyph } from "../components/GoalGlyph";
 import { CustomCardFront } from "./Create";
-import type { Charity, Pact, Profile } from "../types";
+import type { Charity, Pact } from "../types";
 
 const STEP = 210;
 const CAROUSEL = new Set(["active", "evaluating"]);
@@ -43,11 +41,9 @@ const AlertIcon = () => (
 );
 
 export function Home() {
-  const { bump, nowIso } = useDemo();
+  const { nowIso } = useDemo();
   const { pacts: allPacts, pactsLoaded, charityById } = useAppData();
-  const [owner] = useLocalOwner();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [statement] = useState(() => pickStatement());
 
   // carousel state
@@ -57,12 +53,6 @@ export function Home() {
   const suppressClick = useRef(false);
 
   // Pacts + charities come from the shared AppData (fetched once by AppShell).
-  // Only the profile is Home-specific; refresh it on the demo bump.
-  useEffect(() => {
-    let alive = true;
-    api.profile(owner).then((p) => alive && setProfile(p)).catch(() => {});
-    return () => { alive = false; };
-  }, [bump, owner]);
 
   // Global pointer listeners drive the drag (mirrors the mockup's window handlers).
   useEffect(() => {
@@ -96,10 +86,15 @@ export function Home() {
   const cardCount = useRef(0);
   cardCount.current = carousel.length + 1; // +1 for the "New pact" card
 
-  // ledger win-rate (used in ledger sub-head)
-  const kept = profile?.kept ?? 0;
-  const failed = profile?.failed ?? 0;
-  const winRate = kept + failed > 0 ? Math.round((100 * kept) / (kept + failed)) : null;
+  // The "New pact" card lives at index 0, so on first load we center the newest
+  // real pact (index 1) — leaving "New pact" one step to its left, a single
+  // left-swipe away. With no pacts yet it's the only card, so it centers itself.
+  const didCenter = useRef(false);
+  useEffect(() => {
+    if (!pactsLoaded || didCenter.current) return;
+    didCenter.current = true;
+    setActive(carousel.length > 0 ? 1 : 0);
+  }, [pactsLoaded, carousel.length]);
 
   const openPact = (id: string, e?: React.MouseEvent | React.KeyboardEvent) => {
     if (suppressClick.current) return;
@@ -154,6 +149,26 @@ export function Home() {
         <div className="home-shelf-label m">Active pacts · click a card to open it</div>
         <div className="home-stage" role="group" aria-label="Active pacts carousel — use left and right arrow keys, or click a card" onKeyDown={onStageKey} onPointerDown={onDown}>
           <div className="home-tilt">
+            {/* New pact card — index 0, so it sits just left of the newest pact */}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Start a new pact"
+              className="home-card new"
+              style={cardStyle(0)}
+              onClick={() => { if (!suppressClick.current) navigate("/create"); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/create"); } }}
+            >
+              <div className="home-card-new-plus">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="26" height="26"><path d="M12 5v14M5 12h14" /></svg>
+              </div>
+              <div className="home-card-new-title">New pact</div>
+              <div className="home-card-new-sub">Put something new on the line.</div>
+              <div className="home-card-new-cta">
+                Start one
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M5 12h13M12 6l6 6-6 6" /></svg>
+              </div>
+            </div>
             {carousel.map((p, i) => {
               const art = cardArtFor(p);
               const dot = statusDot(p);
@@ -164,7 +179,7 @@ export function Home() {
                   tabIndex={0}
                   aria-label={`Open ${p.title} — ${dollars(p.stake_amount_cents)} on the line`}
                   className="home-card real"
-                  style={cardStyle(i)}
+                  style={cardStyle(i + 1)}
                   onClick={(e) => openPact(p.id, e)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPact(p.id); } }}
                 >
@@ -189,26 +204,6 @@ export function Home() {
                 </div>
               );
             })}
-            {/* New pact card */}
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Start a new pact"
-              className="home-card new"
-              style={cardStyle(carousel.length)}
-              onClick={() => { if (!suppressClick.current) navigate("/create"); }}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/create"); } }}
-            >
-              <div className="home-card-new-plus">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="26" height="26"><path d="M12 5v14M5 12h14" /></svg>
-              </div>
-              <div className="home-card-new-title">New pact</div>
-              <div className="home-card-new-sub">Put something new on the line.</div>
-              <div className="home-card-new-cta">
-                Start one
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M5 12h13M12 6l6 6-6 6" /></svg>
-              </div>
-            </div>
           </div>
           <button className="home-arrow left" onClick={() => step(-1)} aria-label="Previous">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="M15 6l-6 6 6 6" /></svg>
@@ -223,7 +218,12 @@ export function Home() {
       <div className="home-ledger">
         <div className="home-ledger-head">
           <div className="home-ledger-title">Past pacts</div>
-          <div className="home-ledger-sub m">{ledger.length} closed{winRate != null ? ` · ${winRate}% kept` : ""}</div>
+          {pactsLoaded && ledger.length > 0 && (
+            <div className="home-ledger-cols" aria-hidden="true">
+              <span className="home-col-when">Date</span>
+              <span className="home-col-stake">Pact amount</span>
+            </div>
+          )}
         </div>
         <div className="home-ledger-list">
           {!pactsLoaded ? (

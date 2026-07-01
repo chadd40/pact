@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { fundingDisplay, fundingIsLocalOnly, fundingIsReady } from "../lib/funding";
-import { useLocalOwner } from "../owner";
-import type { ConnectorEntry, ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
+import { useLocalDisplayName, useLocalOwner } from "../owner";
+import type { BillingProfile, ConnectorEntry, ConnectorHealth, LinkStatus, RuntimeInfo, SpendPolicy } from "../types";
+
+// Billing fields collected so the agent can fill a charity's donation form on a
+// missed pact. Link supplies only card number/exp/cvc — never the cardholder
+// name or address — so these have to live in Pact.
+const BILLING_FIELDS: [keyof BillingProfile, string][] = [
+  ["first_name", "First name"], ["last_name", "Last name"], ["email", "Billing email"],
+  ["street", "Street"], ["city", "City"], ["state", "State"],
+  ["postal_code", "Postal code"], ["country", "Country"],
+];
 
 function statusLabel(status: string): string {
   return status.replace(/_/g, " ");
@@ -31,22 +40,27 @@ function ConnectorRow({ connector }: { connector: ConnectorEntry }) {
 // Account / funding / agent settings (local-first, single owner).
 export function Settings() {
   const [owner, setOwner] = useLocalOwner();
+  const [displayName, setDisplayName] = useLocalDisplayName();
+  const [nameDraft, setNameDraft] = useState(displayName);
   const [ownerDraft, setOwnerDraft] = useState(owner);
   const [link, setLink] = useState<LinkStatus | null>(null);
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [policy, setPolicy] = useState<SpendPolicy | null>(null);
   const [limitDraft, setLimitDraft] = useState("");
+  const [billing, setBillingState] = useState<BillingProfile | null>(null);
+  const [billingDraft, setBillingDraft] = useState<BillingProfile>({ owner });
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedMcp, setCopiedMcp] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [nextRuntime, nextHealth, nextPolicy] = await Promise.all([
+    const [nextRuntime, nextHealth, nextPolicy, nextBilling] = await Promise.all([
       api.runtime().catch(() => null),
       api.connectorHealth(owner).catch(() => null),
       api.getPolicy(owner).catch(() => null),
+      api.getBilling(owner).catch(() => null),
     ]);
     const live = nextRuntime?.live_money_enabled ?? true;
     const nextLink = await (live ? api.linkPreflight(owner) : api.linkStatus(owner)).catch(() => null);
@@ -54,6 +68,10 @@ export function Settings() {
     setHealth(nextHealth);
     setRuntime(nextRuntime);
     setPolicy(nextPolicy);
+    if (nextBilling) {
+      setBillingState(nextBilling);
+      setBillingDraft(nextBilling);
+    }
     setLimitDraft(
       nextPolicy?.spend_limit_cents != null
         ? (nextPolicy.spend_limit_cents / 100).toString()
@@ -62,6 +80,12 @@ export function Settings() {
   }, [owner]);
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => { setOwnerDraft(owner); }, [owner]);
+  useEffect(() => { setNameDraft(displayName); }, [displayName]);
+
+  // What the human sees as their identity: their explicit display name, else the
+  // billing name they already entered, else the account id (email) as a last resort.
+  const billingName = [billing?.first_name, billing?.last_name].filter(Boolean).join(" ").trim();
+  const shownName = displayName.trim() || billingName || owner;
 
   const connect = async () => {
     setBusy("link");
@@ -79,6 +103,17 @@ export function Settings() {
   const saveOwner = () => {
     setOwner(ownerDraft);
     setToken(null);
+  };
+  const saveName = () => {
+    setDisplayName(nameDraft);
+  };
+  const saveBilling = async () => {
+    setBusy("billing");
+    try {
+      const saved = await api.setBilling({ ...billingDraft, owner });
+      setBillingState(saved);
+      setBillingDraft(saved);
+    } finally { setBusy(null); }
   };
   const saveLimit = async () => {
     const trimmed = limitDraft.trim();
@@ -115,6 +150,10 @@ export function Settings() {
     : "No agent token";
   const localApi = health?.runtime.base_url ?? "Checking...";
   const ownerChanged = ownerDraft.trim() !== owner;
+  const nameChanged = nameDraft.trim() !== displayName;
+  const billingDone = !!(
+    billing?.first_name && billing?.last_name && billing?.street && billing?.postal_code
+  );
   const refreshHealth = async () => {
     setBusy("health");
     try { await refresh(); } finally { setBusy(null); }
@@ -130,8 +169,8 @@ export function Settings() {
 
       <div className="set-overview">
         <div className="set-overview-item">
-          <span className="m">Owner</span>
-          <strong>{owner}</strong>
+          <span className="m">You</span>
+          <strong>{shownName}</strong>
         </div>
         <div className="set-overview-item">
           <span className="m">Funding</span>
@@ -146,12 +185,32 @@ export function Settings() {
       <div className="set-card">
         <div className="set-row">
           <div className="set-row-main">
-            <div className="set-k">Owner</div>
-            <div className="set-v">This email scopes local pacts, funding, and agent tokens.</div>
+            <div className="set-k">Your name</div>
+            <div className="set-v">Shown across Pact — on your card and your track record.</div>
+          </div>
+          <form className="set-owner-form" onSubmit={(e) => { e.preventDefault(); saveName(); }}>
+            <input
+              aria-label="Your name"
+              className="set-input"
+              value={nameDraft}
+              placeholder={billingName || "Your name"}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => { if (e.key === "Enter") saveName(); }}
+            />
+            <button className="set-copy primary" type="submit" disabled={!nameChanged}>
+              Save name
+            </button>
+          </form>
+        </div>
+        <div className="set-row">
+          <div className="set-row-main">
+            <div className="set-k">Account ID</div>
+            <div className="set-v">Your account ID (an email). It scopes your pacts, funding, and agent token, and is the donor email on a charity donation. Most people never change this.</div>
           </div>
           <form className="set-owner-form" onSubmit={submitOwner}>
             <input
-              aria-label="Owner email"
+              aria-label="Account ID"
               className="set-input"
               value={ownerDraft}
               onChange={(e) => setOwnerDraft(e.target.value)}
@@ -215,6 +274,34 @@ export function Settings() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="set-card">
+        <div className="set-row">
+          <div className="set-row-main">
+            <div className="set-k">Billing details</div>
+            <div className="set-v">
+              The name and address your agent enters on the charity's donation form if you miss a pact. Link supplies the card, never the cardholder details, so these live here.
+            </div>
+          </div>
+          <span className={`set-badge ${billingDone ? "ok" : "warn"}`}>{billingDone ? "ready" : "add details"}</span>
+        </div>
+        <form className="set-billing-form" onSubmit={(e) => { e.preventDefault(); saveBilling(); }}>
+          {BILLING_FIELDS.map(([field, label]) => (
+            <label className="set-billing-field" key={field}>
+              <span className="m">{label}</span>
+              <input
+                aria-label={label}
+                className="set-input"
+                value={(billingDraft[field] as string | null | undefined) ?? ""}
+                onChange={(e) => setBillingDraft({ ...billingDraft, [field]: e.target.value })}
+              />
+            </label>
+          ))}
+          <button className="set-copy primary set-billing-save" type="submit" disabled={busy === "billing"}>
+            {busy === "billing" ? "Saving..." : "Save billing"}
+          </button>
+        </form>
       </div>
 
       <div className="set-card">

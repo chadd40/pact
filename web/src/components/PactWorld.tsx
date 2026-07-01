@@ -41,7 +41,7 @@ interface FlipRect { x: number; y: number; width: number; height: number; }
 type ProofFlow = "idle" | "choice" | "fresh" | "choosing" | "analyzing" | ProofStatus | "error";
 
 export function PactWorld({ pactId, initialPact }: PactWorldProps) {
-  const { bump, signalChange } = useDemo();
+  const { bump, signalChange, nowIso } = useDemo();
   const nowMs = useClock();
   const { charityById } = useAppData();
   const navigate = useNavigate();
@@ -55,19 +55,26 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   const [checkoutCard, setCheckoutCard] = useState<DonationCard | null>(null);
   const [cardErr, setCardErr] = useState<string | null>(null);
   const [link, setLink] = useState<LinkStatus | null>(null);
+  // Whether the owner's agent is actually connected and serving (running `pact
+  // serve`). Drives honest coach/proof copy: replies + verdicts come from the
+  // agent only when it's online; otherwise the app says so instead of faking it.
+  const [agentServing, setAgentServing] = useState(false);
   const [receiptRef, setReceiptRef] = useState("");
   const [receiptErr, setReceiptErr] = useState<string | null>(null);
 
   const [proofFlow, setProofFlow] = useState<ProofFlow>("idle");
   const [proofToken, setProofToken] = useState<string | null>(null);
   const [proofTokenExpiresAt, setProofTokenExpiresAt] = useState<string | null>(null);
-  const [proofTimerNow, setProofTimerNow] = useState(() => Date.now());
   const [proofErr, setProofErr] = useState<string | null>(null);
   const [proofCount, setProofCount] = useState(0);
   const proofCountRef = useRef(0);
   const proofRecoverRef = useRef<ProofFlow>("choice");
   const proofPickerFallbackRef = useRef<number | null>(null);
   const proofInputRef = useRef<HTMLInputElement>(null);
+  // Tracks mount state so onProofFile's awaited work (upload + the demo analyzing
+  // hold) can bail out instead of setState-ing on an unmounted component if the
+  // user navigates away mid-check-in.
+  const mountedRef = useRef(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
@@ -118,8 +125,11 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     const last = wrap.getBoundingClientRect();
     if (last.width === 0 || last.height === 0) {
       // No real layout (e.g. jsdom): flag the entry + a marker inline transform so
-      // the treatment is observable, but skip the (meaningless) numeric math.
+      // the treatment is observable, but skip the (meaningless) numeric math. Show
+      // the FRONT via an inline override — the persistent rest class supplies 180°
+      // (back), so without this the card would sit on its back during entry.
       wrap.style.transform = "translate(0px, 0px)";
+      flip.style.transform = "rotateY(0deg)";
       return;
     }
     const dx = flipFrom.x - last.x;
@@ -203,6 +213,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
   // the live dispute-window countdown in render only. When `initialPact` is
   // supplied (tests), skip the network load entirely.
   useEffect(() => { if (!initialPact) load(); }, [load, bump, initialPact]);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   useEffect(() => {
     if (!pact?.id) return;
@@ -234,15 +245,11 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     if (!owner) return;
     let alive = true;
     api.linkStatus(owner).then((s) => { if (alive) setLink(s); }).catch(() => {});
+    api.connectorHealth(owner)
+      .then((h) => { if (alive) setAgentServing(h.worker.status === "online"); })
+      .catch(() => { if (alive) setAgentServing(false); });
     return () => { alive = false; };
-  }, [pact?.owner]);
-
-  useEffect(() => {
-    if (proofFlow !== "fresh" || !proofTokenExpiresAt) return;
-    setProofTimerNow(Date.now());
-    const timer = window.setInterval(() => setProofTimerNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [proofFlow, proofTokenExpiresAt]);
+  }, [pact?.owner, bump]);
 
   const sendCoach = async (text: string, attachments: File[] = []) => {
     if (!pact) return;
@@ -313,9 +320,23 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     }
     setProofErr(null);
     setProofFlow("analyzing");
+    const analyzeStart = Date.now();
     try {
       const token = await ensureProofToken();
       const proof = await api.uploadProofImage(pact.id, token, file);
+      // In the demo the verdict can return instantly (auto-pass), which would
+      // flash past the "Analyzing proof..." state. Hold it for a readable beat so
+      // the progression is legible on screen. Demo-only (nowIso set) — real
+      // uploads keep their natural latency.
+      if (nowIso) {
+        const elapsed = Date.now() - analyzeStart;
+        const MIN_ANALYZING_MS = 1800;
+        if (elapsed < MIN_ANALYZING_MS) {
+          await new Promise((r) => setTimeout(r, MIN_ANALYZING_MS - elapsed));
+        }
+      }
+      // Bail if the pact page unmounted during the upload or the analyzing hold.
+      if (!mountedRef.current) return;
       setProofFlow(proof.status);
       proofCountRef.current = Math.max(proofCountRef.current + 1, 1);
       setProofCount(proofCountRef.current);
@@ -345,7 +366,10 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
     if (proofFlow === "error") return "Try proof again";
     return "Submit today's proof";
   };
-  const proofCountdown = formatProofCountdown(proofTokenExpiresAt, proofTimerNow);
+  // Count down against the same clock the server issued the token on. In demo
+  // mode that's the FixedClock instant (via useClock) — using wall-clock Date.now()
+  // here showed "Expires in 0:00" because the token expiry is in demo-clock time.
+  const proofCountdown = formatProofCountdown(proofTokenExpiresAt, nowMs);
 
   const submitReceipt = async () => {
     if (!pact) return;
@@ -469,7 +493,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
               ))}
             </div>
           </div>
-          <input ref={proofInputRef} type="file" accept="image/*" hidden onChange={onProofFile} />
+          <input ref={proofInputRef} type="file" accept="image/*" className="file-input-offscreen" tabIndex={-1} aria-hidden="true" onChange={onProofFile} />
           <button
             className={`pd-submit proof-${proofFlow}${proofFlow === "choosing" || proofFlow === "analyzing" ? " is-busy" : ""}`}
             onClick={onProofPrimary}
@@ -549,8 +573,22 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
               )}
               {proofFlow === "ambiguous" && (
                 <>
-                  <div className="pd-proof-title">Needs review</div>
-                  <div className="pd-proof-copy">This one is close enough for review. Your streak is paused, not broken.</div>
+                  <div className="pd-proof-title">Held for review</div>
+                  <div className="pd-proof-copy">
+                    {agentServing
+                      ? `${coachName} couldn't auto-verify this photo and flagged it for a closer look. Your streak is paused, not broken. Message ${coachName} to confirm it, or submit a clearer photo with the code clearly visible.`
+                      : `We couldn't auto-verify this photo, and your agent isn't connected to confirm it. Connect ${coachName} in Settings (or message them), then resubmit a clear photo with the code visible. Your streak is paused, not broken.`}
+                  </div>
+                  <div className="pd-proof-actions">
+                    <button type="button" aria-label="Submit a clearer proof" onClick={onProofPrimary}>
+                      <span>Submit a clearer proof</span>
+                      <small>Make the code clearly visible</small>
+                    </button>
+                    <button type="button" aria-label={`Message ${coachName}`} onClick={() => setChatOpen(true)}>
+                      <span>Message {coachName}</span>
+                      <small>Ask your agent to confirm it</small>
+                    </button>
+                  </div>
                 </>
               )}
               {proofFlow === "failed" && (
@@ -598,11 +636,15 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
           <div className="pd-review-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="30" height="30"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>
           </div>
-          <div className="pd-review-eyebrow m">Under review</div>
-          <div className="pd-review-title">{pact.agent ?? "Hermes"} sent this one to a person.</div>
-          <div className="pd-review-body">Your latest proof was close but unclear. A human reviewer is checking it now — we'll update you within 24h. Your streak is <b>paused, not broken</b>.</div>
+          <div className="pd-review-eyebrow m">Held for review</div>
+          <div className="pd-review-title">{pact.agent ?? "Hermes"} couldn't auto-verify your last proof.</div>
+          <div className="pd-review-body">
+            {agentServing
+              ? <>Your latest proof was close but unclear, so {pact.agent ?? "Hermes"} flagged it. Message your agent to confirm it before the deadline. Your streak is <b>paused, not broken</b>.</>
+              : <>Your latest proof was close but unclear, and your agent isn't connected to confirm it. Connect {pact.agent ?? "Hermes"} in Settings (or message them), then submit a clearer proof before the deadline. Your streak is <b>paused, not broken</b>.</>}
+          </div>
           <div className="pd-review-steps">
-            {["Submitted", "Under review", "Decision"].map((s, i) => (
+            {["Submitted", "Held for review", "Agent confirms"].map((s, i) => (
               <div className="pd-step" key={s}>
                 <span className={`pd-step-dot ${i === 0 ? "done" : i === 1 ? "now" : "todo"}`}>
                   {i === 0 && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" width="11" height="11"><path d="M5 12.5 10 17l9-11" /></svg>}
@@ -853,7 +895,14 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
               · two faces, each backface-hidden: FRONT = the same carousel art for
                 this pact; BACK = the editorial <CardBack/> (pre-rotated 180°). */}
           <div ref={wrapRef} className="world-card">
-            <div ref={flipRef} className={`world-flip${entering ? "" : " world-flip--rest"}`}>
+            {/* `world-flip--rest` (rotateY 180° = editorial back) stays applied at
+                ALL times, even while entering. During the flip the inline transform
+                overrides it (front → back); when settle() clears that inline
+                transform the class holds the card at 180° with no gap. Gating the
+                class on `entering` used to remove it exactly when settle cleared the
+                inline transform, leaving the flip briefly at 0° (front) — a one-frame
+                flash of the wrong face as it settled. */}
+            <div ref={flipRef} className="world-flip world-flip--rest">
               <div className="world-face world-face-front">
                 {cbArt.kind === "photo" ? (
                   <CustomCardFront imageSrc={cbArt.src} title={cbArt.title} />
@@ -896,7 +945,7 @@ export function PactWorld({ pactId, initialPact }: PactWorldProps) {
 
       {/* ── Overlays / modals ── */}
       {chatOpen && (
-        <CoachPane pact={pact} messages={coach} onSend={sendCoach} onClose={() => setChatOpen(false)} />
+        <CoachPane pact={pact} messages={coach} agentServing={agentServing} onSend={sendCoach} onClose={() => setChatOpen(false)} />
       )}
       {linkOpen && (
         <LinkModal

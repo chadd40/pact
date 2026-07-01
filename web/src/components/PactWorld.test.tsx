@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { MemoryRouter } from "react-router-dom";
 import { PactWorld } from "./PactWorld";
 import { AppDataContext, type AppData } from "../data";
-import { DemoContext } from "../App";
+import { ClockContext, DemoContext } from "../App";
 import { api } from "../api";
 import type { DonationReceipt, Pact, Packet, Proof } from "../types";
 
@@ -149,9 +149,11 @@ function renderWorld(
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <DemoContext.Provider value={DEMO}>
-        <AppDataContext.Provider value={APP_DATA}>
-          <PactWorld pactId="p1" initialPact={pact} />
-        </AppDataContext.Provider>
+        <ClockContext.Provider value={Date.now()}>
+          <AppDataContext.Provider value={APP_DATA}>
+            <PactWorld pactId="p1" initialPact={pact} />
+          </AppDataContext.Provider>
+        </ClockContext.Provider>
       </DemoContext.Provider>
     </MemoryRouter>
   );
@@ -309,10 +311,14 @@ describe("PactWorld (active, standalone)", () => {
     // The wrapper carries the inverted position transform on first paint.
     const wrap = container.querySelector(".world-card") as HTMLElement | null;
     expect(wrap?.style.transform ?? "").not.toBe("");
-    // While entering, the flip container is NOT in its rest (back-showing) class —
-    // it starts at 0° (front) and animates to the back.
-    const flip = container.querySelector(".world-flip");
-    expect(flip?.classList.contains("world-flip--rest")).toBe(false);
+    // While entering, the flip STARTS at 0° (front) and animates to the back. The
+    // front is shown via an inline `rotateY(0deg)` override — the `world-flip--rest`
+    // class (180°/back) stays applied at all times so that when the entry cleanup
+    // clears the inline transform the card falls back to the back with no gap (a
+    // one-frame flash of the front otherwise showed as it settled).
+    const flip = container.querySelector(".world-flip") as HTMLElement | null;
+    expect(flip?.classList.contains("world-flip--rest")).toBe(true);
+    expect(flip?.style.transform ?? "").toContain("rotateY(0deg)");
   });
 
   it("opens with one paper-card turn from the clicked card to the editorial back", async () => {
@@ -344,8 +350,10 @@ describe("PactWorld (active, standalone)", () => {
 
   it("gives the opening card paper depth instead of a flat backing", () => {
     expect(appCss).toMatch(/\.world-card\s*\{[\s\S]*transform-style:\s*preserve-3d;/);
-    expect(appCss).toContain(".world-flip::before");
-    expect(appCss).toMatch(/\.world-flip::before[\s\S]*translateZ\(-2px\)/);
+    // Depth comes from the inset highlight/shadow on ::after. The old ::before
+    // "page spine" gradient was removed: because the card rests mirrored (180°)
+    // it surfaced as an opaque strip on the LEFT edge of the active card.
+    expect(appCss).not.toContain(".world-flip::before");
     expect(appCss).toMatch(/\.world-flip::after[\s\S]*inset 0 1px 0 rgba\(255, 248, 232/);
   });
 

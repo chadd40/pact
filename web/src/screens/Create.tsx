@@ -7,6 +7,7 @@ import type { Charity, Pact } from "../types";
 import { LandingLogoMenu, PACT_DOWNLOAD_URL, type LandingMenuTarget } from "../components/LandingLogoMenu";
 import { PasteWebPact } from "../components/PasteWebPact";
 import { ChatShell, type ChatMessage } from "../components/ChatShell";
+import { StakeApprovalModal } from "../components/StakeApprovalModal";
 import { Tooltip } from "../components/Tooltip";
 import { isDesktop } from "../lib/platform";
 import { CHARITY_CATALOG } from "../lib/charities";
@@ -193,6 +194,9 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
 
   const [charities, setCharities] = useState<Charity[]>(isDesktop() ? [] : CHARITY_CATALOG);
   const [created, setCreated] = useState<Pact | null>(null);
+  // A short pact pre-authorizes its stake in Link at creation and comes back
+  // awaiting_stake; this holds the sealing beat while the owner approves the spend.
+  const [stakePending, setStakePending] = useState<Pact | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Web-mode handoff: clipboard copy state.
   const [copied, setCopied] = useState(false);
@@ -434,7 +438,13 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
       });
       setCreated(pact);
       signalChange();
-      window.setTimeout(() => setStage(7), 1300);
+      if (pact.status === "awaiting_stake") {
+        // Short pact (Model 1): the stake is pre-authorized in Link at creation.
+        // Show the approval beat; the reveal waits until the owner approves the spend.
+        setStakePending(pact);
+      } else {
+        window.setTimeout(() => setStage(7), 1300);
+      }
     } catch (e) {
       const detail = e instanceof ApiError ? e.detail : "Could not seal the pact. Try again.";
       setError(detail);
@@ -1172,6 +1182,18 @@ export function Create({ embedded = false }: { embedded?: boolean } = {}) {
         <h2>Make your pact on a bigger screen</h2>
         <p>The card deck is designed for desktop. Open Pact on a laptop to choose a card and seal your commitment.</p>
       </div>
+
+      {/* Create-time Link approval: armed the moment a short pact is sealed. */}
+      {stakePending && (
+        <StakeApprovalModal
+          pact={stakePending}
+          onApproved={(approved) => {
+            setCreated(approved);
+            setStakePending(null);
+            setStage(7);
+          }}
+        />
+      )}
     </div>
   );
 }

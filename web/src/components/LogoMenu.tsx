@@ -4,7 +4,6 @@ import { asset } from "../lib/asset";
 
 const ITEMS = [
   { to: "/dashboard", label: "Home" },
-  { to: "/coach", label: "Coach" },
   { to: "/charities", label: "Charities" },
   { to: "/settings", label: "Settings" },
 ];
@@ -33,7 +32,6 @@ export function LogoMenu() {
       {open && (
         <div className="lm-menu" role="menu">
           <div className="lm-menu-card">
-            <div className="lm-menu-eyebrow m">Pact</div>
             {ITEMS.map((it) => (
               <Link key={it.to} to={it.to} role="menuitem" className={"lm-menu-item" + (isActive(it.to) ? " active" : "")} onClick={() => setOpen(false)}>
                 {it.label}

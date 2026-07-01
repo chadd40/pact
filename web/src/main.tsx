@@ -12,14 +12,13 @@ import { Create } from "./screens/Create";
 import { Onboard } from "./screens/Onboard";
 import { Home } from "./screens/Home";
 import { PactDetail } from "./screens/PactDetail";
-import { Coach } from "./screens/Coach";
 import { Charities } from "./screens/Charities";
 import { Settings } from "./screens/Settings";
 import { isDesktop } from "./lib/platform";
 
 // The same SPA powers two surfaces. The public web funnel (GitHub Pages) exposes
 // ONLY Landing + Create — it has no backend, so the in-app pages (dashboard,
-// charities, coach, settings, onboard) would just 404 against /api. Those live
+// charities, settings, onboard) would just 404 against /api. Those live
 // only in the packaged desktop app, which runs the local sidecar. Any stray
 // in-app URL on the web redirects back to the landing page.
 const appChildren = isDesktop()
@@ -34,7 +33,6 @@ const appChildren = isDesktop()
         children: [
           { path: "/dashboard", element: <Home /> },
           { path: "/pact/:pactId", element: <PactDetail /> },
-          { path: "/coach", element: <Coach /> },
           { path: "/charities", element: <Charities /> },
           { path: "/settings", element: <Settings /> },
         ],

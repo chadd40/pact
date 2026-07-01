@@ -17,7 +17,7 @@ describe("LandingLogoMenu", () => {
 
     expect(screen.getByRole("menu")).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Home" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "Integrations / MCP" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "How it works" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "FAQ" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Download Pact" })).toBeTruthy();
   });

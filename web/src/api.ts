@@ -103,6 +103,12 @@ export const api = {
       json: { pact_id, stake_amount_cents, charity_id, consent_acknowledged },
     }),
 
+  // Pick up the approved stake once the human approved the Link spend for THIS pact.
+  // Idempotent: returns awaiting_stake while still unapproved, active once the card
+  // is provisioned. Polled by the create-time approval overlay.
+  stakeConfirm: (pactId: string) =>
+    request<Pact>(`/api/pacts/${pactId}/stake/confirm`, { method: "POST" }),
+
   setOwner: (pactId: string, owner: string) =>
     request<Pact>(`/api/pacts/${pactId}/owner`, { json: { owner } }),
 

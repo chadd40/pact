@@ -23,7 +23,7 @@ describe("LogoMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /menu/i }));
     expect(screen.getByRole("menu")).toBeTruthy();
-    for (const label of ["Home", "Coach", "Charities", "Settings"]) {
+    for (const label of ["Home", "Charities", "Settings"]) {
       expect(screen.getByRole("menuitem", { name: label })).toBeTruthy();
     }
   });

@@ -8,11 +8,16 @@ import type { CoachingMessage, Pact } from "../types";
 export function CoachPane({
   pact,
   messages,
+  agentServing = true,
   onSend,
   onClose,
 }: {
   pact: Pact;
   messages: CoachingMessage[];
+  // Whether the owner's agent is actually connected (running `pact serve`). When
+  // false, replies come from Pact's local fallback, and we say so rather than
+  // pass the fallback off as the agent.
+  agentServing?: boolean;
   onSend: (text: string, attachments?: File[]) => Promise<void> | void;
   onClose: () => void;
 }) {
@@ -82,6 +87,11 @@ export function CoachPane({
           </div>
           <button className="ov-x" onClick={onClose} aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" width="15" height="15"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
         </div>
+        {!agentServing && (
+          <div className="cp-offline" role="status">
+            {agent} isn't connected right now, so these replies are Pact's local fallback — not your agent. Run <code>pact serve</code> (Settings → Agent) to coach with {agent}.
+          </div>
+        )}
         <ChatShell
           label={`${agent} pact chat`}
           agentName={agent}
@@ -115,7 +125,9 @@ export function CoachPane({
                   ref={fileRef}
                   type="file"
                   multiple
-                  hidden
+                  className="file-input-offscreen"
+                  tabIndex={-1}
+                  aria-hidden="true"
                   accept="image/*,.pdf,.txt,.md,.csv,.json"
                   onChange={onAttachmentChange}
                 />

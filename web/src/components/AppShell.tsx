@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useDemo } from "../App";
 import { AppDataContext, type AppData } from "../data";
@@ -9,11 +9,13 @@ import { isDesktop } from "../lib/platform";
 import type { Charity, Pact } from "../types";
 import { DemoControls } from "./DemoControls";
 import { LogoMenu } from "./LogoMenu";
+import { NotificationsBell } from "./NotificationsBell";
 import { PactToast } from "./PactToast";
 
 export function AppShell() {
   const { bump } = useDemo();
   const navigate = useNavigate();
+  const onDashboard = useLocation().pathname === "/dashboard";
   const [owner] = useLocalOwner();
   const [pacts, setPacts] = useState<Pact[]>([]);
   const [pactsLoaded, setPactsLoaded] = useState(false);
@@ -59,6 +61,9 @@ export function AppShell() {
         <div className="as-logo">
           <LogoMenu />
         </div>
+
+        {/* ── Notifications tray (top-right, dashboard only) ── */}
+        {onDashboard && <NotificationsBell />}
 
         {/* ── Main content ── */}
         <main className="as-main">
