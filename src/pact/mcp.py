@@ -233,18 +233,17 @@ def build_server(client: Any):
         stake_amount_cents: int,
         charity_id: str,
         consent_acknowledged: bool,
+        owner: str | None = None,
     ) -> str:
-        return _dumps(
-            client.post_json(
-                "/api/pacts",
-                {
-                    "pact_id": pact_id,
-                    "stake_amount_cents": stake_amount_cents,
-                    "charity_id": charity_id,
-                    "consent_acknowledged": consent_acknowledged,
-                },
-            )
-        )
+        body: dict[str, Any] = {
+            "pact_id": pact_id,
+            "stake_amount_cents": stake_amount_cents,
+            "charity_id": charity_id,
+            "consent_acknowledged": consent_acknowledged,
+        }
+        if owner is not None:
+            body["owner"] = owner
+        return _dumps(client.post_json("/api/pacts", body))
 
     @tool(name="pact_set_owner", description="Set the owner (email or local id) of a pact.")
     def pact_set_owner(pact_id: str, owner: str) -> str:

@@ -31,7 +31,7 @@ class CapturingVisionProvider(TestLLMProvider):
         }
 
 
-def _build(tmp_path, clock, provider=None):
+def _build(tmp_path, clock, provider=None, clock_mode="real"):
     repo = Repository.connect(str(tmp_path / "pact.db"))
     repo.init_schema()
     provider = provider or TestLLMProvider()
@@ -40,6 +40,7 @@ def _build(tmp_path, clock, provider=None):
     settings = Settings(
         db_path=str(tmp_path / "pact.db"),
         artifacts_dir=str(tmp_path / "artifacts"),
+        clock_mode=clock_mode,
     )
     app = create_app(repo, provider, payment, tokens, clock, settings)
     return app, repo, settings
@@ -134,6 +135,33 @@ async def test_image_proof_held_ambiguous_without_vision_judge_but_persists(tmp_
         assert len(stored) == 1
         assert stored[0].id == proof["id"]
         assert stored[0].status.value == "ambiguous"
+
+
+@pytest.mark.asyncio
+async def test_image_proof_auto_passes_in_demo_clock_mode(tmp_path):
+    # Demo mode (scripted + simulated) accepts a coded photo without a vision agent
+    # so the recorded check-in shows a clean PASS instead of "held for review".
+    # A valid token and no duplicate are still required; production (clock_mode
+    # "real") keeps the ambiguous behavior asserted above.
+    clock = FixedClock(datetime(2026, 6, 24, 12, 0, tzinfo=timezone.utc))
+    app, repo, _ = _build(tmp_path, clock, clock_mode="demo")
+    async with _client(app) as client:
+        pact_id = await _draft_confirm_start(client, "do a thing 5x this week or $15 to charity")
+        token = await _token(client, pact_id)
+
+        r = await _post_image(client, pact_id, token, _png_bytes((10, 120, 200)))
+        assert r.status_code == 200, r.text
+        proof = r.json()
+        assert proof["modality"] == "photo"
+        assert proof["status"] == "passed"
+        assert proof["token_ok"] is True
+        assert proof["dup_of"] is None
+        assert proof["phash"] is not None
+        assert os.path.exists(proof["artifact_path"])
+
+        stored = repo.list_proofs(pact_id)
+        assert len(stored) == 1
+        assert stored[0].status.value == "passed"
 
 
 @pytest.mark.asyncio

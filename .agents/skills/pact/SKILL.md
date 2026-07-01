@@ -50,9 +50,10 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
 
 ## Commands
 
-- `/pact create <natural language>` — reason a draft + **frozen rubric INLINE** (declare
-  your model capabilities; refuse or propose another modality if incapable), POST the
-  result, and link the user to web confirm.
+- `/pact create <natural language>` — run the **drafting interview** (see "Drafting a pact"
+  below): reason a draft + **frozen rubric INLINE** (declare your model capabilities; refuse
+  or propose another modality if incapable), recommend terms then let the user tweak the
+  dials, POST the result, and link the user to web confirm.
 - `/pact status [<id>]` — GET the pact; show countdown + pace + the next action.
 - `/pact submit <id>` — issue a proof token, accept the proof, run anti-cheat, **JUDGE
   INLINE**, and POST the evidence.
@@ -85,6 +86,52 @@ The raw token is shown once in Pact. The backend stores only its hash. Use
   talks to their agent here — no separate transport needed), then call
   `POST /api/coach/{id}/delivered` for each relayed message. Pact owns content + timing;
   the agent owns delivery.
+
+## Drafting a pact (the interview)
+
+When the user wants to make a pact (`/pact create`, "make a pact", "stake on this", "help me
+work out"), **do not dump a finished pact.** Draft it like a coach helping them set a fair,
+winnable bar — a short **recommend-then-menu** interview, not a form:
+
+1. **Use what they already gave you.** Pre-fill every dial you can from their words. If they
+   already said "$20" or "4x a week", treat it as set — don't re-ask it.
+2. **Recommend a sensible default** in plain English, a few lines: the action + what counts,
+   frequency × duration (and the resulting total), how they'll prove it, the stake, and the
+   charity that gets the money if they miss.
+3. **Offer the dials as a compact menu** — each with 2-3 concrete options the user can pick
+   from: **frequency**, **duration**, **stake**, **charity**. End with an easy "lock it in".
+4. **Converge in a turn or two.** Apply whatever they choose, restate the final terms in one
+   line, then confirm the money explicitly — they acknowledge the stake goes to that charity
+   on failure (`consent_acknowledged=true`) — before you `pact_create` / `pact_confirm`.
+
+Example shape (match this feel, not the exact words):
+
+```
+Here's what I'd suggest:
+• 4 workouts/week for 2 weeks (8 total)
+• Proof: a photo, a gym-app/watch screenshot, or a workout log — no repeating the same day
+• Stake: $20 if you miss
+• Charity if you miss: charity: water
+
+Want to adjust any?
+  Frequency — 3 / 4 / 5 per week
+  Duration  — 1 / 2 / 4 weeks
+  Stake     — $10 / $20 / $50
+  Charity   — charity: water / Feeding America / pick another
+
+Or say "lock it in" and I'll set it up.
+```
+
+**Proof, in human terms.** Describe proof as the everyday thing the user does: "a photo, a
+gym-app/watch screenshot, or a workout log — just don't reuse the same day." **Never surface
+the internal anti-cheat plumbing to the user** — no "proof token", "nonce", "pHash", or
+"missing token". The token is a single-use nonce the agent issues automatically at submit
+time; it is invisible to the user. The frozen rubric still stores `require_token` / dedup /
+server-time-is-truth and you still enforce them — you just don't narrate them.
+
+**What counts stays explicit** (e.g. "any 30+ min of intentional exercise; an injured rest
+day still counts") — that's the part the user is actually agreeing to, so keep it user-facing.
+Recommend a stake that stings a little but isn't reckless, and always let them lower it.
 
 ## Endpoints
 

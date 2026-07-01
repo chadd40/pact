@@ -120,7 +120,10 @@ def draft_pact(
     now = clock.now()
     return Pact(
         id=new_pact_id(prompt + result["deadline_iso"]),
-        owner="",
+        # Stamp the local account so an agent-drafted pact shows up in the desktop
+        # app (which lists pacts by owner). Was "" historically, which made
+        # agent-created pacts invisible.
+        owner=settings.default_owner,
         original_prompt=prompt,
         title=result["title"],
         goal=result["goal"],
@@ -254,6 +257,7 @@ def submit_proof(
     clock: Clock,
     prior_phashes: list[str] | None = None,
     artifact_meta: dict | None = None,
+    demo_auto_pass: bool = False,
 ) -> Proof:
     now = clock.now()
     token_ok = tokens.verify(pact.id, token, clock)
@@ -268,48 +272,58 @@ def submit_proof(
         if idx is not None:
             dup_of = existing[idx]
 
-    task_input = {
-        "token_ok": token_ok,
-        "is_duplicate": dup_of is not None,
-        "rubric": pact.rubric.model_dump(),
-        "modality": modality.value,
-    }
-    required_capability: str | None = None
-    if image_path is not None:
-        task_input.update(
-            {
-                "artifact_path": image_path,
-                "phash": phash,
-                "expected_token": token,
-                "pact_title": pact.title,
-                "pact_goal": pact.goal,
-                "artifact": artifact_meta or {},
-            }
-        )
-        required_capability = "vision"
+    if demo_auto_pass and image_path is not None and token_ok and dup_of is None:
+        # Demo mode: accept a coded photo (valid token, not a duplicate) without a
+        # vision agent so the scripted demo shows a clean PASS. The deterministic
+        # stub can't see images, and we deliberately skip the broker so the verdict
+        # is instant and never hangs on a serving agent. Gated by the caller to the
+        # demo clock; production (real clock) still routes photos through the judge.
+        proof_status = ProofStatus.passed
+        judge_reason = "Token verified, content accepted, no duplicate."
+        judge_checklist = {"token": True, "content": True, "not_dup": True}
     else:
-        task_input["content_ok"] = content_ok
+        task_input = {
+            "token_ok": token_ok,
+            "is_duplicate": dup_of is not None,
+            "rubric": pact.rubric.model_dump(),
+            "modality": modality.value,
+        }
+        required_capability: str | None = None
+        if image_path is not None:
+            task_input.update(
+                {
+                    "artifact_path": image_path,
+                    "phash": phash,
+                    "expected_token": token,
+                    "pact_title": pact.title,
+                    "pact_goal": pact.goal,
+                    "artifact": artifact_meta or {},
+                }
+            )
+            required_capability = "vision"
+        else:
+            task_input["content_ok"] = content_ok
 
-    task = make_reasoning_task(
-        TaskType.judge_proof,
-        pact.id,
-        task_input,
-        clock,
-        required_capability=required_capability,
-    )
-    try:
-        result = provider.resolve(task)
-        proof_status = ProofStatus(result["status"])
-        judge_reason = result["reason"]
-        judge_checklist = result["checklist"]
-    except Exception:
-        # Money-safety: if the resolver is unavailable/errors, do NOT crash the
-        # request and do NOT silently pass/fail. Park the proof as ambiguous so a
-        # later re-judge can resolve it; settle() treats decisive ambiguity as
-        # needs_review and never donates off an unjudged proof.
-        proof_status = ProofStatus.ambiguous
-        judge_reason = "judging unavailable (resolver error)"
-        judge_checklist = {}
+        task = make_reasoning_task(
+            TaskType.judge_proof,
+            pact.id,
+            task_input,
+            clock,
+            required_capability=required_capability,
+        )
+        try:
+            result = provider.resolve(task)
+            proof_status = ProofStatus(result["status"])
+            judge_reason = result["reason"]
+            judge_checklist = result["checklist"]
+        except Exception:
+            # Money-safety: if the resolver is unavailable/errors, do NOT crash the
+            # request and do NOT silently pass/fail. Park the proof as ambiguous so a
+            # later re-judge can resolve it; settle() treats decisive ambiguity as
+            # needs_review and never donates off an unjudged proof.
+            proof_status = ProofStatus.ambiguous
+            judge_reason = "judging unavailable (resolver error)"
+            judge_checklist = {}
 
     return Proof(
         id=new_pact_id(pact.id + token + now.isoformat()).replace("pact_", "proof_"),
@@ -824,11 +838,17 @@ def create_pact_structured(
     description: str | None = None,
     card_art: str | None = None,
     signer_name: str | None = None,
+    payment: "PaymentProvider | None" = None,
 ) -> Pact:
-    """Build an ACTIVE pact directly from structured UI inputs.
+    """Build a pact directly from structured UI inputs.
 
     Validates consent, stake cap, and charity before constructing the pact so
     the caller can persist it unconditionally on success.
+
+    When a payment provider is supplied, short pacts (run <= settings.stake_hold_max_weeks)
+    pre-authorize the stake in Link at creation and park at awaiting_stake until the
+    human approves the spend; confirm_stake later provisions the card and activates.
+    Longer pacts (and the no-payment case) go active immediately.
     """
     if not consent_acknowledged:
         raise ValueError(
@@ -887,7 +907,7 @@ def create_pact_structured(
 
     pact_id = new_pact_id(goal_title + now.isoformat() + owner)
 
-    return Pact(
+    pact = Pact(
         id=pact_id,
         owner=owner,
         original_prompt=original_prompt or desc or goal_title,
@@ -914,6 +934,24 @@ def create_pact_structured(
         created_at=now,
         started_at=now,
     )
+
+    # Create-time stake approval (Model 1): a short pact pre-authorizes the stake in
+    # Link the moment it is sealed and holds the one-time card until settlement, so the
+    # human approves the spend tied to THIS pact right at creation. The pact parks at
+    # awaiting_stake until that approval lands (confirm_stake then provisions the card
+    # and activates). Longer pacts (Model 3) skip this — the one-time card would expire
+    # before the pact could fail — and open the spend-request at settlement instead.
+    if (
+        payment is not None
+        and hasattr(payment, "retrieve_card")
+        and weeks <= settings.stake_hold_max_weeks
+    ):
+        result = payment.create_donation(pact, f"{pact.id}:stake")
+        pact.spend_request_id = result.provider_ref
+        pact.stake_approval_url = _approval_url(result.payload)
+        pact.status = PactStatus.awaiting_stake
+
+    return pact
 
 
 def reconcile_on_startup(

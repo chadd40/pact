@@ -255,7 +255,10 @@ async def test_api_valid_structured_create(tmp_path):
         )
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["status"] == "active"
+        # A short pact (4 weeks) pre-authorizes the stake in Link at creation and
+        # parks at awaiting_stake until the human approves the spend (Model 1).
+        assert body["status"] == "awaiting_stake"
+        assert body["spend_request_id"]
         assert body["stake_state"] == "committed"
         assert body["target_count"] == 12  # 3 * 4
         assert body["stake_amount_cents"] == 20000
@@ -266,7 +269,12 @@ async def test_api_valid_structured_create(tmp_path):
         # Confirm it's persisted
         saved = repo.get_pact(pact_id)
         assert saved is not None
-        assert saved.status == PactStatus.active
+        assert saved.status == PactStatus.awaiting_stake
+        # Approving the spend (dry-run: immediate) activates the pact.
+        c = await client.post(f"/api/pacts/{pact_id}/stake/confirm")
+        assert c.status_code == 200, c.text
+        assert c.json()["status"] == "active"
+        assert repo.get_pact(pact_id).status == PactStatus.active
 
 
 @pytest.mark.anyio

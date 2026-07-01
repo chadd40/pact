@@ -22,6 +22,9 @@ from pact.payment import PaymentProvider, TestLinkProvider
 from pact.repository import Repository
 
 _OWNER = "demo@pact.local"
+# The name shown on the card's signature line in demo mode. `owner` stays the
+# stable identity key; `signer_name` is the human-facing signature.
+_SIGNER = "chadd"
 
 _TIMEZONE = "America/Los_Angeles"
 _CHARITY_ID = "against_malaria_foundation"
@@ -56,6 +59,7 @@ def _make_pact(
     return Pact(
         id=pact_id,
         owner="demo@pact.local",
+        signer_name=_SIGNER,
         original_prompt="work out 5x this week or $5 to charity",
         title=title,
         goal=goal,
@@ -112,6 +116,37 @@ def _coaching_message(
     )
 
 
+def _conversation(
+    pact_id: str, base: datetime, turns: list[tuple[str, str]]
+) -> list[CoachingMessage]:
+    """A delivered back-and-forth chat history (user <-> coach) for a pact's thread.
+
+    `turns` is [(direction, body), ...] with direction "outbound" (coach) or
+    "inbound" (user). Timestamps step forward from `base` so the thread reads
+    top-to-bottom (list_coaching_messages orders by sent_at). Delivered
+    (delivered_at set) so it shows in the coach pane as history WITHOUT surfacing
+    as a pending outbox nudge (outbox = outbound + delivered_at is None). Stable
+    ids keep /demo/reset repeatable.
+    """
+    out: list[CoachingMessage] = []
+    for i, (direction, body) in enumerate(turns):
+        sent = base + timedelta(minutes=6 * i)
+        out.append(
+            CoachingMessage(
+                id=f"chat-{pact_id}-{i}",
+                pact_id=pact_id,
+                direction=direction,
+                trigger="reply",
+                pact_state_snapshot={},
+                channel="web",
+                body=body,
+                sent_at=sent,
+                delivered_at=sent,
+            )
+        )
+    return out
+
+
 def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     """Build three deterministic demo pacts (WIN / FAIL / LIVE) and persist them.
 
@@ -127,7 +162,7 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     # ── WIN ───────────────────────────────────────────────────────────────────
     win = _make_pact(
         "pact-win",
-        "Work out 5x this week (WIN)",
+        "Morning workout streak",
         "Complete the committed action on 5 distinct days.",
         deadline_at=now,
         created_at=now - timedelta(days=6),
@@ -145,7 +180,7 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     # ── FAIL ──────────────────────────────────────────────────────────────────
     fail = _make_pact(
         "pact-fail",
-        "Work out 5x this week (FAIL)",
+        "Evening gym sessions",
         "Complete the committed action on 5 distinct days.",
         deadline_at=now - timedelta(hours=1),
         created_at=now - timedelta(days=6),
@@ -172,7 +207,7 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     # ── LIVE ──────────────────────────────────────────────────────────────────
     live = _make_pact(
         "pact-live",
-        "Work out 5x this week (LIVE)",
+        "Work out 5x this week",
         "Complete the committed action on 5 distinct days.",
         deadline_at=now + timedelta(days=4),
         created_at=now - timedelta(days=2),
@@ -184,6 +219,21 @@ def seed(repo: Repository, clock: Clock, settings: Settings) -> dict:
     repo.save_pact(live)
     for proof in live_proofs:
         repo.save_proof(proof)
+
+    # A prior back-and-forth so the LIVE pact's coach thread reads like a real
+    # relationship, not an empty box. Delivered history (see _conversation).
+    for msg in _conversation(
+        "pact-live",
+        now - timedelta(days=1, hours=6),
+        [
+            ("outbound", "Two workouts in this week — nice start. Midweek is where most streaks wobble. What's the plan for the next few days?"),
+            ("inbound", "Work's been brutal, might not make it to the gym."),
+            ("outbound", "Totally fair. It doesn't have to be the gym — ten minutes at home still counts. A short session keeps the streak alive and your $10 out of the Against Malaria Foundation. Want me to check in tomorrow evening?"),
+            ("inbound", "Yeah, ping me around 6."),
+            ("outbound", "You got it. Three to go with four days left — very doable."),
+        ],
+    ):
+        repo.save_coaching_message(msg)
 
     # Seed visible coaching activity on the LIVE pact so the coach pane and the
     # outbox are alive immediately after Seed. Outbound + undelivered so they
@@ -321,6 +371,7 @@ def _showcase_pact(
     return Pact(
         id=pact_id,
         owner=_OWNER,
+        signer_name=_SIGNER,
         original_prompt=title,
         title=title,
         goal=f"Complete the committed action {target} times across {target} distinct days.",
@@ -372,6 +423,47 @@ def seed_states(repo: Repository, clock: Clock, settings: Settings) -> dict:
         repo.save_pact(p)
         _passes(pid, passed, now)
     out["active"] = "pact-read"
+
+    # Prior chat history for each active card so every coach thread reads like an
+    # ongoing relationship, not an empty box (delivered history — see _conversation).
+    active_chats: list[tuple[str, datetime, list[tuple[str, str]]]] = [
+        (
+            "pact-read",
+            now - timedelta(days=2),
+            [
+                ("outbound", "Four of five this week already — you're ahead of pace. What are you into right now?"),
+                ("inbound", "Re-reading The Hobbit. Forgot how cozy it is."),
+                ("outbound", "A comfort re-read counts every time. One more session banks the week — tonight after dinner?"),
+                ("inbound", "That's the plan."),
+                ("outbound", "Love it. I'll stay out of your way — someone at 4/5 doesn't need nagging."),
+            ],
+        ),
+        (
+            "pact-meditate",
+            now - timedelta(days=1, hours=10),
+            [
+                ("outbound", "Three sessions in. Is it starting to settle, or still fighting the fidgets?"),
+                ("inbound", "Still fidgety. My mind won't shut up."),
+                ("outbound", "That noticing IS the practice — catching the wander and coming back is the rep. You're training the muscle, not failing. Try 5 minutes instead of 10 if it helps."),
+                ("inbound", "Okay, I'll go shorter."),
+                ("outbound", "Consistency beats duration here. I'll check in over the weekend."),
+            ],
+        ),
+        (
+            "pact-phone",
+            now - timedelta(days=1, hours=2),
+            [
+                ("outbound", "Rough stretch on this one — two so far and you're behind pace. What keeps pulling you back to the phone at night?"),
+                ("inbound", "Doomscrolling. I know, I know."),
+                ("outbound", "No judgment — those feeds are engineered to win. Try parking the charger in the kitchen tonight: out of reach, out of mind, and your $50 stays with you instead of Feeding America."),
+                ("inbound", "Charger in the kitchen. Deal."),
+                ("outbound", "That one move fixes it for most people. Prove me right tonight."),
+            ],
+        ),
+    ]
+    for pid, base, turns in active_chats:
+        for msg in _conversation(pid, base, turns):
+            repo.save_coaching_message(msg)
 
     # ── Under review: shortfall with an ambiguous proof that could still lift ──
     review = _showcase_pact(

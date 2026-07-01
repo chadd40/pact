@@ -25,14 +25,22 @@ def test_seed_creates_outbound_coaching_on_live(repo):
     assert len(outbound) >= 1
     # All seeded coaching rows hang off the LIVE pact only.
     assert all(m.pact_id == live_id for m in outbound)
-    # They carry real, recognized triggers and non-empty bodies.
-    triggers = {m.trigger for m in outbound}
+    # The pending NUDGES (undelivered) are what surface in the outbox; they carry
+    # real, recognized triggers and non-empty bodies. (Delivered chat history —
+    # the seeded back-and-forth conversation — is separate; see below.)
+    nudges = [m for m in outbound if m.delivered_at is None]
+    assert len(nudges) >= 1
+    triggers = {m.trigger for m in nudges}
     assert triggers.issubset({"mid_week", "behind_pace"})
     assert "mid_week" in triggers
-    for m in outbound:
+    for m in nudges:
         assert m.channel == "web"
         assert m.body.strip()
         assert m.delivered_at is None  # undelivered -> shows up in outbox
+    # The delivered conversation is chat history, not outbox nudges.
+    history = [m for m in msgs if m.delivered_at is not None]
+    assert history, "expected a seeded coach conversation on the LIVE pact"
+    assert {m.direction for m in history} == {"inbound", "outbound"}
 
 
 def test_seeded_coaching_is_visible_in_outbox(repo):
@@ -70,5 +78,7 @@ def test_reset_clears_and_reseeds_coaching(repo):
     outbound = [m for m in msgs if m.direction == "outbound"]
     # Reset wiped coaching_messages then reseeded -> still exactly the seeded set.
     assert len(outbound) >= 1
+    # The outbox is exactly the undelivered nudges; delivered chat history is excluded.
+    nudges = [m for m in outbound if m.delivered_at is None]
     out = repo.outbox("demo@pact.local")
-    assert len(out) == len(outbound)
+    assert len(out) == len(nudges)

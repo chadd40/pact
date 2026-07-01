@@ -164,6 +164,10 @@ class ConfirmIn(BaseModel):
     stake_amount_cents: int
     charity_id: str
     consent_acknowledged: bool = False
+    # Optional: stamp/override the owner when confirming a draft. Drafts created
+    # via the agent path land under the default owner; this lets a caller bind a
+    # confirmed pact to a specific account.
+    owner: str | None = None
 
 
 class ProofIn(BaseModel):
@@ -600,12 +604,13 @@ def create_app(
                 charity_id=body.charity_id,
                 agent=body.agent,
                 consent_acknowledged=body.consent_acknowledged,
-                owner=body.owner or "",
+                owner=body.owner or settings.default_owner,
                 clock=clock,
                 settings=settings,
                 description=body.description,
                 card_art=body.card_art,
                 signer_name=body.signer_name,
+                payment=raw_payment,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
@@ -616,6 +621,10 @@ def create_app(
     @app.post("/api/pacts")
     def confirm(body: ConfirmIn):
         pact = _require(body.pact_id)
+        # Bind the pact to an account so it shows up in the desktop app's list.
+        # Prefer an explicit owner, else keep what the draft already has, else the
+        # local default (older drafts could have an empty owner).
+        pact.owner = body.owner or pact.owner or settings.default_owner
         cards_dir = os.path.join(settings.artifacts_dir, "cards")
         try:
             pact = confirm_and_start(
@@ -803,6 +812,10 @@ def create_app(
                 clock,
                 prior_phashes=prior_phashes,
                 artifact_meta=artifact_meta,
+                # Demo mode (scripted, simulated) accepts a coded photo without a
+                # vision agent so the recorded check-in shows a clean PASS. Keyed
+                # to the demo clock config; real-clock production is untouched.
+                demo_auto_pass=settings.clock_mode == "demo",
             )
         except (ValueError, TransitionError) as exc:
             raise HTTPException(status_code=422, detail=str(exc))

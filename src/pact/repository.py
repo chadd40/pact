@@ -241,6 +241,22 @@ class Repository:
             rows = self._all("SELECT data FROM pacts WHERE owner = ?", (owner,))
         return [Pact.model_validate_json(r["data"]) for r in rows]
 
+    def claim_orphan_pacts(self, owner: str) -> int:
+        """Stamp any owner-less pacts with `owner` so they appear in the desktop
+        app's list (which filters by owner). Agent/skill-created pacts used to be
+        saved with an empty owner; this reclaims them. Rewrites the JSON blob and
+        the owner column together, and returns how many were reassigned."""
+        rows = self._all(
+            "SELECT data FROM pacts WHERE owner = '' OR owner IS NULL"
+        )
+        claimed = 0
+        for r in rows:
+            pact = Pact.model_validate_json(r["data"])
+            pact.owner = owner
+            self.save_pact(pact)
+            claimed += 1
+        return claimed
+
     def due_active_pacts(self, now: datetime) -> list[Pact]:
         rows = self._all(
             "SELECT data FROM pacts WHERE status = ? AND deadline_at <= ?",

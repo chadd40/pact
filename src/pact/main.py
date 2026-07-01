@@ -116,6 +116,9 @@ def build_app(env: Mapping[str, str] | None = None):
     settings = load_settings(os.environ if env is None else env)
     repo = Repository.connect(settings.db_path)
     repo.init_schema()
+    # Reclaim any owner-less pacts (e.g. drafts created via the agent before the
+    # owner was wired through) so they appear under the local account.
+    repo.claim_orphan_pacts(settings.default_owner)
     if settings.clock_mode == "demo":
         clock = FixedClock(datetime.fromisoformat(settings.demo_seed_iso))
     else:

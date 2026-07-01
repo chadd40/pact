@@ -8,12 +8,23 @@ class Settings:
     payment_mode: str = "test_link"
     min_stake_cents: int = 1000
     max_stake_cents: int = 50000
+    # Create-time stake approval (Model 1 vs Model 3). A pact whose full run is at
+    # most this many weeks pre-authorizes the stake in Link AT CREATION and holds
+    # the one-time card until settlement (Model 1). Longer pacts would outlive the
+    # one-time card's validity, so they go active immediately and open the
+    # spend-request at failure instead (Model 3). Tune via PACT_STAKE_HOLD_MAX_WEEKS.
+    stake_hold_max_weeks: int = 6
     default_freezes: int = 1
     freeze_extension_hours: int = 24
     dispute_grace_hours: int = 24
     cooling_off_minutes: int = 60
     db_path: str = "pact.db"
     artifacts_dir: str = "artifacts"
+    # The account a pact lands under when none is supplied (the agent/skill path
+    # historically created pacts with an empty owner, so they never showed up in
+    # the desktop app, which lists by owner). This MUST match the web app's
+    # default owner (web/src/api.ts DEMO_OWNER) so agent-created pacts appear.
+    default_owner: str = "demo@pact.local"
     clock_mode: str = "real"
     demo_seed_iso: str = "2026-06-22T09:00:00+00:00"
     link_mode: str = "dry_run"
@@ -100,6 +111,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         payment_mode=_str(env, "PACT_PAYMENT_MODE", "test_link"),
         min_stake_cents=_int(env, "PACT_MIN_STAKE_CENTS", 1000),
         max_stake_cents=_int(env, "PACT_MAX_STAKE_CENTS", 50000),
+        stake_hold_max_weeks=_int(env, "PACT_STAKE_HOLD_MAX_WEEKS", 6),
         default_freezes=_int(env, "PACT_DEFAULT_FREEZES", 1),
         freeze_extension_hours=_int(env, "PACT_FREEZE_EXTENSION_HOURS", 24),
         dispute_grace_hours=_int(env, "PACT_DISPUTE_GRACE_HOURS", 24),
@@ -108,6 +120,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         cooling_off_minutes=_int(env, "PACT_COOLING_OFF_MINUTES", 60),
         db_path=_str(env, "PACT_DB_PATH", "pact.db"),
         artifacts_dir=_str(env, "PACT_ARTIFACTS_DIR", "artifacts"),
+        default_owner=_str(env, "PACT_DEFAULT_OWNER", "demo@pact.local"),
         clock_mode=_str(env, "PACT_CLOCK_MODE", "real"),
         demo_seed_iso=_str(env, "PACT_DEMO_SEED_ISO", "2026-06-22T09:00:00+00:00"),
         link_mode=_str(env, "PACT_LINK_MODE", "dry_run"),
