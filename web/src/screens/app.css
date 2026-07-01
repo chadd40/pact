@@ -898,6 +898,10 @@
   border-radius: var(--card-radius, 28px);
   box-shadow: 0 42px 84px -30px rgba(20, 18, 12, .62), 0 6px 18px -8px rgba(20, 18, 12, .4);
   color: var(--pc-on-card);
+  /* Fade the shadow back once the card settles (see .world--entering below). The
+     inline `transition: transform` set during the flip overrides this, so the
+     shadow is dropped instantly on entry and only this fade-in ever plays. */
+  transition: box-shadow .32s ease .12s;
 }
 .world-flip {
   position: absolute; inset: 0;
@@ -988,7 +992,11 @@
    right panel slides/fades in over the same window. */
 .world-stage { perspective: 1850px; perspective-origin: 50% 46%; }
 
-.world--entering .world-card { will-change: transform; z-index: 2; }
+/* During the flip only .world-flip rotates — .world-card stays upright, so its
+   drop shadow would hang behind the turning faces as a static, full-size
+   rectangle (a "stale box" that doesn't spin with the card). Drop it for the
+   duration of the flip; the base rule fades it back in once the card settles. */
+.world--entering .world-card { will-change: transform; z-index: 2; box-shadow: none; }
 .world--entering .world-flip { will-change: transform; }
 .world--entering .world-panel {
   opacity: 0;
