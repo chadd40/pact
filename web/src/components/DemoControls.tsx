@@ -4,15 +4,20 @@ import { useDemo } from "../App";
 import "./demoControls.css";
 
 /**
- * On-screen demo control strip — shown ONLY in demo clock mode (runtime.clock_mode
+ * On-screen demo control strip — available ONLY in demo clock mode (runtime.clock_mode
  * === "demo"), hidden in real/production builds. It drives the REAL lifecycle on the
  * REAL app (no mock): advance the demo clock past a deadline / dispute window, run the
  * agent (scheduler) sweep to surface nudges, and seed/reset the showcase. Everything
  * here calls the same endpoints the app uses normally — it just compresses time.
+ *
+ * For recording, the strip stays hidden by default and toggles with Option+Cmd+T
+ * (⌥⌘T) — a combo the browser doesn't reserve (plain ⌘T opens a new tab and can't be
+ * intercepted). Reveal it to advance the clock off camera, then hide it again.
  */
 export function DemoControls() {
   const { doSeed, doAdvance, doReset, signalChange, busy } = useDemo();
   const [isDemo, setIsDemo] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [ticking, setTicking] = useState(false);
 
   useEffect(() => {
@@ -23,7 +28,21 @@ export function DemoControls() {
     return () => { alive = false; };
   }, []);
 
-  if (!isDemo) return null;
+  // ⌥⌘T toggles the strip. macOS turns Option+T into a dead key ("†"), so match on
+  // e.code (the physical key) rather than e.key. Only armed once in demo mode.
+  useEffect(() => {
+    if (!isDemo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey && e.altKey && e.code === "KeyT") {
+        e.preventDefault();
+        setVisible((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isDemo]);
+
+  if (!isDemo || !visible) return null;
 
   const runAgent = async () => {
     // One scheduler sweep: settle due, close windows, emit failure/celebrate/reminder
