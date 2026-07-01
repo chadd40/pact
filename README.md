@@ -6,7 +6,7 @@ Pact turns a promise into something with teeth. You set the terms, an agent coac
 
 Live landing + create flow: **https://chadd40.github.io/pact/**
 
-> Built for the **Hermes + NVIDIA** hackathon. Stack: a Hermes agent skill (`/pact`), Link for the stake approval and single-use virtual card, NVIDIA Nemotron via NIM for the fallback brain, and safety rails modeled on NVIDIA NeMo Guardrails.
+> Built for the **Hermes + NVIDIA** hackathon. Stack: a Hermes agent skill (`/pact`), Link for the stake approval and single-use virtual card, and NVIDIA Nemotron + NeMo Guardrails for a sandboxed, agentically safe money path.
 
 ![The Pact loop: choose a commitment, set the pace, stake $200, pick a cause, track it, prove it with your agent, and settle to charity on a miss](docs/assets/demo.gif)
 
@@ -62,7 +62,13 @@ Deterministic work stays server-side either way. A tool cannot use your model, s
 ## Prerequisites
 
 - **Link CLI**, authenticated with a funding method. Pact's backend shells `link-cli` directly to open the spend request and provision the single-use virtual card. Verify with `link-cli auth status` and `link-cli payment-methods list`.
-- **A Hermes agent** with the `/pact` skill installed. Hermes loads skills from `~/.hermes/skills/`, so copy the skill there and restart Hermes. The agent reaches the backend at `http://127.0.0.1:8000` (override with `PACT_BASE_URL`).
+- **A Hermes agent** with the `/pact` skill installed. Hermes loads skills from `~/.hermes/skills/`, so copy the repo's canonical skill there and restart Hermes:
+
+  ```bash
+  cp -r .hermes/skills/pact ~/.hermes/skills/
+  ```
+
+  The agent reaches the backend at `http://127.0.0.1:8000` (override with `PACT_BASE_URL`).
 - **Python 3.11+ and [uv](https://github.com/astral-sh/uv)** for the backend and sidecar.
 - **Node 18+** to build the web SPA.
 
@@ -97,13 +103,13 @@ Or use the scripted demo profile (time-compressed clock, simulated money, on-scr
 pact mcp --base-url http://127.0.0.1:8000 --agent-token <token>
 ```
 
-See [`docs/DEMO-RUNBOOK.md`](docs/DEMO-RUNBOOK.md) for the full end-to-end walkthrough (create, coach, miss, dispute, donate).
-
 ---
 
-## Optional: NVIDIA Nemotron
+## Optional: NVIDIA agentic safety
 
-On the website path with no agent serving, the backend needs a fallback brain. By default that is a deterministic stub. Set an NVIDIA key and the fallback reasons on **Nemotron via NIM** (OpenAI-compatible) instead.
+Pact moves real money, so it is built to run inside a guardrailed NVIDIA sandbox for full agentic safety. The agent reasons on **NVIDIA Nemotron** (via NIM, OpenAI-compatible), and every action it takes is wrapped by rails modeled on **NVIDIA NeMo Guardrails**. The one irreversible step, spending your stake, can only fire behind a verified miss, an approved-charity allowlist, and an amount ceiling. A safe brain and a sandboxed hand.
+
+By default the backend reasons on a deterministic stub (no key, no network, tests stay green). Point it at NVIDIA to turn on the Nemotron brain:
 
 ```bash
 uv pip install -e '.[nemotron]'
@@ -114,9 +120,7 @@ export PACT_NEMOTRON_MODEL=nvidia/llama-3.1-nemotron-70b-instruct
 export PACT_NEMOTRON_BASE_URL=https://integrate.api.nvidia.com/v1
 ```
 
-With no key set, the stub is used, no network is touched, and tests stay green.
-
-Pact also models its safety rails on **NVIDIA NeMo Guardrails**. The spend gate (verified miss + approved-charity allowlist + amount ceiling) is a deterministic execution rail today; `PACT_GUARDRAILS=nemo` is the reserved seam to enforce with the real `nemoguardrails` runtime.
+The spend gate (verified miss + charity allowlist + amount ceiling) enforces deterministically today; `PACT_GUARDRAILS=nemo` is the seam to run the rails on the real `nemoguardrails` runtime, so the whole money path lives inside NVIDIA's guardrailed sandbox.
 
 ---
 
@@ -144,7 +148,7 @@ Lazy-imported, so the core app and packaged build stay lean.
 
 ## Desktop app
 
-Pact also ships as a Tauri desktop app (Apple Silicon) that bundles the sidecar. Build it with `npm run tauri build` in `web/`, then re-sign for local use with `scripts/package-macos-adhoc.sh`. A signed, notarized download is pending Apple Developer setup (see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)).
+Pact also ships as a Tauri desktop app (Apple Silicon) that bundles the sidecar. Build it with `npm run tauri build` in `web/`, then re-sign for local use with `scripts/package-macos-adhoc.sh`. A signed, notarized download is pending Apple Developer setup.
 
 ---
 
@@ -154,19 +158,14 @@ Pact also ships as a Tauri desktop app (Apple Silicon) that bundles the sidecar.
 | --- | --- |
 | `src/pact/` | Backend: FastAPI API, state machine, anti-cheat, reasoning, payment, scheduler, MCP server |
 | `web/` | React SPA (landing, create flow, dashboard) and the Tauri desktop shell |
-| `.claude/skills/pact/`, `.agents/skills/pact/` | The `/pact` skill (`SKILL.md`) |
+| `.hermes/skills/pact/` | The canonical `/pact` skill (`SKILL.md`), mirroring the `~/.hermes/skills/` install path. `.agents/skills/pact/` keeps a byte-identical mirror for Claude Code |
 | `scripts/demo/` | Reset, launch, and drive scripts for the two-phase demo |
-| `docs/` | Demo runbook, go-live and money runbooks, readiness review |
 | `tests/` | Backend and web test suites |
 
 ---
 
-## Docs
+## Reference
 
-- [`docs/DEMO-RUNBOOK.md`](docs/DEMO-RUNBOOK.md) — record the whole app end to end
-- [`docs/END-TO-END-READINESS.md`](docs/END-TO-END-READINESS.md) — what is verified and what remains
-- [`docs/live-money-runbook.md`](docs/live-money-runbook.md) — the real link-cli money path
-- [`docs/GO-LIVE.md`](docs/GO-LIVE.md) — distribution and notarization
-- `.claude/skills/pact/SKILL.md` — the full skill contract (endpoints, MCP tools, reasoning split)
+- `.hermes/skills/pact/SKILL.md` — the full skill contract (endpoints, MCP tools, reasoning split)
 </content>
 </invoke>

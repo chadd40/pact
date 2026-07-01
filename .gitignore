@@ -20,3 +20,8 @@ web/src-tauri/binaries/
 
 # scratch demo recording frames
 /frames/
+
+# Internal working docs (runbooks, plans, readiness, design). Keep local, don't
+# publish. Only docs/assets/ (the README images) is public.
+/docs/*
+!/docs/assets/
